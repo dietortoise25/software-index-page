@@ -3,10 +3,12 @@
  */
 import { Router } from "express"
 import { createDeepSeek } from "@ai-sdk/deepseek"
-import { streamText } from "ai"
+import { streamText, createUIMessageStream, pipeUIMessageStreamToResponse } from "ai"
 import { INTERVIEW_SYSTEM_PROMPT } from "../lib/interview-prompt.js"
 
 const router = Router()
+
+const MODEL_NAME = "deepseek-v4-pro"
 
 const deepseek = createDeepSeek({
   apiKey: process.env.DEEPSEEK_API_KEY || "",
@@ -22,22 +24,34 @@ router.post("/", async (req, res) => {
       return
     }
 
-    // 将前端 parts 格式转换为 content 格式
     const messages = raw.messages.slice(-20).map((m) => {
       if (m.content) return { role: m.role as "user" | "assistant", content: m.content }
       const text = (m.parts || []).filter((p) => p.type === "text").map((p) => p.text || "").join("")
       return { role: m.role as "user" | "assistant", content: text }
     })
 
-    const result = streamText({
-      model: deepseek("deepseek-chat"),
-      system: INTERVIEW_SYSTEM_PROMPT,
-      messages,
-      maxOutputTokens: 4096,
-      temperature: 0.7,
-    })
+    pipeUIMessageStreamToResponse({
+      response: res,
+      stream: createUIMessageStream({
+        execute: async ({ writer }) => {
+          writer.write({ type: "start" })
+          writer.write({
+            type: "data-custom",
+            data: { model: MODEL_NAME },
+          })
 
-    result.pipeUIMessageStreamToResponse(res)
+          const result = streamText({
+            model: deepseek(MODEL_NAME),
+            system: INTERVIEW_SYSTEM_PROMPT,
+            messages,
+            maxOutputTokens: 4096,
+            temperature: 0.7,
+          })
+
+          writer.merge(result.toUIMessageStream({ sendStart: false }))
+        },
+      }),
+    })
   } catch (err) {
     console.error("[chat error]", err)
     if (!res.headersSent) {

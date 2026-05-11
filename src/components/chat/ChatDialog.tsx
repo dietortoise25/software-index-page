@@ -31,10 +31,23 @@ function parseRequirement(content: string): Requirement | null {
   }
 }
 
+/** 从消息流中提取后端注入的模型名称 */
+function extractModelName(messages: Array<{ parts: Array<{ type: string; data?: unknown }> }>): string {
+  for (const m of messages) {
+    for (const p of m.parts) {
+      if (p.type === "data-custom" && (p as { data?: { model?: string } }).data?.model) {
+        return (p as { data: { model: string } }).data.model
+      }
+    }
+  }
+  return ""
+}
+
 export default function ChatDialog({ open, onClose }: Props) {
   const [state, setState] = useState<ChatState>({ phase: "chat" })
   const [input, setInput] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [modelName, setModelName] = useState("")
 
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
@@ -47,6 +60,12 @@ export default function ChatDialog({ open, onClose }: Props) {
       if (req) setState({ phase: "preview", requirement: req })
     },
   })
+
+  // 从流中提取模型名称
+  useEffect(() => {
+    const name = extractModelName(messages)
+    if (name) setModelName(name)
+  }, [messages])
 
   const isLoading = status === "submitted" || status === "streaming"
   const isReady = status === "ready"
@@ -110,7 +129,10 @@ export default function ChatDialog({ open, onClose }: Props) {
             <div>
               <p className="font-medium text-sm">AI 需求助手</p>
               <p className="text-muted-foreground text-xs">
-                由 <span className="font-medium text-foreground/70">DeepSeek Chat</span> 驱动
+                {modelName
+                  ? <span>由 <span className="font-medium text-foreground/70">{modelName}</span> 驱动</span>
+                  : "引导式需求梳理"
+                }
               </p>
             </div>
           </div>
