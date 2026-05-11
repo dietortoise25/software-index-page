@@ -12,6 +12,8 @@ RestartSec=5
 
 # 可选：飞书密钥（不设则用代码内置值）
 # Environment=FEISHU_APP_SECRET=xxx
+Environment=DEEPSEEK_API_KEY=REDACTED_DEEPSEEK_API_KEY
+Environment=DEEPSEEK_API_URL_OpenAI=https://api.deepseek.com
 
 [Install]
 WantedBy=multi-user.target
