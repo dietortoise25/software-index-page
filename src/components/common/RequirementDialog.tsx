@@ -91,13 +91,12 @@ export default function RequirementDialog() {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger>
-        <Button
-          className="fixed right-6 bottom-6 z-50 size-14 rounded-full shadow-lg shadow-primary/30 transition-all hover:scale-110 hover:shadow-xl hover:shadow-primary/40"
-          size="icon"
-        >
-          <MessageSquarePlus className="size-6" />
-          <span className="sr-only">提交需求</span>
-        </Button>
+        <button className="group fixed right-6 bottom-6 z-50 flex items-center gap-2.5 rounded-full bg-background/80 backdrop-blur-md border shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.03] pl-5 px-1 py-1" aria-label="提交需求">
+          <span className="text-sm font-medium whitespace-nowrap">提交需求</span>
+          <span className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md shadow-primary/20 transition-transform duration-300 group-hover:scale-105">
+            <MessageSquarePlus className="size-5" />
+          </span>
+        </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg" showCloseButton={false}>
         <DialogHeader>
