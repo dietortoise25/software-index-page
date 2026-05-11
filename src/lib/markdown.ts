@@ -15,12 +15,12 @@ interface Frontmatter {
  * 返回 frontmatter 数据和正文 markdown 内容
  */
 function parseFrontmatter(raw: string): { meta: Frontmatter; body: string } {
-  const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/)
+  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/)
   if (!match) {
     throw new Error("Frontmatter not found. Expected --- at the start of the file.")
   }
 
-  const metaLines = match[1].split("\n")
+  const metaLines = match[1].split(/\r?\n/)
   const meta = {} as Record<string, unknown>
 
   for (const line of metaLines) {
