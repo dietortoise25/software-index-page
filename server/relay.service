@@ -1,0 +1,17 @@
+[Unit]
+Description=Software Site Feishu Relay
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/var/www/software-index/server
+ExecStart=/usr/bin/python3 /var/www/software-index/server/relay_server.py
+Restart=always
+RestartSec=5
+
+# 环境变量（可选，飞书密钥；不设置则用代码内置值）
+# Environment=FEISHU_APP_SECRET=xxx
+
+[Install]
+WantedBy=multi-user.target

@@ -50,15 +50,34 @@ export default function RequirementDialog() {
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }))
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState("")
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("需求提交:", form)
-    setSubmitted(true)
-    setTimeout(() => {
-      setOpen(false)
-      setForm(INITIAL)
-      setSubmitted(false)
-    }, 1500)
+    setSending(true)
+    setSendError("")
+
+    try {
+      const body = new URLSearchParams(form).toString()
+      const resp = await fetch("/api/requirement", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+      })
+      const data = await resp.json()
+      if (!data.ok) throw new Error(data.error || "提交失败")
+      setSubmitted(true)
+      setTimeout(() => {
+        setOpen(false)
+        setForm(INITIAL)
+        setSubmitted(false)
+      }, 2000)
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : "网络错误，请重试")
+    } finally {
+      setSending(false)
+    }
   }
 
   const handleOpenChange = (v: boolean) => {
@@ -144,11 +163,16 @@ export default function RequirementDialog() {
               <Label htmlFor="contact">联系方式</Label>
               <Input id="contact" value={form.contact} onChange={set("contact")} placeholder="飞书 / 邮箱 / 手机" />
             </div>
+            {sendError && (
+              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-destructive text-sm">{sendError}</p>
+            )}
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={sending}>
                 取消
               </Button>
-              <Button type="submit">提交需求</Button>
+              <Button type="submit" disabled={sending}>
+                {sending ? "提交中..." : "提交需求"}
+              </Button>
             </DialogFooter>
           </form>
         )}
