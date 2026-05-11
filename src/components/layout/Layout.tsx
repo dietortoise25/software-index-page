@@ -1,6 +1,7 @@
 import { Outlet } from "react-router"
 import Header from "./Header"
 import Footer from "./Footer"
+import RequirementDialog from "@/components/common/RequirementDialog"
 
 export default function Layout() {
   return (
@@ -10,6 +11,7 @@ export default function Layout() {
         <Outlet />
       </main>
       <Footer />
+      <RequirementDialog />
     </div>
   )
 }
