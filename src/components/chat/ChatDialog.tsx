@@ -109,7 +109,9 @@ export default function ChatDialog({ open, onClose }: Props) {
             </div>
             <div>
               <p className="font-medium text-sm">AI 需求助手</p>
-              <p className="text-muted-foreground text-xs">引导式需求梳理</p>
+              <p className="text-muted-foreground text-xs">
+                由 <span className="font-medium text-foreground/70">DeepSeek Chat</span> 驱动
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-1">
