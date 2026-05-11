@@ -7,3 +7,5 @@ dist/
 *.pem
 *.ppk
 *.key
+server/dist/
+server/node_modules/

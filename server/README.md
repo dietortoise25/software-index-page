@@ -1,39 +1,65 @@
 # 网站后端服务
 
-## 服务列表
+基于 Express.js (TypeScript) 的轻量后端。
 
-| 服务 | 端口 | 说明 |
-|------|------|------|
-| `relay_server.py` | 8765 | 需求提交中继，接收前端表单 → 飞书消息 |
+## 技术栈
 
-## 部署
+- Express.js 4.x
+- TypeScript 5.x
+- Node.js 18+
 
-### 首次部署
+## 目录结构
+
+```
+server/
+├── src/
+│   └── index.ts        # 服务入口
+├── dist/                # 编译产物 (gitignored)
+├── package.json
+├── tsconfig.json
+└── relay.service        # systemd 服务定义
+```
+
+## 本地开发
 
 ```bash
-# 1. 上传文件
-scp server/relay_server.py server/requirements.txt ubuntu@42.193.170.109:/var/www/software-index/server/
+cd server
+pnpm install
+pnpm dev          # tsx watch 热重载
+```
 
-# 2. 安装依赖
-ssh ubuntu@42.193.170.109 "pip3 install -r /var/www/software-index/server/requirements.txt"
+## 部署到服务器
 
-# 3. 安装 systemd 服务
+```bash
+# 1. 构建
+cd server && pnpm install && pnpm build
+
+# 2. 上传
+scp -r dist package.json ubuntu@42.193.170.109:/var/www/software-index/server/
+
+# 3. 服务端安装依赖
+ssh ubuntu@42.193.170.109 "cd /var/www/software-index/server && npm install --production"
+
+# 4. 安装/更新 systemd 服务
 scp server/relay.service ubuntu@42.193.170.109:/tmp/
-ssh ubuntu@42.193.170.109 "sudo mv /tmp/relay.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now relay"
+ssh ubuntu@42.193.170.109 "sudo mv /tmp/relay.service /etc/systemd/system/ \
+  && sudo systemctl daemon-reload && sudo systemctl restart relay"
 
-# 4. 验证
-ssh ubuntu@42.193.170.109 "sudo systemctl status relay && curl -s -X POST http://127.0.0.1:8765/api/requirement -d 'type=new-tool&title=test&department=ops&priority=high&description=test&contact=test'"
+# 5. 验证
+ssh ubuntu@42.193.170.109 "sudo systemctl status relay"
+curl http://42.193.170.109/health
 ```
 
-### 更新代码
+## API
 
-```bash
-scp server/relay_server.py ubuntu@42.193.170.109:/var/www/software-index/server/
-ssh ubuntu@42.193.170.109 "sudo systemctl restart relay"
-```
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/requirement` | 提交需求（form-urlencoded），转发飞书消息 |
+| GET | `/health` | 健康检查 |
 
 ## 环境变量
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `FEISHU_APP_SECRET` | 飞书应用 Secret | 代码内置（测试用） |
+| 变量 | 说明 |
+|------|------|
+| `PORT` | 监听端口，默认 8765 |
+| `FEISHU_APP_SECRET` | 飞书应用密钥 |
