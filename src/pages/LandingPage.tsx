@@ -46,14 +46,14 @@ export default function LandingPage() {
           <div className="mt-10 flex items-center justify-center gap-4">
             <Link
               to="/catalog"
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground text-sm transition-all hover:opacity-90 hover:shadow-lg hover:shadow-primary/25"
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 font-medium text-primary-foreground text-sm shadow-lg shadow-primary/20 transition-all duration-300 hover:shadow-xl hover:shadow-primary/30 hover:scale-[1.03] active:scale-[0.98]"
             >
               浏览工具库
-              <ArrowRight className="size-4" />
+              <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-0.5" />
             </Link>
             <a
               href="#features"
-              className="inline-flex items-center gap-2 rounded-lg border px-6 py-3 font-medium text-sm transition-colors hover:bg-accent"
+              className="inline-flex items-center gap-2 rounded-xl border px-6 py-3 font-medium text-sm transition-all duration-300 hover:bg-accent hover:shadow-md active:scale-[0.98]"
             >
               了解更多
             </a>
@@ -62,20 +62,27 @@ export default function LandingPage() {
       </section>
 
       {/* Features */}
-      <section id="features" className="py-20">
+      <section id="features" className="py-24">
         <div className="container mx-auto px-4">
-          <h2 className="mb-12 text-center font-bold text-3xl">我们能做什么</h2>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {features.map((f) => (
+          <div className="mb-12 text-center">
+            <h2 className="mb-3 font-bold text-3xl tracking-tight">我们能做什么</h2>
+            <p className="text-muted-foreground text-sm">覆盖运营自动化的核心场景</p>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {features.map((f, i) => (
               <div
                 key={f.title}
-                className="group rounded-xl border bg-card p-6 transition-all hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5"
+                className="group relative overflow-hidden rounded-2xl border bg-card p-6 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1.5 hover:shadow-xl hover:shadow-primary/5"
+                style={{ transitionDelay: `${i * 50}ms` }}
               >
-                <div className="mb-4 inline-flex rounded-lg bg-primary/10 p-2.5 transition-colors group-hover:bg-primary/20">
-                  <f.icon className="size-5 text-primary" />
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/3 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                <div className="relative">
+                  <div className="mb-4 inline-flex rounded-xl bg-primary/10 p-3 transition-all duration-300 group-hover:bg-primary/20 group-hover:scale-110">
+                    <f.icon className="size-5 text-primary transition-transform duration-300" />
+                  </div>
+                  <h3 className="mb-2 font-semibold text-base">{f.title}</h3>
+                  <p className="text-muted-foreground text-sm leading-relaxed">{f.desc}</p>
                 </div>
-                <h3 className="mb-2 font-semibold">{f.title}</h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -83,21 +90,21 @@ export default function LandingPage() {
       </section>
 
       {/* CTA */}
-      <section className="py-20">
+      <section className="py-24">
         <div className="container mx-auto px-4">
-          <div className="relative overflow-hidden rounded-2xl bg-primary/5 p-10 text-center md:p-16">
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent" />
+          <div className="relative overflow-hidden rounded-3xl bg-accent/40 p-12 text-center shadow-sm md:p-16">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/8 via-transparent to-transparent opacity-60" />
             <div className="relative">
-              <h2 className="font-bold text-3xl">准备好提升效率了吗？</h2>
-              <p className="mx-auto mt-3 max-w-md text-muted-foreground">
+              <h2 className="font-bold text-3xl tracking-tight">准备好提升效率了吗？</h2>
+              <p className="mx-auto mt-3 max-w-md text-muted-foreground leading-relaxed">
                 选择一个工具开始，或联系我们定制专属自动化方案
               </p>
               <Link
                 to="/catalog"
-                className="mt-8 inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-3.5 font-medium text-primary-foreground text-sm transition-all hover:opacity-90 hover:shadow-xl hover:shadow-primary/30"
+                className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-8 py-3.5 font-medium text-primary-foreground text-sm shadow-lg shadow-primary/20 transition-all duration-300 hover:shadow-xl hover:shadow-primary/30 hover:scale-[1.03] active:scale-[0.98]"
               >
                 立即开始
-                <ArrowRight className="size-4" />
+                <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-0.5" />
               </Link>
             </div>
           </div>
