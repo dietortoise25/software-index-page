@@ -37,7 +37,7 @@ router.post("/", async (req, res) => {
       temperature: 0.7,
     })
 
-    result.pipeTextStreamToResponse(res)
+    result.pipeUIMessageStreamToResponse(res)
   } catch (err) {
     console.error("[chat error]", err)
     if (!res.headersSent) {
