@@ -1,3 +1,4 @@
+import { Link } from "react-router"
 import { Calendar, User, Tag } from "lucide-react"
 import { articles } from "@/data/articles"
 
@@ -23,7 +24,10 @@ export default function ArticleListPage() {
                 </div>
 
                 {/* Card */}
-                <div className="group rounded-xl border bg-card p-5 transition-all hover:shadow-md hover:shadow-primary/5">
+                <Link
+                  to={`/articles/${article.id}`}
+                  className="group block rounded-xl border bg-card p-5 transition-all hover:shadow-md hover:shadow-primary/5 hover:-translate-y-0.5"
+                >
                   {/* Meta */}
                   <div className="mb-3 flex flex-wrap items-center gap-3 text-muted-foreground text-xs">
                     <span className="inline-flex items-center gap-1">
@@ -62,7 +66,7 @@ export default function ArticleListPage() {
                       ))}
                     </div>
                   )}
-                </div>
+                </Link>
               </article>
             ))}
           </div>

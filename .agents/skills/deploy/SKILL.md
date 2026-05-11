@@ -47,15 +47,66 @@ bash scripts/deploy.sh publish/文件名.zip
 1. **`src/data/software.ts`** — 新版本 `isLatest: true`，旧版本改为 `false`
 2. **`src/data/articles.ts`** — 添加发布公告（id用 `{软件}-v{版本}` 格式）
 
-### 第四步：构建并部署网站（手动）
+### 第四步：构建并部署网站
+
+网站部署到服务器 `/var/www/software-index/`：
 
 ```bash
 pnpm build
 scp -r dist/* ubuntu@42.193.170.109:/var/www/software-index/
 ```
 
+## 文章管理（posts/ 目录）
+
+项目支持通过编写 Markdown 文件来发布文章，无需修改 TypeScript 代码。
+
+### 文章文件格式
+
+在 `posts/` 目录下创建 `.md` 文件，格式如下：
+
+```markdown
+---
+id: my-article-id
+title: 文章标题
+summary: 文章摘要，显示在列表页
+date: 2026-05-11
+author: Alan
+tags: [标签1, 标签2]
+---
+
+## 正文标题
+
+文章正文使用 Markdown 格式书写，支持：
+
+- **粗体**、*斜体*
+- 列表、有序列表
+- > 引用块
+- `行内代码`
+- [链接](url)
+
+## 另一个章节
+
+段落之间用空行分隔。
+
+构建时 `import.meta.glob` 会自动扫描 `posts/*.md`，
+解析 frontmatter 并渲染 Markdown 为 HTML，合并到文章列表中。
+```
+
+### 关键规则
+
+- `id` 必须唯一，用于文章详情页 URL（`/articles/:id`）
+- 文件必须是 `.md` 后缀
+- frontmatter 用 `---` 包裹，使用 YAML 格式
+- 标签用 `[a, b, c]` 数组格式
+- 写入新文件后，`pnpm build` 即可生效
+
+### 示例文件
+
+`posts/sample.md` 是一篇完整的示例文章，可作为新建文章的模板。
+
 ## 常见问题
 
 - **SSH `type -1`**：Windows下密钥权限问题，必须通过 `ssh-agent` 使用密钥
 - **`Permission denied`**：确认腾讯云控制台已将密钥对绑定到此实例
 - **用户是 `ubuntu` 不是 `root`**：腾讯云 Ubuntu 系统默认绑定到 `ubuntu` 用户
+- **文章没显示**：确认 frontmatter 中 `id` 唯一、日期格式为 `YYYY-MM-DD`
