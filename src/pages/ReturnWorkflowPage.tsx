@@ -163,6 +163,64 @@ export default function ReturnWorkflowPage() {
     }
   }
 
+  // ── 快速配置状态 ──
+  const [quickUrl, setQuickUrl] = useState("")
+  const [quickParsing, setQuickParsing] = useState(false)
+  const [quickResult, setQuickResult] = useState<{
+    baseToken: string; tenant: string; tables: { table_id: string; name: string }[];
+    baseName: string; queryTable: string;
+  } | null>(null)
+  const [quickErr, setQuickErr] = useState("")
+  const [quickAssign, setQuickAssign] = useState<Record<string, string>>({})
+
+  const handleParseUrl = async () => {
+    if (!quickUrl) return
+    setQuickParsing(true)
+    setQuickErr("")
+    setQuickResult(null)
+    try {
+      const resp = await fetch("/api/return-workflow/config/parse-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: quickUrl }),
+      })
+      const data = await resp.json()
+      if (data.ok) {
+        setQuickResult(data)
+        // 根据 URL query 参数预填 table
+        const assign: Record<string, string> = {}
+        if (data.queryTable) {
+          assign[data.queryTable] = "FEISHU_TABLE_WAREHOUSE"
+        }
+        // 匹配店铺映射表
+        const storeMap = data.tables.find((t: { name: string }) => t.name.includes("店铺"))
+        if (storeMap) assign[storeMap.table_id] = "TABLE_STORE_MAP"
+        setQuickAssign(assign)
+      } else {
+        setQuickErr(data.error || "解析失败")
+      }
+    } catch { setQuickErr("网络错误") }
+    setQuickParsing(false)
+  }
+
+  const applyQuickConfig = () => {
+    if (!quickResult) return
+    const patch: Partial<RuntimeConfig> = {
+      FEISHU_BASE_TOKEN: quickResult.baseToken,
+      FEISHU_TENANT_DOMAIN: quickResult.tenant,
+    }
+    for (const [tableId, role] of Object.entries(quickAssign)) {
+      if (role === "FEISHU_TABLE_WAREHOUSE") patch.FEISHU_TABLE_WAREHOUSE = tableId
+      else if (role === "FEISHU_TABLE_NON_WAREHOUSE") patch.FEISHU_TABLE_NON_WAREHOUSE = tableId
+      else if (role === "TABLE_STORE_MAP") patch.TABLE_STORE_MAP = tableId
+    }
+    setConfigDirty((prev) => ({ ...prev, ...patch }))
+    saveConfig()
+    setQuickResult(null)
+    setQuickUrl("")
+    fetchConfig()
+  }
+
   const fetchTasks = useCallback(async () => {
     try {
       const res = await fetch("/api/return-workflow/tasks")
@@ -543,6 +601,72 @@ export default function ReturnWorkflowPage() {
             </div>
           ) : (
             <div className="space-y-8">
+              {/* 快速配置 */}
+              <div className="rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 p-5">
+                <h2 className="mb-3 flex items-center gap-2 font-semibold text-base">
+                  <ExternalLink className="size-4 text-primary" />
+                  快速配置
+                </h2>
+                <p className="mb-3 text-muted-foreground text-xs">
+                  粘贴飞书多维表格 URL，自动提取 BASE_TOKEN 和所有子表，一键填表。
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={quickUrl}
+                    onChange={(e) => setQuickUrl(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleParseUrl()}
+                    placeholder="https://xxx.feishu.cn/wiki/xxx?table=xxx"
+                    className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <Button onClick={handleParseUrl} disabled={quickParsing || !quickUrl}>
+                    {quickParsing ? <Loader2 className="size-4 animate-spin" /> : "解析"}
+                  </Button>
+                </div>
+                {quickErr && (
+                  <div className="mt-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-xs">{quickErr}</div>
+                )}
+                {quickResult && (
+                  <div className="mt-4 space-y-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="size-4 text-green-500" />
+                      <span className="font-medium">{quickResult.baseName || "多维表格"}</span>
+                      <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground text-xs">{quickResult.baseToken.slice(0, 16)}...</code>
+                      <span className="text-muted-foreground text-xs">{quickResult.tables.length} 个子表</span>
+                    </div>
+                    <div className="rounded-lg border bg-background">
+                      {quickResult.tables.map((t) => (
+                        <div key={t.table_id} className="flex items-center justify-between border-b px-4 py-2.5 last:border-b-0">
+                          <div>
+                            <span className="font-medium text-sm">{t.name}</span>
+                            <code className="ml-2 rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground text-xs">{t.table_id}</code>
+                          </div>
+                          <select
+                            value={quickAssign[t.table_id] || ""}
+                            onChange={(e) => {
+                              const next = { ...quickAssign }
+                              if (e.target.value) next[t.table_id] = e.target.value
+                              else delete next[t.table_id]
+                              setQuickAssign(next)
+                            }}
+                            className="rounded-lg border bg-muted/50 px-2 py-1 text-xs"
+                          >
+                            <option value="">忽略</option>
+                            <option value="FEISHU_TABLE_WAREHOUSE">仓库责任表</option>
+                            <option value="FEISHU_TABLE_NON_WAREHOUSE">非仓库责任表</option>
+                            <option value="TABLE_STORE_MAP">店铺映射表</option>
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                    <Button onClick={applyQuickConfig} disabled={Object.keys(quickAssign).length === 0}>
+                      <Save className="mr-2 size-4" />
+                      应用配置
+                    </Button>
+                  </div>
+                )}
+              </div>
+
               {groups.map((group) => (
                 <div key={group}>
                   <h2 className="mb-4 font-semibold text-base">{group}</h2>

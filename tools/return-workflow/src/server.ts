@@ -289,6 +289,60 @@ app.post('/config', (req, res) => {
   }
 });
 
+// 快速配置：从 URL 解析表格
+app.post('/config/parse-url', async (req, res) => {
+  try {
+    const { url } = req.body as { url: string }
+    if (!url) { res.status(400).json({ ok: false, error: '缺少 url 参数' }); return }
+
+    // 解析 URL
+    const u = new URL(url)
+    const pathParts = u.pathname.split('/').filter(Boolean)
+    const token = pathParts[pathParts.length - 1] || ''
+    const type = pathParts[pathParts.length - 2] || ''  // 'wiki' or 'base'
+    const tenant = u.hostname.split('.')[0]
+    const queryTable = u.searchParams.get('table') || ''
+
+    // 获取 access token
+    const axios = (await import('axios')).default
+    const authRes = await axios.post('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
+      app_id: cfg.FEISHU_APP_ID, app_secret: cfg.FEISHU_APP_SECRET,
+    })
+    const accessToken = (authRes.data as { tenant_access_token: string }).tenant_access_token
+
+    // 解析 base token
+    let baseToken = token
+    const appRes = await axios.get(`https://open.feishu.cn/open-apis/bitable/v1/apps/${token}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      validateStatus: () => true,
+    })
+    const appData = appRes.data as { code: number; data?: { app?: { app_token?: string; name?: string } } }
+    if (appData.code === 0 && appData.data?.app?.app_token) {
+      baseToken = appData.data.app.app_token
+    }
+
+    // 列出所有表
+    const tables: { table_id: string; name: string }[] = []
+    const tablesRes = await axios.get(`https://open.feishu.cn/open-apis/bitable/v1/apps/${baseToken}/tables`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    for (const item of (tablesRes.data as { data?: { items?: { table_id: string; name: string }[] } })?.data?.items ?? []) {
+      tables.push({ table_id: item.table_id, name: item.name })
+    }
+
+    res.json({
+      ok: true,
+      baseToken,
+      tenant,
+      tables,
+      queryTable,
+      baseName: appData.data?.app?.name || '',
+    })
+  } catch (err) {
+    res.status(400).json({ ok: false, error: String(err) });
+  }
+});
+
 app.post('/process', upload.array('files', cfg.UPLOAD_MAX_FILES), async (req, res) => {
   const parsedMap: Record<string, ParsedSheet> = {};
 
