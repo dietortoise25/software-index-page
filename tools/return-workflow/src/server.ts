@@ -310,12 +310,16 @@ app.post('/config/parse-url', async (req, res) => {
     })
     const accessToken = (authRes.data as { tenant_access_token: string }).tenant_access_token
 
-    // 解析 base token
+    // 解析 base token（wiki token 自动转换为真实 base token）
     let baseToken = token
     const appRes = await axios.get(`https://open.feishu.cn/open-apis/bitable/v1/apps/${token}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       validateStatus: () => true,
     })
+    if (appRes.status === 403) {
+      res.status(403).json({ ok: false, error: '应用无权限访问此多维表格。请在飞书表格右上角「分享」→ 添加应用 cli_a9646f769479dbd4 为协作者。' })
+      return
+    }
     const appData = appRes.data as { code: number; data?: { app?: { app_token?: string; name?: string } } }
     if (appData.code === 0 && appData.data?.app?.app_token) {
       baseToken = appData.data.app.app_token
@@ -325,7 +329,12 @@ app.post('/config/parse-url', async (req, res) => {
     const tables: { table_id: string; name: string }[] = []
     const tablesRes = await axios.get(`https://open.feishu.cn/open-apis/bitable/v1/apps/${baseToken}/tables`, {
       headers: { Authorization: `Bearer ${accessToken}` },
+      validateStatus: () => true,
     })
+    if (tablesRes.status === 403) {
+      res.status(403).json({ ok: false, error: '应用无权限访问此多维表格。请在飞书表格右上角「分享」→ 添加应用 cli_a9646f769479dbd4 为协作者。' })
+      return
+    }
     for (const item of (tablesRes.data as { data?: { items?: { table_id: string; name: string }[] } })?.data?.items ?? []) {
       tables.push({ table_id: item.table_id, name: item.name })
     }
