@@ -5,6 +5,7 @@ import {
   Terminal,
   Settings2,
   Network,
+  RefreshCw,
   type LucideIcon,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -16,6 +17,7 @@ const iconMap: Record<string, LucideIcon> = {
   Terminal,
   Settings2,
   Network,
+  RefreshCw,
 }
 
 interface SoftwareCardProps {

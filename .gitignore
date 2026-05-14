@@ -9,3 +9,8 @@ dist/
 *.key
 server/dist/
 server/node_modules/
+tools/*/dist/
+tools/*/node_modules/
+*.tmp.json
+.tmp_images/
+output/

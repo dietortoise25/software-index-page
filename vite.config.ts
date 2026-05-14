@@ -10,4 +10,10 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    proxy: {
+      "/api/return-workflow": "http://localhost:3002",
+      "/api": "http://localhost:3001",
+    },
+  },
 })

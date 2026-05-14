@@ -1,112 +1,117 @@
 ---
 name: deploy
-description: 将软件包（zip）上传到服务器并更新网站代码。触发：用户说"上传"、"更新插件"、"发布新版本"、"部署"等。
+description: 服务器端构建部署。触发：用户说"部署"、"更新网站"、"发布"、"上传服务器"等。
 metadata:
   author: Alan
-  version: "1.0.0"
+  version: "2.0.0"
   source: project
 ---
 
-# 软件部署 Skill
+# 部署 Skill
 
 ## 服务器信息
 
 | 项目 | 值 |
 |------|-----|
 | 服务器IP | `42.193.170.109` |
-| 系统 | Ubuntu (腾讯云) |
+| 系统 | Ubuntu 22.04 (腾讯云) |
 | 登录用户 | `ubuntu` |
-| SSH 别名 | `software-site` |
-| 密钥文件 | `~/.ssh/alan_pc.pem` |
-| 密钥对名称 | `skey-4szb8wer`（腾讯云控制台） |
+| SSH 密钥 | `~/.ssh/alan_pc.pem` |
 | 网站根目录 | `/var/www/software-index/` |
 | 下载目录 | `/var/www/software-index/downloads/` |
-| Nginx站点配置 | `/etc/nginx/sites-available/software-index` |
+| Nginx 配置 | `/etc/nginx/sites-enabled/software-index` |
 
-## 部署流程
+## 架构概览
 
-### 第一步：启动SSH代理（Windows必须）
-
-```bash
-eval $(ssh-agent)
-ssh-add ~/.ssh/alan_pc.pem
+```
+/var/www/software-index/
+├── index.html          # 前端 SPA
+├── assets/             # 前端静态资源
+├── ppt/                # PPT 文件
+├── downloads/          # 软件安装包
+├── server/             # 审查 API (relay.service)
+│   ├── dist/           # 编译后的 JS（端口 8765）
+│   └── node_modules/
+└── tools/
+    └── return-workflow/ # 退货工作流 (return-workflow.service)
+        ├── dist/        # 编译后的 JS（端口 3002）
+        ├── data_example/
+        └── node_modules/
 ```
 
-### 第二步：上传zip包
+## Nginx 路由
+
+| 路径 | 转发 | 说明 |
+|------|------|------|
+| `/api/return-workflow/` | `127.0.0.1:3002` | 退货工作流（最长前缀优先匹配） |
+| `/api/` | `127.0.0.1:8765` | 审查 API |
+| `/*` | 静态文件 | SPA fallback 到 index.html |
+
+## 部署命令
+
+### 服务器端构建部署（推荐）
+
+```bash
+# 1. 启动 SSH 代理（Windows 必须）
+eval $(ssh-agent)
+ssh-add ~/.ssh/alan_pc.pem
+
+# 2. 运行部署
+bash scripts/deploy-full.sh           # 部署全部（前端+两个后端）
+bash scripts/deploy-full.sh --frontend # 仅前端
+bash scripts/deploy-full.sh --server   # 仅审查API
+bash scripts/deploy-full.sh --rw       # 仅退货工作流
+```
+
+脚本自动完成：打包源文件 → 上传 tar.gz → 服务器端 pnpm install + tsc/vite build → 复制 dist 到目标路径 → 重启 systemd 服务 → curl 验证
+
+### 仅上传软件安装包（桌面工具）
 
 ```bash
 bash scripts/deploy.sh publish/文件名.zip
 ```
 
-脚本自动：连接检查 → 上传 → 大小校验 → 输出下载链接
-
-### 第三步：更新网站代码
-
-上传后手动更新以下源文件：
-
-1. **`src/data/software.ts`** — 新版本 `isLatest: true`，旧版本改为 `false`
-2. **`src/data/articles.ts`** — 添加发布公告（id用 `{软件}-v{版本}` 格式）
-
-### 第四步：构建并部署网站
-
-网站部署到服务器 `/var/www/software-index/`：
+### 手动验证
 
 ```bash
-pnpm build
-scp -r dist/* ubuntu@42.193.170.109:/var/www/software-index/
+curl http://42.193.170.109/api/return-workflow/health
+curl http://42.193.170.109/api/verify-pin -X POST \
+  -H 'Content-Type: application/json' -d '{"pin":"123456"}'
+ssh ubuntu@42.193.170.109 \
+  'sudo systemctl status relay return-workflow --no-pager'
 ```
 
-## 文章管理（posts/ 目录）
+## 发布新版本完整流程
 
-项目支持通过编写 Markdown 文件来发布文章，无需修改 TypeScript 代码。
+1. 更新 `src/data/software.ts` — versions 数组最前插入新版本，`isLatest: true`，旧版 `false`
+2. 更新 `src/data/articles.ts` — 添加发布公告
+3. （可选）在 `posts/` 创建 `.md` 文章
+4. 运行 `bash scripts/deploy-full.sh` 一键完成
 
-### 文章文件格式
+## 退货工作流 API
 
-在 `posts/` 目录下创建 `.md` 文件，格式如下：
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/return-workflow/health` | GET | 健康检查 |
+| `/api/return-workflow/process` | POST | 上传文件处理（multipart, field: files） |
+| `/api/return-workflow/task/:id` | GET | 查询任务进度 |
+| `/api/return-workflow/tasks` | GET | 最近 20 条任务 |
 
-```markdown
----
-id: my-article-id
-title: 文章标题
-summary: 文章摘要，显示在列表页
-date: 2026-05-11
-author: Alan
-tags: [标签1, 标签2]
----
+## 环境变量（退货工作流）
 
-## 正文标题
+路径：`/var/www/software-index/tools/return-workflow/.env`
 
-文章正文使用 Markdown 格式书写，支持：
+| 变量 | 说明 |
+|------|------|
+| `FEISHU_APP_ID` | 飞书应用 ID |
+| `FEISHU_APP_SECRET` | 飞书应用密钥 |
+| `FEISHU_BASE_TOKEN` | 多维表格 Base Token |
+| `FEISHU_TABLE_WAREHOUSE` | 仓库责任表 ID |
+| `FEISHU_TABLE_NON_WAREHOUSE` | 非仓库责任表 ID |
 
-- **粗体**、*斜体*
-- 列表、有序列表
-- > 引用块
-- `行内代码`
-- [链接](url)
+## 注意事项
 
-## 另一个章节
-
-段落之间用空行分隔。
-
-构建时 `import.meta.glob` 会自动扫描 `posts/*.md`，
-解析 frontmatter 并渲染 Markdown 为 HTML，合并到文章列表中。
-```
-
-### 关键规则
-
-- `id` 必须唯一，用于文章详情页 URL（`/articles/:id`）
-- 文件必须是 `.md` 后缀
-- frontmatter 用 `---` 包裹，使用 YAML 格式
-- 标签用 `[a, b, c]` 数组格式
-- 写入新文件后，`pnpm build` 即可生效
-
-### 示例文件
-
-`posts/sample.md` 是一篇完整的示例文章，可作为新建文章的模板。
-
-## 常见问题
-
-- **SSH `type -1`**：Windows下密钥权限问题，必须通过 `ssh-agent` 使用密钥
-- **`Permission denied`**：确认腾讯云控制台已将密钥对绑定到此实例
-- **用户是 `ubuntu` 不是 `root`**：腾讯云 Ubuntu 系统默认绑定到 `ubuntu` 用户
-- **文章没显示**：确认 frontmatter 中 `id` 唯一、日期格式为 `YYYY-MM-DD`
+- **Windows SSH**：必须先 `eval $(ssh-agent) && ssh-add ~/.ssh/alan_pc.pem`
+- 服务器使用 npm（非 pnpm），部署脚本已处理安装差异
+- 服务端口均为内部（127.0.0.1），仅 Nginx 监听 80 对外
+- `/api/return-workflow/` 放在 `/api/` 之前确保优先匹配

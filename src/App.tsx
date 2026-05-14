@@ -5,6 +5,10 @@ import HomePage from "@/pages/HomePage"
 import SoftwareDetailPage from "@/pages/SoftwareDetailPage"
 import ArticleListPage from "@/pages/ArticleListPage"
 import ArticleDetailPage from "@/pages/ArticleDetailPage"
+import ReviewPage from "@/pages/ReviewPage"
+import ReturnWorkflowPage from "@/pages/ReturnWorkflowPage"
+import ChangelogPage from "@/pages/ChangelogPage"
+import PptPage from "@/pages/PptPage"
 
 export default function App() {
   return (
@@ -15,6 +19,11 @@ export default function App() {
         <Route path="software/:id" element={<SoftwareDetailPage />} />
         <Route path="articles" element={<ArticleListPage />} />
         <Route path="articles/:id" element={<ArticleDetailPage />} />
+        <Route path="review" element={<ReviewPage />} />
+        <Route path="changelog" element={<ChangelogPage />} />
+        <Route path="return-workflow" element={<ReturnWorkflowPage />} />
+        <Route path="ppt/:id" element={<PptPage />} />
+        <Route path="ppt" element={<PptPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

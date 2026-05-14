@@ -1,0 +1,32 @@
+{
+  "name": "returnflow",
+  "version": "1.0.0",
+  "description": "ReturnFlow — TikTok/Shopee 退单自动分流录入飞书多维表格",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "parse": "npx tsx src/index.ts",
+    "parse:tiktok": "npx tsx src/index.ts --platform tiktok",
+    "parse:shopee": "npx tsx src/index.ts --platform shopee",
+    "schema": "npx tsx src/index.ts --schema",
+    "dev": "npx tsx src/server.ts",
+    "typecheck": "npx tsc --noEmit"
+  },
+  "dependencies": {
+    "@larksuiteoapi/node-sdk": "^1.63.1",
+    "axios": "^1.16.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "multer": "^2.1.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^25.7.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}

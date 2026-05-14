@@ -9,9 +9,23 @@ export const softwareList: Software[] = [
     category: "效率工具",
     versions: [
       {
+        version: "3.4.3",
+        releaseDate: "2026-05-13",
+        isLatest: true,
+        changelog: [
+          "双层日志系统：用户侧边栏显示轻量运行日志，开发者完整日志隐藏在后台，点击「导出调试日志」按钮可下载完整 txt 文件用于排查 bug",
+          "非中文界面值守失效修复：每次开始处理前自动检测界面语言，非中文简体时自动切换，确保识别正常",
+          "开关状态显示修复：修复未开启 AI 值守时侧边栏开关显示「运行中」的问题",
+          "稳定性修复：修复特定情况下导致插件崩溃报错的问题",
+        ],
+        downloads: {
+          windows: "http://42.193.170.109/downloads/TF客服值守v3.4.3.zip",
+        },
+      },
+      {
         version: "3.4.1",
         releaseDate: "2026-05-11",
-        isLatest: true,
+        isLatest: false,
         changelog: [
           "自动发送物流卡片：客户询问物流时AI自动点击发送物流卡片",
           "防止无效回复：拦截AI的空洞无意义回复，不再发送给客户",
@@ -35,6 +49,22 @@ export const softwareList: Software[] = [
         downloads: {
           windows: "http://42.193.170.109/downloads/TF-Service-0.1.2.zip",
         },
+      },
+    ],
+  },
+  {
+    id: "return-workflow",
+    name: "退货工作流",
+    description: "Web 端退货退款流程处理工具，统一管理退货审批、退款核对与状态追踪",
+    iconName: "RefreshCw",
+    category: "Web 工具",
+    versions: [
+      {
+        version: "0.1.0",
+        releaseDate: "2026-05-13",
+        isLatest: true,
+        changelog: ["首个开发版本", "退货工作流页面框架搭建"],
+        workbenchUrl: "/return-workflow",
       },
     ],
   },

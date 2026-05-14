@@ -6,6 +6,7 @@ import {
   Terminal,
   Settings2,
   Network,
+  RefreshCw,
   type LucideIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -21,6 +22,7 @@ const iconMap: Record<string, LucideIcon> = {
   Terminal,
   Settings2,
   Network,
+  RefreshCw,
 }
 
 export default function SoftwareDetailPage() {
@@ -83,6 +85,13 @@ export default function SoftwareDetailPage() {
           >
             查看项目主页
           </a>
+        )}
+        {latestVersion?.workbenchUrl && (
+          <div className="mt-4">
+            <Link to={latestVersion.workbenchUrl}>
+              <Button>打开工作台</Button>
+            </Link>
+          </div>
         )}
       </div>
 
