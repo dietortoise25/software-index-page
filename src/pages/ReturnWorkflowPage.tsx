@@ -273,9 +273,18 @@ export default function ReturnWorkflowPage() {
     <div className="container mx-auto max-w-3xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="mb-1 font-bold text-2xl tracking-tight">退货工作流</h1>
+          <div className="mb-1 flex items-center gap-2">
+            <h1 className="font-bold text-2xl tracking-tight">退货工作流</h1>
+            <Badge className="text-xs" variant="secondary">Beta</Badge>
+          </div>
           <p className="text-muted-foreground text-sm">
             上传 TikTok / Shopee 退货明细 Excel，自动解析分类并录入飞书多维表格
+          </p>
+          <p className="mt-2 text-amber-600 text-xs bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+            ERP 导出建议单次 ≤500 条。图片上传较慢（~1 张/秒），大量图片请耐心等待。
+          </p>
+          <p className="mt-1 text-muted-foreground text-xs">
+            未来版本将对接 ERP 接口实现完全自动化，无需手动导出。
           </p>
         </div>
         <div className="flex rounded-lg border bg-muted/50 p-0.5">

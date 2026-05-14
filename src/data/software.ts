@@ -55,15 +55,20 @@ export const softwareList: Software[] = [
   {
     id: "return-workflow",
     name: "退货工作流",
-    description: "Web 端退货退款流程处理工具，统一管理退货审批、退款核对与状态追踪",
+    description: "Beta · Web 端退货退款流程处理工具，上传退单 Excel 自动分类录入飞书多维表格。ERP 导出建议单次 ≤500 条，图片上传需等待较久。未来版本将通过接口实现完全自动化。",
     iconName: "RefreshCw",
     category: "Web 工具",
     versions: [
       {
-        version: "0.1.0",
-        releaseDate: "2026-05-13",
+        version: "1.3.0-beta",
+        releaseDate: "2026-05-14",
         isLatest: true,
-        changelog: ["首个开发版本", "退货工作流页面框架搭建"],
+        changelog: [
+          "Beta 发布：支持 TikTok/Shopee 退单 Excel 自动解析录入",
+          "图片自动上传飞书多维表格附件字段",
+          "可视化配置面板：飞书连接、表格映射、运行参数",
+          "处理进度实时展示：去重计数、待入库数、下载+上传进度",
+        ],
         workbenchUrl: "/return-workflow",
       },
     ],
