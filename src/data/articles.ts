@@ -4,6 +4,34 @@ import { markdownToArticle } from "@/lib/markdown"
 // ── 硬编码的系统公告 ──
 const systemArticles: Article[] = [
   {
+    id: "erp-data-hub-v2",
+    title: "千易ERP数据中台 v2.0 上线：订单看板 + 广告费用分析 + 运营管理",
+    summary: "从零搭建的ERP数据底座正式投产。41,630条订单、2,938个SKU、27家店铺数据实时同步，新增5层交互式看板（营收/渠道/运营者/健康度/广告费），内部运营人员管理与店铺绑定系统上线。",
+    date: "2026-05-15",
+    author: "Alan",
+    tags: ["发布", "数据", "内部"],
+    content: `经过两周密集开发，千易ERP数据中台正式投产。核心交付：
+
+**数据层**：TypeScript SDK 封装千易 OpenAPI（14个模块），Supabase 定时同步（订单5分钟/商品30分钟），系统守护进程 7×24 运行。
+
+**看板**（/dashboard）：5层交互式分析——营收总览（日/月 GMV + 趋势曲线）、渠道分析（TikTok vs Shopee 环形图 + 柱状图）、运营者排行（月度 GMV Top 8）、订单健康度（状态分布 + 退货率）、广告费用分析（达人佣金/费用率/趋势）。全部指标支持平台/运营者二级筛选，含数据字典气泡提示。
+
+**内部管理**（/internal/admin）：运营分组、人员管理、店铺绑定 CRUD，数据来自 Excel 导入的14人运营团队。支持 PIN 码鉴权。
+
+**广告费用**：对接千易交易明细报表，自动汇总达人佣金、AMS佣金到 ad_costs 表，每日凌晨2点自动同步。首月 TikTok 达人佣金 BRL 36,455。
+
+**技术栈**：React 19 + TypeScript + Recharts + shadcn/ui（@base-ui）+ Supabase + Node.js 定时调度。<br><br><a href="/dashboard" style="color:#2563eb;font-weight:600;text-decoration:underline">📊 打开订单看板</a>`,
+  },
+  {
+    id: "erp-data-warehouse-proposal",
+    title: "内部提案：轻量级ERP数仓，驱动智能体实现数据决策自动化",
+    summary: "一份面向管理层的推销报告，提出用 Supabase + 千易ERP 构建低成本数据底座，赋能库存预警、异常订单监控、战报机器人等内部智能体。总投入低于2万元，3周可见首期效果。",
+    date: "2026-05-13",
+    author: "Alan",
+    tags: ["内部", "数据", "提案"],
+    content: '我们每天有大量ERP数据在"沉睡"——断货损失、客服低效查询、手工报表消耗运营精力。这份提案提出了一套轻量级方案：用 Supabase（基于PostgreSQL的开源BaaS）作为中转数仓，对接千易ERP API，构建低代码、低成本、可扩展的数据底座。首期聚焦库存预警助手（3周上线），后续按需叠加异常订单监控、每日战报机器人、客服自然语言查询Bot、智能补货建议等5个应用场景。总实施时间约6-7周，首年总成本约2.2万元（含人力），对比传统数仓动辄十几万的投入，第一个月即可回本。<br><br><a href="/ppt/erp-data-warehouse" style="color:#2563eb;font-weight:600;text-decoration:underline">📎 查看完整演示文稿（13页横向翻页PPT）</a>',
+  },
+  {
     id: "welcome",
     title: "Alan 运营工具发布站正式上线",
     summary: "经过一段时间的筹备，运营自动化工具发布站正式上线，首批工具已开放下载，欢迎同事们试用和提交需求。",
