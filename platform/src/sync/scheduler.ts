@@ -4,6 +4,7 @@ import { dirname, resolve } from "path"
 import cron from "node-cron"
 import { QianyiSDK } from "../sdk/index.js"
 import { initSupabase, upsertBatch, getLastSyncAt, logSync } from "../sdk/sync.js"
+import { syncAdCosts } from "./ad_sync.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: resolve(__dirname, "../../.env") })
@@ -190,6 +191,8 @@ console.log(`[调度器] 启动, 环境: ${APP_ENV}`)
 cron.schedule("*/5 * * * *", syncOrders)
 cron.schedule("*/30 * * * *", syncSkus)
 cron.schedule("*/15 * * * *", syncInventory)
+// 广告费用: 每天凌晨 2:00
+cron.schedule("0 2 * * *", () => syncAdCosts(sdk, APP_ENV))
 
 console.log("[调度器] 首次同步...")
 syncOrders()
