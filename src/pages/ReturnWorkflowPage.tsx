@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import {
   Upload, FileSpreadsheet, X, Loader2, CheckCircle2, AlertCircle,
-  RefreshCw, Settings, Save, ArrowLeft, ExternalLink, ChevronDown, ChevronRight,
+  RefreshCw, Settings, Save, ExternalLink, ChevronDown, ChevronRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -21,6 +21,7 @@ interface RuntimeConfig {
   FEISHU_APP_ID: string
   FEISHU_APP_SECRET: string
   FEISHU_BASE_TOKEN: string
+  FEISHU_TENANT_DOMAIN: string
   FEISHU_TABLE_WAREHOUSE: string
   FEISHU_TABLE_NON_WAREHOUSE: string
   TABLE_STORE_MAP: string
@@ -34,7 +35,7 @@ interface RuntimeConfig {
 type Tab = "process" | "config"
 
 const CONFIG_FIELDS: {
-  key: keyof RuntimeConfig
+  key: keyof RuntimeConfig | "FEISHU_TENANT_DOMAIN"
   label: string
   description: string
   type: "text" | "number" | "password"
@@ -130,7 +131,7 @@ export default function ReturnWorkflowPage() {
   const [tasks, setTasks] = useState<TaskInfo[]>([])
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval>>()
+  const pollRef = useRef<ReturnType<typeof setInterval>>(undefined)
 
   // ── 配置 tab 状态 ──
   const [config, setConfig] = useState<RuntimeConfig | null>(null)
@@ -330,9 +331,9 @@ export default function ReturnWorkflowPage() {
     setConfigSaving(false)
   }
 
-  const configValue = (key: keyof RuntimeConfig): string => {
-    if (key in configDirty) return configDirty[key]!
-    if (config) return String(config[key] ?? "")
+  const configValue = (key: keyof RuntimeConfig | "FEISHU_TENANT_DOMAIN"): string => {
+    if (key in configDirty) return String(configDirty[key as keyof RuntimeConfig] ?? "")
+    if (config) return String(config[key as keyof RuntimeConfig] ?? "")
     return ""
   }
 

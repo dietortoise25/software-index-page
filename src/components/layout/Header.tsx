@@ -1,12 +1,23 @@
+import { useState } from "react"
 import { Link, useLocation } from "react-router"
-import { Package, Moon, Sun } from "lucide-react"
+import { Package, Moon, Sun, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SITE_NAME } from "@/lib/constants"
 import { useDarkMode } from "@/hooks/useDarkMode"
 
+const NAV_ITEMS = [
+  { to: "/", label: "首页", match: (p: string) => p === "/" },
+  { to: "/catalog", label: "工具库", match: (p: string) => p.startsWith("/catalog") || p.startsWith("/software") },
+  { to: "/articles", label: "文章", match: (p: string) => p.startsWith("/articles") },
+  { to: "/review", label: "审查", match: (p: string) => p === "/review" },
+  { to: "/changelog", label: "更新日志", match: (p: string) => p === "/changelog" },
+  { to: "/dashboard", label: "看板", match: (p: string) => p === "/dashboard" },
+]
+
 export default function Header() {
   const [dark, toggleDark] = useDarkMode()
   const { pathname } = useLocation()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const linkClass = (active: boolean) =>
     `rounded-lg px-3 py-1.5 text-sm transition-all duration-200 ${
@@ -26,35 +37,60 @@ export default function Header() {
             <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10">
               <Package className="size-4 text-primary" />
             </div>
-            <span>{SITE_NAME}</span>
+            <span className="hidden sm:inline">{SITE_NAME}</span>
           </Link>
+          {/* 桌面导航 */}
           <nav className="hidden sm:flex items-center gap-1">
-            <Link to="/" className={linkClass(pathname === "/")}>
-              首页
-            </Link>
-            <Link
-              to="/catalog"
-              className={linkClass(
-                pathname.startsWith("/catalog") || pathname.startsWith("/software"),
-              )}
-            >
-              工具库
-            </Link>
-            <Link to="/articles" className={linkClass(pathname.startsWith("/articles"))}>
-              文章
-            </Link>
+            {NAV_ITEMS.map((item) => (
+              <Link key={item.to} to={item.to} className={linkClass(item.match(pathname))}>
+                {item.label}
+              </Link>
+            ))}
           </nav>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleDark}
-          aria-label="切换主题"
-          className="transition-all duration-200 hover:bg-accent/60"
-        >
-          {dark ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
-        </Button>
+
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleDark}
+            aria-label="切换主题"
+            className="transition-all duration-200 hover:bg-accent/60"
+          >
+            {dark ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
+          </Button>
+          {/* 移动端汉堡按钮 */}
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="sm:hidden rounded-lg p-2 text-muted-foreground hover:bg-accent transition-colors"
+            aria-label="菜单"
+          >
+            {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+          </button>
+        </div>
       </div>
+
+      {/* 移动端下拉菜单 */}
+      {menuOpen && (
+        <nav className="sm:hidden border-t bg-background/95 backdrop-blur-xl animate-[fadeInUp_0.2s_ease-out]">
+          <div className="container mx-auto px-4 py-2 flex flex-col gap-0.5">
+            {NAV_ITEMS.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={() => setMenuOpen(false)}
+                className={`rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                  item.match(pathname)
+                    ? "bg-accent/80 font-medium"
+                    : "text-muted-foreground hover:bg-accent/40"
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </nav>
+      )}
     </header>
   )
 }

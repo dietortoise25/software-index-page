@@ -1,0 +1,22 @@
+[Unit]
+Description=Qianyi ERP Data Sync Scheduler
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/var/www/software-index/platform
+ExecStart=/usr/bin/node /var/www/software-index/platform/sync/scheduler.js
+Restart=always
+RestartSec=10
+
+Environment=NODE_ENV=production
+Environment=API_ENV=production_asia
+Environment=PRODUCTION_ASIA_URL=asia.qianyierp.com
+Environment=PRODUCTION_ASIA_APP_ID=1778643156040-2842
+Environment=PRODUCTION_ASIA_APP_SECRET=be5f48375151c04cbe8b7d922e97071c
+Environment=SUPABASE_URL=https://fjumpvhftsdcgmewjtxc.supabase.co
+Environment=SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+
+[Install]
+WantedBy=multi-user.target

@@ -7,6 +7,8 @@ import ArticleListPage from "@/pages/ArticleListPage"
 import ArticleDetailPage from "@/pages/ArticleDetailPage"
 import ReviewPage from "@/pages/ReviewPage"
 import ReturnWorkflowPage from "@/pages/ReturnWorkflowPage"
+import DashboardPage from "@/pages/DashboardPage"
+import InternalAdminPage from "@/pages/InternalAdminPage"
 import ChangelogPage from "@/pages/ChangelogPage"
 import PptPage from "@/pages/PptPage"
 
@@ -22,6 +24,8 @@ export default function App() {
         <Route path="review" element={<ReviewPage />} />
         <Route path="changelog" element={<ChangelogPage />} />
         <Route path="return-workflow" element={<ReturnWorkflowPage />} />
+        <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="internal/admin" element={<InternalAdminPage />} />
         <Route path="ppt/:id" element={<PptPage />} />
         <Route path="ppt" element={<PptPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
