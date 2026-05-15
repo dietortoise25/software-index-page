@@ -3,7 +3,7 @@
  * 每天凌晨 2:00 由 scheduler 调用
  */
 import { QianyiSDK } from "../sdk/index.js"
-import { initSupabase, getSupabase, logSync } from "../sdk/sync.js"
+import { getSupabase, logSync } from "../sdk/sync.js"
 
 function monthKey(offset = 0): string {
   const d = new Date()
@@ -11,77 +11,106 @@ function monthKey(offset = 0): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
 }
 
-interface AdRow { platform: string; report_month: string; affiliate_cost: number; tech_ad_cost: number; total_cost: number; raw_data: unknown }
+interface AdRow { platform: string; report_month: string; affiliate_cost: number; tech_ad_cost: number; total_cost: number }
 
-export async function syncAdCosts(sdk: QianyiSDK, env: string) {
+export async function syncAdCosts(sdk: QianyiSDK, _env: string) {
   const module = "ad_costs"
   console.log(`[${new Date().toISOString()}] 开始同步 ${module}...`)
   await logSync(module, "cron_pull", "running", 0)
 
   try {
+    const sb = getSupabase()
+    const { data: shops } = await sb.from("shops").select("shop_id, platform")
+    const tiktokIds = shops?.filter(s => s.platform === "TIKTOK").map(s => s.shop_id) || []
+    const shopeeIds = shops?.filter(s => s.platform === "SHOPEE").map(s => s.shop_id) || []
+
     const rows: AdRow[] = []
 
+    // 时间分批（API 限制每次 ≤31 天）
+    function dateChunks(monthsBack: number): [string, string][] {
+      const chunks: [string, string][] = []
+      const now = new Date()
+      for (let m = monthsBack; m >= 0; m--) {
+        const y = now.getFullYear()
+        const mo = now.getMonth() - m
+        const d = new Date(y, mo, 1)
+        const start = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
+        const endMonth = m === 0 ? now.getDate() : new Date(d.getFullYear(), d.getMonth() + 2, 0).getDate()
+        const end = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(endMonth).padStart(2, "0")}`
+        chunks.push([start, end])
+      }
+      return chunks
+    }
+
     // TikTok V2
-    try {
-      const tiktokData = await sdk.report.tiktokV2({
-        createTimeFrom: `${monthKey(1)}-01`,
-        createTimeTo: `${monthKey(0)}-01`,
-        page: 1, pageSize: 5000,
-      }) as { result?: unknown[] }
-      const tiktokRows = (tiktokData?.result || []) as Record<string, unknown>[]
-      if (tiktokRows.length) {
+    if (tiktokIds.length) {
+      try {
         const monthMap: Record<string, AdRow> = {}
-        for (const r of tiktokRows) {
-          const m = String(r.settlement_time || "").slice(0, 7)
-          if (!m) continue
-          if (!monthMap[m]) monthMap[m] = { platform: "TIKTOK", report_month: m, affiliate_cost: 0, tech_ad_cost: 0, total_cost: 0, raw_data: [] }
-          const a = parseFloat(String(r.feeAffiliateAdsCommissionAmount || 0))
-          const b = parseFloat(String(r.feeAffiliateCommissionAmount || 0))
-          const c = parseFloat(String(r.feeAffiliatePartnerCommissionAmount || 0))
-          const d = parseFloat(String(r.udf12 || 0))
-          const e = parseFloat(String(r.udf18 || 0))
-          monthMap[m].affiliate_cost += a + b + c
-          monthMap[m].tech_ad_cost += d + e
-          monthMap[m].total_cost += a + b + c + d + e
+        for (const [from, to] of dateChunks(2)) {
+          let page = 1
+          while (true) {
+            const res = await sdk.report.tiktokV2({
+              shopIdList: tiktokIds.slice(0, 50), payoutTimeFrom: from, payoutTimeTo: to, page, pageSize: 200,
+            }) as { result?: unknown[]; notSuccess?: boolean }
+            const items = res?.result || []
+            if (!items.length || res?.notSuccess) break
+            for (const r of items as Record<string, unknown>[]) {
+              const m = String(r.settlementTimeFormatted || "").slice(0, 7)
+              if (!m) continue
+              if (!monthMap[m]) monthMap[m] = { platform: "TIKTOK", report_month: m, affiliate_cost: 0, tech_ad_cost: 0, total_cost: 0 }
+              const a = Math.abs(parseFloat(String(r.feeAffiliateAdsCommissionAmount || 0)))
+              const b = Math.abs(parseFloat(String(r.feeAffiliateCommissionAmount || 0)))
+              const c = Math.abs(parseFloat(String(r.feeAffiliatePartnerCommissionAmount || 0)))
+              const d = Math.abs(parseFloat(String(r.udf12 || 0)))
+              const e = Math.abs(parseFloat(String(r.udf18 || 0)))
+              monthMap[m].affiliate_cost += a + b + c
+              monthMap[m].tech_ad_cost += d + e
+              monthMap[m].total_cost += a + b + c + d + e
+            }
+            if (items.length < 200) break
+            page++
+          }
         }
         rows.push(...Object.values(monthMap))
-      }
-    } catch (e) { console.log("TikTok 广告报表跳过:", (e as Error).message) }
+        console.log(`  TikTok: ${Object.keys(monthMap).length} 个月, ${Object.values(monthMap).reduce((s, r) => s + r.total_cost, 0).toFixed(2)} BRL`)
+      } catch (e) { console.log("  TikTok 跳过:", (e as Error).message) }
+    }
 
     // Shopee
-    try {
-      const shopeeData = await sdk.report.shopeeTransaction({
-        createTimeFrom: `${monthKey(1)}-01`,
-        createTimeTo: `${monthKey(0)}-01`,
-        page: 1, pageSize: 5000,
-      }) as { result?: unknown[] }
-      const shopeeRows = (shopeeData?.result || []) as Record<string, unknown>[]
-      if (shopeeRows.length) {
+    if (shopeeIds.length) {
+      try {
         const monthMap: Record<string, AdRow> = {}
-        for (const r of shopeeRows) {
-          const m = String(r.pay_time || "").slice(0, 7)
-          if (!m) continue
-          if (!monthMap[m]) monthMap[m] = { platform: "SHOPEE", report_month: m, affiliate_cost: 0, tech_ad_cost: 0, total_cost: 0, raw_data: [] }
-          const a = parseFloat(String(r.orderAmsCommissionFee || 0))
-          const b = parseFloat(String(r.udf7 || 0))
-          monthMap[m].tech_ad_cost += a + b
-          monthMap[m].total_cost += a + b
+        for (const [from, to] of dateChunks(2)) {
+          let page = 1
+          while (true) {
+            const res = await sdk.report.shopeeTransaction({
+              shopIdList: shopeeIds.slice(0, 50), type: 1, payoutTimeFrom: from, payoutTimeTo: to, page, pageSize: 200,
+            }) as { result?: unknown[]; notSuccess?: boolean }
+            const items = res?.result || []
+            if (!items.length || res?.notSuccess) break
+            for (const r of items as Record<string, unknown>[]) {
+              const m = String(r.payoutTimeFormatted || "").slice(0, 7)
+              if (!m) continue
+              if (!monthMap[m]) monthMap[m] = { platform: "SHOPEE", report_month: m, affiliate_cost: 0, tech_ad_cost: 0, total_cost: 0 }
+              const a = Math.abs(parseFloat(String(r.orderAmsCommissionFee || 0)))
+              const b = Math.abs(parseFloat(String(r.udf7 || 0)))
+              monthMap[m].tech_ad_cost += a + b
+              monthMap[m].total_cost += a + b
+            }
+            if (items.length < 200) break
+            page++
+          }
         }
         rows.push(...Object.values(monthMap))
-      }
-    } catch (e) { console.log("Shopee 广告报表跳过:", (e as Error).message) }
+        console.log(`  Shopee: ${Object.keys(monthMap).length} 个月, ${Object.values(monthMap).reduce((s, r) => s + r.total_cost, 0).toFixed(2)} BRL`)
+      } catch (e) { console.log("  Shopee 跳过:", (e as Error).message) }
+    }
 
-    // Upsert
     let synced = 0
-    const sb = getSupabase()
     for (const r of rows) {
       const { error } = await sb.from("ad_costs").upsert({
-        platform: r.platform,
-        report_month: r.report_month,
-        affiliate_cost: r.affiliate_cost,
-        tech_ad_cost: r.tech_ad_cost,
-        total_cost: r.total_cost,
-        raw_data: r.raw_data,
+        platform: r.platform, report_month: r.report_month,
+        affiliate_cost: r.affiliate_cost, tech_ad_cost: r.tech_ad_cost, total_cost: r.total_cost,
         sync_at: new Date().toISOString(),
       }, { onConflict: "platform,report_month" })
       if (!error) synced++

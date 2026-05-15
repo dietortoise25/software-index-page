@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback } from "react"
-import { CalendarDays, TrendingUp, BarChart3, DollarSign, Loader2, AlertCircle, Lock } from "lucide-react"
+import { CalendarDays, TrendingUp, BarChart3, DollarSign, Loader2, AlertCircle, Lock, Info } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { LineChart, Line, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { Tooltip as ShadTooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip"
 import PinGate from "@/components/review/PinGate"
+import { METRICS_DICT } from "@/data/metrics-dictionary"
 
 type Dimension = "all" | "platform" | "operator"
 type Platform = "TIKTOK" | "SHOPEE"
@@ -68,6 +70,24 @@ function DeltaBadge({ cur, prev }: { cur: number; prev: number }) {
 // ===== 第2层：渠道分析 =====
 const CHART_COLORS = ["oklch(0.7227 0.192 149.579)", "oklch(0.769 0.188 70.08)", "oklch(0.696 0.149 162.48)", "oklch(0.637 0.208 25.33)"]
 
+function MetricTitle({ dictKey }: { dictKey: string }) {
+  const m = METRICS_DICT[dictKey]
+  if (!m) return null
+  return (
+    <ShadTooltip>
+      <TooltipTrigger>
+        <span className="inline-flex items-center gap-1 cursor-help text-muted-foreground text-xs">
+          {m.label}
+          <Info className="size-3 text-muted-foreground/40" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-64 text-xs leading-relaxed">
+        {m.tip}
+      </TooltipContent>
+    </ShadTooltip>
+  )
+}
+
 function ChannelCharts({ dimension, platform, operatorId }: {
   dimension: Dimension; platform: Platform; operatorId: number
 }) {
@@ -107,7 +127,7 @@ function ChannelCharts({ dimension, platform, operatorId }: {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <Card>
-        <CardHeader><CardTitle>平台 GMV 占比</CardTitle></CardHeader>
+        <CardHeader><CardTitle><MetricTitle dictKey="platformGmvPie" /></CardTitle></CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
@@ -120,7 +140,7 @@ function ChannelCharts({ dimension, platform, operatorId }: {
         </CardContent>
       </Card>
       <Card>
-        <CardHeader><CardTitle>平台销售额月对比</CardTitle></CardHeader>
+        <CardHeader><CardTitle><MetricTitle dictKey="platformMonthlyBar" /></CardTitle></CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={data.bar}>
@@ -179,7 +199,7 @@ function OperatorRanking({ dimension, platform, operatorId }: {
 
   return (
     <Card>
-      <CardHeader><CardTitle>本月运营者 GMV Top 8</CardTitle></CardHeader>
+      <CardHeader><CardTitle><MetricTitle dictKey="operatorGmvRank" /></CardTitle></CardHeader>
       <CardContent>
         <div className="space-y-2">
           {data.map((d, i) => (
@@ -232,7 +252,7 @@ function OrderHealth({ dimension, platform, operatorId }: {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <Card>
-        <CardHeader><CardTitle>订单状态分布</CardTitle></CardHeader>
+        <CardHeader><CardTitle><MetricTitle dictKey="statusDist" /></CardTitle></CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
@@ -247,7 +267,7 @@ function OrderHealth({ dimension, platform, operatorId }: {
         </CardContent>
       </Card>
       <Card>
-        <CardHeader><CardTitle>健康指标</CardTitle></CardHeader>
+        <CardHeader><CardTitle><MetricTitle dictKey="healthMetrics" /></CardTitle></CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -345,13 +365,13 @@ function AdCostSection({ dimension, platform, operatorId }: {
       <div className="mb-4 grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="pt-4">
-            <p className="text-muted-foreground text-xs">本月广告支出</p>
+            <MetricTitle dictKey="adSpend" />
             <p className="mt-1 text-xl font-bold">BRL {data.summary.spend.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <p className="text-muted-foreground text-xs">广告费用率</p>
+            <MetricTitle dictKey="adRate" />
             <p className={`mt-1 text-xl font-bold ${data.summary.rate > 25 ? "text-destructive" : data.summary.rate > 15 ? "text-amber-500" : "text-emerald-500"}`}>
               {data.summary.rate.toFixed(1)}%
             </p>
@@ -359,13 +379,13 @@ function AdCostSection({ dimension, platform, operatorId }: {
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <p className="text-muted-foreground text-xs">达人佣金占比</p>
+            <MetricTitle dictKey="affiliatePct" />
             <p className="mt-1 text-xl font-bold">{data.summary.affiliatePct.toFixed(1)}%</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <p className="text-muted-foreground text-xs">数据月份</p>
+            <MetricTitle dictKey="adMonths" />
             <p className="mt-1 text-xl font-bold">{data.monthly.length} 个月</p>
           </CardContent>
         </Card>
@@ -373,7 +393,7 @@ function AdCostSection({ dimension, platform, operatorId }: {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>平台广告支出</CardTitle></CardHeader>
+          <CardHeader><CardTitle><MetricTitle dictKey="adPlatformBar" /></CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={data.monthly}>
@@ -389,7 +409,7 @@ function AdCostSection({ dimension, platform, operatorId }: {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>广告费用率趋势</CardTitle></CardHeader>
+          <CardHeader><CardTitle><MetricTitle dictKey="adRateTrend" /></CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={data.rate}>
@@ -408,7 +428,7 @@ function AdCostSection({ dimension, platform, operatorId }: {
 }
 
 export default function DashboardPage() {
-  const [pinUnlocked, setPinUnlocked] = useState(() => sessionStorage.getItem("dash_pin") !== null)
+  const [pinUnlocked, setPinUnlocked] = useState(() => import.meta.env.DEV || sessionStorage.getItem("dash_pin") !== null)
   const [pinError, setPinError] = useState<string>()
 
   const handlePinUnlock = async (p: string) => {
@@ -435,7 +455,11 @@ export default function DashboardPage() {
     return <PinGate onUnlock={handlePinUnlock} error={pinError} />
   }
 
-  return <DashboardContent />
+  return (
+    <TooltipProvider>
+      <DashboardContent />
+    </TooltipProvider>
+  )
 }
 
 interface Operator { id: number; name: string; group_id: number | null }
@@ -647,7 +671,7 @@ function DashboardContent() {
               <CalendarDays className="size-5 text-primary" />
             </div>
             <div className="flex-1">
-              <CardTitle>订单量</CardTitle>
+              <CardTitle><span className="inline-flex items-center gap-1">订单量<ShadTooltip><TooltipTrigger><Info className="size-3.5 text-muted-foreground/40 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-64 text-xs">{METRICS_DICT.todayCount.tip}</TooltipContent></ShadTooltip></span></CardTitle>
               <p className="text-muted-foreground text-xs">今日 vs 昨日</p>
             </div>
           </CardHeader>
@@ -673,7 +697,7 @@ function DashboardContent() {
               <DollarSign className="size-5 text-primary" />
             </div>
             <div className="flex-1">
-              <CardTitle>销售额</CardTitle>
+              <CardTitle><span className="inline-flex items-center gap-1">销售额<ShadTooltip><TooltipTrigger><Info className="size-3.5 text-muted-foreground/40 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-64 text-xs">{METRICS_DICT.todaySales.tip}</TooltipContent></ShadTooltip></span></CardTitle>
               <p className="text-muted-foreground text-xs">今日 vs 昨日 · BRL</p>
             </div>
           </CardHeader>
@@ -700,7 +724,7 @@ function DashboardContent() {
               <BarChart3 className="size-5 text-accent-foreground" />
             </div>
             <div className="flex-1">
-              <CardTitle>订单量</CardTitle>
+              <CardTitle><span className="inline-flex items-center gap-1">订单量<ShadTooltip><TooltipTrigger><Info className="size-3.5 text-muted-foreground/40 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-64 text-xs">{METRICS_DICT.thisMonthCount.tip}</TooltipContent></ShadTooltip></span></CardTitle>
               <p className="text-muted-foreground text-xs">
                 {new Date().toLocaleDateString("zh-CN", { timeZone: "Asia/Shanghai", month: "long" })} vs{" "}
                 {(() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toLocaleDateString("zh-CN", { timeZone: "Asia/Shanghai", month: "long" }) })()}
@@ -727,7 +751,7 @@ function DashboardContent() {
               <TrendingUp className="size-5 text-accent-foreground" />
             </div>
             <div className="flex-1">
-              <CardTitle>销售额</CardTitle>
+              <CardTitle><span className="inline-flex items-center gap-1">销售额<ShadTooltip><TooltipTrigger><Info className="size-3.5 text-muted-foreground/40 cursor-help" /></TooltipTrigger><TooltipContent side="top" className="max-w-64 text-xs">{METRICS_DICT.thisMonthSales.tip}</TooltipContent></ShadTooltip></span></CardTitle>
               <p className="text-muted-foreground text-xs">本月 vs 上月 · BRL</p>
             </div>
           </CardHeader>
