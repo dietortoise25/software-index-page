@@ -167,7 +167,7 @@ export default function AboutPage() {
         }
         {musicOn && (
           <span className="pointer-events-none absolute right-full mr-3 whitespace-nowrap rounded-lg border border-border/30 bg-background/90 px-3 py-1.5 text-muted-foreground text-xs opacity-0 transition-opacity group-hover:opacity-100 backdrop-blur">
-            塞勒涅之梦 · 古典钢琴
+            塞勒涅之梦 · 古典钢琴 —— 这首曲子陪我写下了这一页
           </span>
         )}
       </button>
@@ -189,6 +189,13 @@ export default function AboutPage() {
               </p>
             </FadeItem>
 
+            {/* 过渡句 */}
+            <FadeItem>
+              <p className="mt-8 max-w-xl text-base sm:text-lg leading-relaxed text-muted-foreground">
+                而这种长期变革，最安静也最彻底的那一个，正发生在<span className="text-foreground">「一个人能做成什么」</span>这件事上。
+              </p>
+            </FadeItem>
+
             {/* 大字报主标题 */}
             <FadeItem>
               <h1 className="mt-12 font-bold text-4xl sm:text-5xl md:text-6xl tracking-tight leading-tight">
@@ -206,7 +213,7 @@ export default function AboutPage() {
             {/* Opening 正文 */}
             <FadeItem>
               <p className="mt-14 max-w-xl text-lg sm:text-xl leading-relaxed">
-                <span className="text-muted-foreground">旧时代的大量工作方式，正在快速失效。</span>
+                <span className="text-muted-foreground">曾经高效的工作方式，正在悄悄失灵。</span>
               </p>
             </FadeItem>
             <FadeItem>
@@ -222,7 +229,13 @@ export default function AboutPage() {
             </FadeItem>
 
             <FadeItem>
-              <p className="mt-16 font-mono text-muted-foreground/50 text-sm">
+              <p className="mt-12 max-w-xl text-base leading-relaxed text-muted-foreground">
+                这些困惑，把我推向了一个方向——不是更努力地工作，而是重新理解<Highlight>一个人能调动的力量</Highlight>。
+              </p>
+            </FadeItem>
+
+            <FadeItem>
+              <p className="mt-10 font-mono text-muted-foreground/50 text-sm">
                 Alan Leung
               </p>
             </FadeItem>
@@ -241,11 +254,11 @@ export default function AboutPage() {
               最早接触的，不是技术。<Highlight>是真实业务。</Highlight>
             </p>
             <p className="text-muted-foreground">
-              销售、电商、供应链、运营。共同点：信息永远不完整。
-              同一个库存，三个人在维护。同一个订单，四种不同版本。
+              刚接手业务时，最让我困惑的是一张库存表：销售手里一个数字，仓库一个数字，财务又是另一个。<br />
+              没有人说谎——只是<span className="text-foreground">信息每流转一次，就失真一次</span>。
             </p>
             <p className="text-muted-foreground">
-              很多人的工作，只是：不断复制、确认、同步、转发。
+              很多人的工作，本质上只是：不断复制、确认、同步、转发。
             </p>
 
             <Quote
@@ -324,6 +337,9 @@ export default function AboutPage() {
             <p className="font-semibold text-2xl sm:text-3xl leading-snug text-primary">
               但一个人，开始拥有过去「小团队」才能拥有的能力。
             </p>
+            <p className="text-muted-foreground">
+              这种感受很奇特——像你一直习惯用双手搬重物，忽然有人递给你一台叉车，<span className="text-foreground">却发现周围大多数人还在弯腰</span>。
+            </p>
 
             <Quote
               text="AI 不是工具革命，而是组织革命。"
@@ -331,7 +347,7 @@ export default function AboutPage() {
             />
 
             <p>
-              <Highlight>真正变化的，不是工具。而是「一个人能完成什么」。</Highlight>
+              <Highlight>真正改变的，不是工具本身，而是一个人的<Highlight>能力半径</Highlight>。</Highlight>
             </p>
           </div>
         </Section>
@@ -345,34 +361,30 @@ export default function AboutPage() {
 
           <StaggerWrap className="space-y-4">
             <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
-              <p className="text-lg sm:text-xl leading-relaxed text-muted-foreground">
+              <p className="text-lg sm:text-xl leading-relaxed text-muted-foreground italic">
                 「如果我有一小时解决问题，我会花 55 分钟理解问题。」
               </p>
               <p className="mt-1 text-muted-foreground/50 text-sm">—— 爱因斯坦</p>
             </motion.div>
             <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
-              <p className="text-lg sm:text-xl leading-relaxed text-muted-foreground">
-                真正重要的，从来不是做更多事。而是：重新定义问题。
+              <p className="text-lg sm:text-xl leading-relaxed">
+                真正重要的，从来不是做更多事。而是重新定义问题。
               </p>
-              <p className="mt-1 text-muted-foreground/50 text-sm">—— 《精益创业》· 核心思想</p>
             </motion.div>
             <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
-              <p className="text-lg sm:text-xl leading-relaxed text-muted-foreground">
-                很多组织的问题，本质上是信息处理效率问题。
+              <p className="text-lg sm:text-xl leading-relaxed">
+                很多团队的问题，本质上是信息处理效率问题。
               </p>
-              <p className="mt-1 text-muted-foreground/50 text-sm">—— 《金字塔原理》· 延伸思考</p>
             </motion.div>
             <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
-              <p className="text-lg sm:text-xl leading-relaxed text-muted-foreground">
+              <p className="text-lg sm:text-xl leading-relaxed">
+                系统最大的价值，是减少低价值重复，释放判断力。
+              </p>
+            </motion.div>
+            <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
+              <p className="text-lg sm:text-xl leading-relaxed">
                 未来最强的个体，会越来越像过去的小型组织。
               </p>
-              <p className="mt-1 text-muted-foreground/50 text-sm">—— 安克 AI 火箭班 · 启发</p>
-            </motion.div>
-            <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
-              <p className="text-lg sm:text-xl leading-relaxed text-muted-foreground">
-                系统最大的价值，是减少低价值重复。
-              </p>
-              <p className="mt-1 text-muted-foreground/50 text-sm">—— 《海龟交易法则》· 延伸思考</p>
             </motion.div>
           </StaggerWrap>
         </section>
@@ -390,7 +402,7 @@ export default function AboutPage() {
             </FadeItem>
             <FadeItem>
               <p className="mt-10 text-lg sm:text-xl leading-relaxed">
-                探索继续：<Highlight>未来的个体，究竟还能拥有多大的能力边界。</Highlight>
+                探索还在继续：<Highlight>一个人的能力边界，还能被推多远？</Highlight>
               </p>
             </FadeItem>
 
@@ -412,12 +424,15 @@ export default function AboutPage() {
                   >
                     <Send className="size-4" /> 飞书联系我
                   </a>
-                  <button
-                    onClick={() => setChatOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-5 py-2.5 font-medium text-sm transition-all hover:border-primary/30 hover:text-primary"
-                  >
-                    <Bot className="size-4" /> 需求助手 Agent
-                  </button>
+                  <div className="flex flex-col">
+                    <button
+                      onClick={() => setChatOpen(true)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-5 py-2.5 font-medium text-sm transition-all hover:border-primary/30 hover:text-primary"
+                    >
+                      <Bot className="size-4" /> 聊聊你的需求
+                    </button>
+                    <span className="mt-1.5 text-muted-foreground/60 text-xs">还不确定聊什么？先和 AI 助手说说你的情况</span>
+                  </div>
                 </div>
               </div>
             </FadeItem>
