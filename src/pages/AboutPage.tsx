@@ -135,7 +135,7 @@ export default function AboutPage() {
             {/* Opening 正文 */}
             <FadeItem>
               <p className="mt-14 max-w-xl text-lg sm:text-xl leading-relaxed">
-                过去几年，我越来越明显地感觉到：<span className="text-muted-foreground">旧时代的大量工作方式，正在快速失效。</span>
+                <span className="text-muted-foreground">旧时代的大量工作方式，正在快速失效。</span>
               </p>
             </FadeItem>
             <FadeItem>
@@ -146,7 +146,7 @@ export default function AboutPage() {
             </FadeItem>
             <FadeItem>
               <p className="mt-4 max-w-xl text-base leading-relaxed">
-                <Highlight>我开始越来越关注：下一代个体，究竟还能拥有多大的能力边界。</Highlight>
+                <Highlight>下一代个体，究竟还能拥有多大的能力边界。</Highlight>
               </p>
             </FadeItem>
 
@@ -167,14 +167,14 @@ export default function AboutPage() {
 
           <div className="space-y-5 text-base sm:text-lg leading-relaxed">
             <p>
-              我最早接触的，并不是技术。<Highlight>而是真实业务。</Highlight>
+              最早接触的，不是技术。<Highlight>是真实业务。</Highlight>
             </p>
             <p className="text-muted-foreground">
-              销售、电商、供应链、运营。这些工作有一个共同点：信息永远是不完整的。
-              同一个库存，可能有三个人在维护。同一个订单，可能有四种不同版本。
+              销售、电商、供应链、运营。共同点：信息永远不完整。
+              同一个库存，三个人在维护。同一个订单，四种不同版本。
             </p>
             <p className="text-muted-foreground">
-              很多人的工作，其实只是：不断复制、确认、同步、转发。
+              很多人的工作，只是：不断复制、确认、同步、转发。
             </p>
 
             <Quote
@@ -182,7 +182,7 @@ export default function AboutPage() {
               source="《金字塔原理》"
             />
             <p>
-              但现实里的组织，<Highlight>每天都在制造远超人脑负荷的信息复杂度。</Highlight>
+              现实里的组织，<Highlight>每天都在制造远超人脑负荷的信息复杂度。</Highlight>
             </p>
           </div>
         </Section>
@@ -196,10 +196,10 @@ export default function AboutPage() {
 
           <div className="space-y-5 text-base sm:text-lg leading-relaxed">
             <p>
-              后来业务越来越复杂。SKU 越来越多，平台越来越多，广告数据越来越多。
+              SKU 越来越多，平台越来越多，广告数据越来越多。
             </p>
             <p className="text-muted-foreground">
-              我开始发现：<Highlight>很多过去依赖经验的判断，开始迅速失效。</Highlight>
+              <Highlight>很多过去依赖经验的判断，迅速失效。</Highlight>
             </p>
 
             <Quote
@@ -207,7 +207,7 @@ export default function AboutPage() {
               source="《精益数据分析》"
             />
             <p>
-              后来我越来越觉得：很多业务问题，本质上也是一样。
+              很多业务问题，本质上也是如此。
             </p>
             <p>
               真正重要的，不是收集更多数据。<Highlight>而是找到真正关键的变量。</Highlight>
@@ -219,12 +219,12 @@ export default function AboutPage() {
         <Section className="mb-40 sm:mb-52">
           <div className="mb-10 flex items-center gap-3">
             <SectionNum n="03" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight">后来我开始迷上「系统」</h2>
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight">迷上「系统」</h2>
           </div>
 
           <div className="space-y-5 text-base sm:text-lg leading-relaxed">
             <p className="font-semibold text-xl sm:text-2xl leading-snug">
-              因为我发现：人会疲惫、会波动、会遗忘。<br />
+              人会疲惫、会波动、会遗忘。<br />
               <Highlight>但系统不会。</Highlight>
             </p>
 
@@ -234,7 +234,7 @@ export default function AboutPage() {
             />
 
             <p className="text-muted-foreground">
-              这句话后来越来越影响我。无论是数据、流程、工作流、还是信息处理——我都越来越倾向于：建立系统，而不是依赖记忆与经验。
+              无论是数据、流程、工作流——建立系统，而非依赖记忆与经验。
             </p>
           </div>
         </Section>
@@ -243,18 +243,15 @@ export default function AboutPage() {
         <Section className="mb-40 sm:mb-52">
           <div className="mb-10 flex items-center gap-3">
             <SectionNum n="04" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight">后来真正让我震撼的，是另一件事</h2>
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight">真正让我震撼的，是另一件事</h2>
           </div>
 
           <div className="space-y-5 text-base sm:text-lg leading-relaxed">
             <p className="text-muted-foreground">
-              过去很多复杂工作，通常意味着：多人协作。写内容、分析数据、开发工具、建立流程——往往需要一个小团队。
-            </p>
-            <p className="font-semibold text-2xl sm:text-3xl leading-snug">
-              但后来我第一次明显感觉到：
+              过去很多复杂工作，意味着：多人协作。写内容、分析数据、开发工具、建立流程——往往需要一个小团队。
             </p>
             <p className="font-semibold text-2xl sm:text-3xl leading-snug text-primary">
-              一个人，开始拥有过去「小团队」才能拥有的能力。
+              但一个人，开始拥有过去「小团队」才能拥有的能力。
             </p>
 
             <Quote
@@ -263,7 +260,7 @@ export default function AboutPage() {
             />
 
             <p>
-              我越来越认同这一点。<Highlight>因为真正变化的，并不是工具。而是「一个人能完成什么」。</Highlight>
+              <Highlight>真正变化的，不是工具。而是「一个人能完成什么」。</Highlight>
             </p>
           </div>
         </Section>
@@ -322,7 +319,7 @@ export default function AboutPage() {
             </FadeItem>
             <FadeItem>
               <p className="mt-10 text-lg sm:text-xl leading-relaxed">
-                我仍然在持续探索：<Highlight>未来的个体，究竟还能拥有多大的能力边界。</Highlight>
+                探索继续：<Highlight>未来的个体，究竟还能拥有多大的能力边界。</Highlight>
               </p>
             </FadeItem>
             <FadeItem>
