@@ -1,6 +1,6 @@
-import { useRef } from "react"
+import { useRef, useState } from "react"
 import { motion, useScroll, useTransform, useInView, type Variants } from "framer-motion"
-import { ArrowRight } from "lucide-react"
+import { Volume2, VolumeX } from "lucide-react"
 
 /* ── 动效 variants ── */
 
@@ -31,7 +31,7 @@ function Section({ children, className = "" }: { children: React.ReactNode; clas
   )
 }
 
-function SectionStagger({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function StaggerWrap({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const inView = useInView(ref, { once: true, margin: "-100px" })
   return (
@@ -45,12 +45,20 @@ function FadeItem({ children, className = "" }: { children: React.ReactNode; cla
   return <motion.div variants={fadeIn} className={className}>{children}</motion.div>
 }
 
-function SectionTitle({ number, title }: { number: string; title: string }) {
+function SectionNum({ n }: { n: string }) {
+  return <span className="font-mono text-sm tracking-widest text-muted-foreground/40">{n}</span>
+}
+
+function Quote({ text, source }: { text: string; source: string }) {
   return (
-    <div className="mb-10 flex items-center gap-3">
-      <span className="font-mono text-sm tracking-widest text-muted-foreground/40">{number}</span>
-      <h2 className="font-bold text-2xl sm:text-3xl tracking-tight">{title}</h2>
-    </div>
+    <blockquote className="my-6 border-l-2 border-primary/30 pl-4">
+      <p className="text-base sm:text-lg leading-relaxed text-muted-foreground italic">
+        「{text}」
+      </p>
+      <cite className="mt-1 block font-sans text-muted-foreground/50 text-sm not-italic">
+        —— {source}
+      </cite>
+    </blockquote>
   )
 }
 
@@ -58,44 +66,20 @@ function Highlight({ children }: { children: React.ReactNode }) {
   return <span className="font-semibold text-foreground">{children}</span>
 }
 
-function FlowNode({ label, desc, last = false }: { label: string; desc: string; last?: boolean }) {
-  return (
-    <div className="flex flex-col items-center gap-1.5">
-      <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10">
-        <span className="font-bold text-primary text-sm">{label.slice(0, 1)}</span>
-      </div>
-      <span className="font-semibold text-sm">{label}</span>
-      <span className="text-muted-foreground text-xs">{desc}</span>
-      {!last && <ArrowRight className="mt-1 size-4 text-muted-foreground/30 rotate-90 sm:rotate-0" />}
-    </div>
-  )
-}
-
-function ThoughtCard({ text }: { text: string }) {
-  return (
-    <motion.div variants={slowFade} className="group rounded-2xl border border-border/40 bg-muted/10 px-6 py-5 transition-colors hover:bg-muted/20">
-      <p className="text-lg sm:text-xl leading-relaxed text-muted-foreground">{text}</p>
-    </motion.div>
-  )
-}
-
-function ProjectItem({ title, desc }: { title: string; desc: string }) {
-  return (
-    <FadeItem>
-      <div className="rounded-2xl border border-border/40 bg-card/40 p-6 transition-colors hover:bg-card">
-        <h3 className="mb-2 font-bold text-lg">{title}</h3>
-        <p className="text-muted-foreground text-sm leading-relaxed">{desc}</p>
-      </div>
-    </FadeItem>
-  )
-}
-
 /* ── 主页面 ── */
 
 export default function AboutPage() {
   const containerRef = useRef<HTMLDivElement>(null)
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [musicOn, setMusicOn] = useState(false)
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end end"] })
   const progressBarWidth = useTransform(scrollYProgress, [0, 1], ["0%", "100%"])
+
+  const toggleMusic = () => {
+    if (!audioRef.current) return
+    if (musicOn) { audioRef.current.pause(); setMusicOn(false) }
+    else { audioRef.current.play().then(() => setMusicOn(true)).catch(() => setMusicOn(false)) }
+  }
 
   return (
     <div ref={containerRef} className="relative overflow-hidden">
@@ -105,15 +89,38 @@ export default function AboutPage() {
         style={{ background: "radial-gradient(ellipse 60% 50% at 50% 0%, hsl(var(--primary) / 0.07), transparent 70%)" }}
       />
 
+      {/* 背景音乐 */}
+      <audio ref={audioRef} src="/about-bgm.m4a" loop preload="auto" />
+
+      {/* 音乐开关 */}
+      <button
+        onClick={toggleMusic}
+        className="fixed right-4 bottom-4 z-50 flex size-10 items-center justify-center rounded-full border border-border/40 bg-background/80 backdrop-blur text-muted-foreground transition-all hover:text-foreground hover:border-primary/30"
+        aria-label={musicOn ? "暂停音乐" : "播放音乐"}
+      >
+        {musicOn ? <Volume2 className="size-4 text-primary" /> : <VolumeX className="size-4" />}
+      </button>
+
       {/* 阅读进度条 */}
       <motion.div className="fixed top-14 left-0 z-40 h-0.5 bg-primary/50" style={{ width: progressBarWidth }} />
 
       <div className="container mx-auto max-w-3xl px-4 py-24 sm:py-32">
-        {/* ══════════ 1. Opening ══════════ */}
+        {/* ══════════ Opening ══════════ */}
         <section className="mb-44 sm:mb-56">
           <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
+            {/* 引言 */}
             <FadeItem>
-              <h1 className="font-bold text-4xl sm:text-5xl md:text-6xl tracking-tight leading-tight">
+              <p className="max-w-lg text-base sm:text-lg leading-relaxed text-muted-foreground italic">
+                「人们高估了短期变化，却低估了长期变革。」
+              </p>
+              <p className="mt-1 text-muted-foreground/50 text-sm">
+                —— 《精益创业》
+              </p>
+            </FadeItem>
+
+            {/* 大字报主标题 */}
+            <FadeItem>
+              <h1 className="mt-12 font-bold text-4xl sm:text-5xl md:text-6xl tracking-tight leading-tight">
                 重新定义一个人的
                 <br />
                 <span className="text-primary">生产力</span>
@@ -124,21 +131,25 @@ export default function AboutPage() {
                 Redefining individual leverage
               </p>
             </FadeItem>
+
+            {/* Opening 正文 */}
             <FadeItem>
               <p className="mt-14 max-w-xl text-lg sm:text-xl leading-relaxed">
-                我越来越感觉：旧世界里的很多工作方式，<span className="text-muted-foreground">正在快速失效。</span>
+                过去几年，我越来越明显地感觉到：<span className="text-muted-foreground">旧时代的大量工作方式，正在快速失效。</span>
               </p>
             </FadeItem>
             <FadeItem>
               <p className="mt-3 max-w-xl text-base leading-relaxed text-muted-foreground">
-                组织结构、信息流转、协作方式——甚至「一个人能做到什么」的定义，都在被重新改写。
+                会议越来越多，协作越来越复杂，流程越来越长。<br />
+                但真正被解决的问题，却没有变多。
               </p>
             </FadeItem>
             <FadeItem>
               <p className="mt-4 max-w-xl text-base leading-relaxed">
-                我现在关注的是：<Highlight>下一代个体，如何建立过去只有组织才能拥有的能力。</Highlight>
+                <Highlight>我开始越来越关注：下一代个体，究竟还能拥有多大的能力边界。</Highlight>
               </p>
             </FadeItem>
+
             <FadeItem>
               <p className="mt-16 font-mono text-muted-foreground/50 text-sm">
                 Alan Leung · 梁思骏
@@ -147,143 +158,184 @@ export default function AboutPage() {
           </motion.div>
         </section>
 
-        {/* ══════════ 2. 起点 ══════════ */}
+        {/* ══════════ Part 1：现实业务 ══════════ */}
         <Section className="mb-40 sm:mb-52">
-          <SectionTitle number="01" title="怀疑" />
+          <div className="mb-10 flex items-center gap-3">
+            <SectionNum n="01" />
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight">现实会逼着人重新思考</h2>
+          </div>
+
           <div className="space-y-5 text-base sm:text-lg leading-relaxed">
             <p>
-              最早接触真实业务时，我发现很多组织内部真正稀缺的并不是努力。<Highlight>而是信息处理能力。</Highlight>
+              我最早接触的，并不是技术。<Highlight>而是真实业务。</Highlight>
             </p>
             <p className="text-muted-foreground">
-              大量沟通、重复协作、流程传递、经验依赖——正在持续吞噬组织效率。
-              当你要同时面对几十个店铺、几百个 SKU、跨平台的营销数据时，直觉已经无法胜任。
+              销售、电商、供应链、运营。这些工作有一个共同点：信息永远是不完整的。
+              同一个库存，可能有三个人在维护。同一个订单，可能有四种不同版本。
             </p>
-            <p className="font-semibold text-xl sm:text-2xl leading-relaxed">
-              我开始对旧的工作方式产生怀疑。
+            <p className="text-muted-foreground">
+              很多人的工作，其实只是：不断复制、确认、同步、转发。
+            </p>
+
+            <Quote
+              text="人无法一次理解七个以上的信息单位。"
+              source="《金字塔原理》"
+            />
+            <p>
+              但现实里的组织，<Highlight>每天都在制造远超人脑负荷的信息复杂度。</Highlight>
             </p>
           </div>
         </Section>
 
-        {/* ══════════ 3. 数据 ══════════ */}
+        {/* ══════════ Part 2：数据 ══════════ */}
         <Section className="mb-40 sm:mb-52">
-          <SectionTitle number="02" title="数据" />
+          <div className="mb-10 flex items-center gap-3">
+            <SectionNum n="02" />
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight">当经验开始失效</h2>
+          </div>
+
           <div className="space-y-5 text-base sm:text-lg leading-relaxed">
             <p>
-              后来我开始越来越依赖数据。不是因为喜欢报表——而是因为：
-              当业务复杂到一定程度后，<Highlight>「感觉」会失效。</Highlight>
+              后来业务越来越复杂。SKU 越来越多，平台越来越多，广告数据越来越多。
             </p>
             <p className="text-muted-foreground">
-              数据真正重要的地方，不是统计。而是帮助人重新理解现实。
-              同样的数据，不同的人能读出完全不同的结论——前提是你知道该问什么问题。
+              我开始发现：<Highlight>很多过去依赖经验的判断，开始迅速失效。</Highlight>
+            </p>
+
+            <Quote
+              text="创业最大的风险，不是构建产品失败。而是构建了没人需要的东西。"
+              source="《精益数据分析》"
+            />
+            <p>
+              后来我越来越觉得：很多业务问题，本质上也是一样。
+            </p>
+            <p>
+              真正重要的，不是收集更多数据。<Highlight>而是找到真正关键的变量。</Highlight>
             </p>
           </div>
         </Section>
 
-        {/* ══════════ 4. 自动化 ══════════ */}
+        {/* ══════════ Part 3：系统化 ══════════ */}
         <Section className="mb-40 sm:mb-52">
-          <SectionTitle number="03" title="自动化" />
+          <div className="mb-10 flex items-center gap-3">
+            <SectionNum n="03" />
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight">后来我开始迷上「系统」</h2>
+          </div>
+
           <div className="space-y-5 text-base sm:text-lg leading-relaxed">
-            <p>
-              后来我又发现：很多所谓的「工作」，本质上只是信息搬运。
+            <p className="font-semibold text-xl sm:text-2xl leading-snug">
+              因为我发现：人会疲惫、会波动、会遗忘。<br />
+              <Highlight>但系统不会。</Highlight>
             </p>
+
+            <Quote
+              text="长期来看，决定结果的不是情绪，而是系统。"
+              source="《海龟交易法则》"
+            />
+
             <p className="text-muted-foreground">
-              订单数据、广告报表、客服消息——它们在不同的系统里，用着不同的格式，需要同一个人手动搬运。
-            </p>
-            <p className="font-semibold text-xl sm:text-2xl leading-relaxed">
-              如果一个人每天都在重复执行流程，<br />
-              那么真正被浪费的，不是时间。<br />
-              <Highlight>而是认知资源。</Highlight>
+              这句话后来越来越影响我。无论是数据、流程、工作流、还是信息处理——我都越来越倾向于：建立系统，而不是依赖记忆与经验。
             </p>
           </div>
         </Section>
 
-        {/* ══════════ 5. 认知升级 ══════════ */}
+        {/* ══════════ Part 4：真正的变化 ══════════ */}
         <Section className="mb-40 sm:mb-52">
-          <SectionTitle number="04" title="个体能力" />
+          <div className="mb-10 flex items-center gap-3">
+            <SectionNum n="04" />
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight">后来真正让我震撼的，是另一件事</h2>
+          </div>
+
           <div className="space-y-5 text-base sm:text-lg leading-relaxed">
+            <p className="text-muted-foreground">
+              过去很多复杂工作，通常意味着：多人协作。写内容、分析数据、开发工具、建立流程——往往需要一个小团队。
+            </p>
             <p className="font-semibold text-2xl sm:text-3xl leading-snug">
-              过去很多复杂事情，需要依赖组织协作。
+              但后来我第一次明显感觉到：
             </p>
             <p className="font-semibold text-2xl sm:text-3xl leading-snug text-primary">
-              但现在，越来越多能力，开始重新回到个体身上。
+              一个人，开始拥有过去「小团队」才能拥有的能力。
             </p>
-            <p className="mt-6 text-muted-foreground">
-              我不再把 AI 看作工具或兴趣。它正在成为生产力基础设施——帮你阅读、分析、总结、生成，让你把注意力集中在真正需要判断的地方。
-            </p>
+
+            <Quote
+              text="AI 不是工具革命，而是组织革命。"
+              source="安克 AI 火箭班"
+            />
+
             <p>
-              <Highlight>我越来越关注：下一代个体，如何建立过去只有组织才能拥有的能力。</Highlight>
+              我越来越认同这一点。<Highlight>因为真正变化的，并不是工具。而是「一个人能完成什么」。</Highlight>
             </p>
           </div>
         </Section>
 
-        {/* ══════════ 6. 工作方式 ══════════ */}
-        <Section className="mb-40 sm:mb-52">
-          <SectionTitle number="05" title="新工作方式" />
-          <p className="mb-10 text-base sm:text-lg text-muted-foreground leading-relaxed">
-            不是技能列表。而是在实践中逐渐形成的一套闭环：
-          </p>
-          <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-6">
-            <FlowNode label="理解问题" desc="看清本质" />
-            <FlowNode label="建立系统" desc="结构思维" />
-            <FlowNode label="降低重复" desc="释放认知" />
-            <FlowNode label="个体杠杆" desc="持续放大" last />
-          </div>
-          <div className="mt-10 rounded-2xl border border-border/30 bg-muted/10 px-6 py-5">
-            <p className="text-center text-muted-foreground text-sm">
-              能力之间的连接，比单一技能本身重要得多。
-            </p>
-          </div>
-        </Section>
-
-        {/* ══════════ 7. 项目 ══════════ */}
+        {/* ══════════ Thoughts ══════════ */}
         <section className="mb-40 sm:mb-52">
-          <SectionTitle number="06" title="实践" />
-          <p className="mb-8 text-base sm:text-lg text-muted-foreground leading-relaxed">
-            这些想法后来逐渐变成了一些实际实践。<Highlight>每个项目，都是在试图解决一个具体的旧问题。</Highlight>
-          </p>
-          <SectionStagger className="grid gap-4 sm:grid-cols-2">
-            <ProjectItem
-              title="自动化工作流"
-              desc="减少重复的信息处理与流程执行，让更多精力重新回到判断与决策本身。"
-            />
-            <ProjectItem
-              title="电商数据分析"
-              desc="在复杂业务中建立更稳定的决策依据，让数据成为理解现实的工具而非报表。"
-            />
-            <ProjectItem
-              title="AI 内容工具"
-              desc="用结构化 Prompt 与工作流替代重复性内容生产，探索人机协作的新边界。"
-            />
-            <ProjectItem
-              title="运营工具发布站"
-              desc="内部工具分发 + AI 需求助手 + 数据看板，一个持续演化的个人实践场。"
-            />
-          </SectionStagger>
+          <div className="mb-10 flex items-center gap-3">
+            <SectionNum n="05" />
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight">观点</h2>
+          </div>
+
+          <StaggerWrap className="space-y-4">
+            <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
+              <p className="text-lg sm:text-xl leading-relaxed text-muted-foreground">
+                「如果我有一小时解决问题，我会花 55 分钟理解问题。」
+              </p>
+              <p className="mt-1 text-muted-foreground/50 text-sm">—— 爱因斯坦</p>
+            </motion.div>
+            <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
+              <p className="text-lg sm:text-xl leading-relaxed text-muted-foreground">
+                真正重要的，从来不是做更多事。而是：重新定义问题。
+              </p>
+              <p className="mt-1 text-muted-foreground/50 text-sm">—— 《精益创业》· 核心思想</p>
+            </motion.div>
+            <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
+              <p className="text-lg sm:text-xl leading-relaxed text-muted-foreground">
+                很多组织的问题，本质上是信息处理效率问题。
+              </p>
+              <p className="mt-1 text-muted-foreground/50 text-sm">—— 《金字塔原理》· 延伸思考</p>
+            </motion.div>
+            <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
+              <p className="text-lg sm:text-xl leading-relaxed text-muted-foreground">
+                未来最强的个体，会越来越像过去的小型组织。
+              </p>
+              <p className="mt-1 text-muted-foreground/50 text-sm">—— 安克 AI 火箭班 · 启发</p>
+            </motion.div>
+            <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
+              <p className="text-lg sm:text-xl leading-relaxed text-muted-foreground">
+                系统最大的价值，是减少低价值重复。
+              </p>
+              <p className="mt-1 text-muted-foreground/50 text-sm">—— 《海龟交易法则》· 延伸思考</p>
+            </motion.div>
+          </StaggerWrap>
         </section>
 
-        {/* ══════════ 8. Thoughts ══════════ */}
-        <section className="mb-40 sm:mb-52">
-          <SectionTitle number="07" title="观点" />
-          <motion.div initial="hidden" whileInView="visible" variants={staggerContainer} viewport={{ once: true, margin: "-100px" }} className="space-y-4">
-            <ThoughtCard text="旧世界的大多数组织结构，建立在信息不对称之上。" />
-            <ThoughtCard text="真正重要的，不是工具。而是重新组织现实的能力。" />
-            <ThoughtCard text="未来最强的个体，会越来越像过去的小型组织。" />
-            <ThoughtCard text="很多团队的问题，本质上是信息处理效率问题。" />
-            <ThoughtCard text="真正稀缺的，是把复杂问题重新结构化的人。" />
-          </motion.div>
-        </section>
-
-        {/* ══════════ 9. Contact ══════════ */}
+        {/* ══════════ Ending ══════════ */}
         <Section>
-          <SectionTitle number="08" title="联系" />
-          <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
-            如果你也在思考类似的问题——<br />
-            或者想讨论未来的个体将如何工作——<br />
-            <Highlight>欢迎通过飞书联系我。</Highlight>
-          </p>
-          <p className="mt-4 font-mono text-muted-foreground/50 text-sm">
-            Feishu: Alan Leung
-          </p>
+          <StaggerWrap>
+            <FadeItem>
+              <p className="text-base sm:text-lg leading-relaxed text-muted-foreground italic">
+                「我们无法用制造问题时的思维，去解决问题。」
+              </p>
+              <p className="mt-1 text-muted-foreground/50 text-sm">
+                —— 爱因斯坦
+              </p>
+            </FadeItem>
+            <FadeItem>
+              <p className="mt-10 text-lg sm:text-xl leading-relaxed">
+                我仍然在持续探索：<Highlight>未来的个体，究竟还能拥有多大的能力边界。</Highlight>
+              </p>
+            </FadeItem>
+            <FadeItem>
+              <a
+                href="https://www.feishu.cn/invitation/page/add_contact/?token=102j6c0a-8ed3-4a50-b129-89036a174e38&amp;unique_id=hPB8x5jEunvd3Cp-jQ5bAA=="
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 font-medium text-primary-foreground text-sm transition-all hover:opacity-85"
+              >
+                通过飞书联系我
+              </a>
+            </FadeItem>
+          </StaggerWrap>
         </Section>
       </div>
     </div>
