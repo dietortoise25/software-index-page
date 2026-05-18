@@ -7,6 +7,20 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "v2.0.1",
+    date: "2026-05-18",
+    title: "代码结构重构 + 鲁棒性修复 + 版本管理规范化",
+    items: [
+      { type: "fix", text: "存储层修复：Promise链锁缺陷、原子写入(防崩溃)、3级轮转备份(防数据丢失)" },
+      { type: "fix", text: "限流器内存泄漏修复：定期清理过期Map条目" },
+      { type: "fix", text: "飞书token缓存并发保护：pending Promise去重机制" },
+      { type: "change", text: "server入口拆分为pin/quick-form独立路由，添加全局错误处理中间件" },
+      { type: "change", text: "前端新建API请求层 + useDashboardFilter筛选状态hook" },
+      { type: "change", text: "版本号统一为v2.0.0（constants/changelog/package.json对齐），创建git tag" },
+      { type: "change", text: "TS target统一为ES2022，移除sync方法竞态风险" },
+    ],
+  },
+  {
     version: "v2.0.0",
     date: "2026-05-15",
     title: "千易ERP数据中台 + 订单看板 + 运营管理 + 广告费用分析",
