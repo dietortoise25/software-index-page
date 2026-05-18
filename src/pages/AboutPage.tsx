@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from "react"
 import { motion, useScroll, useTransform, useInView, type Variants } from "framer-motion"
-import { Volume2, VolumeX, Send, Sparkles } from "lucide-react"
+import { Volume2, VolumeX, Send, Bot } from "lucide-react"
 import ChatDialog from "@/components/chat/ChatDialog"
 
 /* ── 打字机效果 ── */
@@ -381,7 +381,7 @@ export default function AboutPage() {
                     onClick={() => setChatOpen(true)}
                     className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-5 py-2.5 font-medium text-sm transition-all hover:border-primary/30 hover:text-primary"
                   >
-                    <Sparkles className="size-4" /> 需求助手 Agent
+                    <Bot className="size-4" /> 需求助手 Agent
                   </button>
                 </div>
               </div>
