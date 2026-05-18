@@ -7,6 +7,23 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "v2.1.0",
+    date: "2026-05-18",
+    title: "个人品牌页面 /about — 认知叙事 + AI流式打字机 + 背景音乐",
+    items: [
+      { type: "new", text: "新增 /about 个人品牌页面，路由 + 导航栏入口" },
+      { type: "new", text: "认知型叙事结构：Opening→怀疑→数据→自动化→个体能力→新工作方式→实践→引文" },
+      { type: "new", text: "6本书/框架锚点：精益创业/精益数据分析/金字塔原理/海龟交易法则/第一性原理/安克AI火箭班" },
+      { type: "new", text: "AI流式打字机效果：setTimeout链式随机延迟+标点停顿，覆盖Opening引言+副标题+全部章节标题" },
+      { type: "new", text: "古典钢琴背景音乐（俄尔甫斯），默认播放+首次交互fallback，hover显示曲名" },
+      { type: "new", text: "CTA双卡片→杂志附言式内联链接 + ChatDialog内联管理" },
+      { type: "new", text: "Framer Motion动效：滚动触发reveal + stagger + 顶部渐变光斑 + 阅读进度条" },
+      { type: "change", text: "B+D不对称排版（标题1/3 + 正文2/3）+ 数据呼吸点 + 微场景" },
+      { type: "change", text: "引文区论文脚注式2列网格，视觉权重低于正文" },
+      { type: "change", text: "3轮文案精炼：移除口语转接字眼 + 逻辑修复 + 措辞微调" },
+    ],
+  },
+  {
     version: "v2.0.1",
     date: "2026-05-18",
     title: "代码结构重构 + 鲁棒性修复 + 版本管理规范化",
