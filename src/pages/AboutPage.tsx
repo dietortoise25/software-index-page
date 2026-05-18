@@ -374,44 +374,48 @@ export default function AboutPage() {
           </div>
         </Section>
 
-        {/* ══════════ Thoughts ══════════ */}
+        {/* ══════════ 引文 ══════════ */}
         <section className="mb-40 sm:mb-52">
           <div className="grid gap-6 sm:grid-cols-[1fr_2fr] sm:gap-12">
             <div>
               <div className="flex items-center gap-3">
                 <SectionNum n="05" />
-                <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="观点" /></h2>
+                <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="引文" /></h2>
               </div>
             </div>
-            <StaggerWrap className="space-y-4">
-            <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
-              <p className="text-lg sm:text-xl leading-relaxed text-muted-foreground italic">
-                「如果我有一小时解决问题，我会花 55 分钟理解问题。」
-              </p>
-              <p className="mt-1 text-muted-foreground/50 text-sm">—— 爱因斯坦</p>
-            </motion.div>
-            <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
-              <p className="text-lg sm:text-xl leading-relaxed">
-                真正重要的，从来不是做更多事。而是重新定义问题。
-              </p>
-            </motion.div>
-            <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
-              <p className="text-lg sm:text-xl leading-relaxed">
-                很多团队的问题，本质上是信息处理效率问题。
-              </p>
-            </motion.div>
-            <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
-              <p className="text-lg sm:text-xl leading-relaxed">
-                系统最大的价值，是减少低价值重复，释放判断力。
-              </p>
-            </motion.div>
-            <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
-              <p className="text-lg sm:text-xl leading-relaxed">
-                未来最强的个体，会越来越像过去的小型组织。
-              </p>
-            </motion.div>
-          </StaggerWrap>
-            </div>
+            <StaggerWrap className="grid gap-3 sm:grid-cols-2">
+              <motion.div variants={slowFade} className="col-span-full border-b border-border/20 pb-4">
+                <p className="text-base sm:text-lg leading-relaxed text-muted-foreground italic">
+                  「如果我有一小时解决问题，我会花 55 分钟理解问题。」
+                </p>
+                <p className="mt-1 text-muted-foreground/40 text-xs">—— 爱因斯坦</p>
+              </motion.div>
+              <motion.div variants={slowFade} className="border-l-2 border-primary/20 pl-3">
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  真正重要的，从来不是做更多事。而是重新定义问题。
+                </p>
+                <p className="mt-1 text-muted-foreground/40 text-xs">《精益创业》</p>
+              </motion.div>
+              <motion.div variants={slowFade} className="border-l-2 border-primary/20 pl-3">
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  很多团队的问题，本质上是信息处理效率问题。
+                </p>
+                <p className="mt-1 text-muted-foreground/40 text-xs">《金字塔原理》</p>
+              </motion.div>
+              <motion.div variants={slowFade} className="border-l-2 border-primary/20 pl-3">
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  系统最大的价值，是减少低价值重复，释放判断力。
+                </p>
+                <p className="mt-1 text-muted-foreground/40 text-xs">《海龟交易法则》</p>
+              </motion.div>
+              <motion.div variants={slowFade} className="border-l-2 border-primary/20 pl-3">
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  未来最强的个体，会越来越像过去的小型组织。
+                </p>
+                <p className="mt-1 text-muted-foreground/40 text-xs">安克 AI 火箭班</p>
+              </motion.div>
+            </StaggerWrap>
+          </div>
         </section>
 
         {/* ══════════ Ending ══════════ */}
