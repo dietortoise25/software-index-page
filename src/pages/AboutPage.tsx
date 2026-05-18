@@ -1,6 +1,6 @@
 import { useRef } from "react"
 import { motion, useScroll, useTransform, useInView, type Variants } from "framer-motion"
-import { ArrowRight, Lightbulb, Grip, type LucideIcon } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 
 /* ── 动效 variants ── */
 
