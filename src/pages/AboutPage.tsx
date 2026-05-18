@@ -147,7 +147,7 @@ export default function AboutPage() {
             {/* 引言 */}
             <FadeItem>
               <p className="max-w-lg text-base sm:text-lg leading-relaxed text-muted-foreground italic">
-                「人们高估了短期变化，却低估了长期变革。」
+                「<Typewriter text="人们高估了短期变化，却低估了长期变革。" speed={60} />」
               </p>
               <p className="mt-1 text-muted-foreground/50 text-sm">
                 —— 《精益创业》
@@ -188,7 +188,7 @@ export default function AboutPage() {
 
             <FadeItem>
               <p className="mt-16 font-mono text-muted-foreground/50 text-sm">
-                Alan Leung · 梁思骏
+                Alan Leung
               </p>
             </FadeItem>
           </motion.div>
@@ -198,7 +198,7 @@ export default function AboutPage() {
         <Section className="mb-40 sm:mb-52">
           <div className="mb-10 flex items-center gap-3">
             <SectionNum n="01" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight">现实会逼着人重新思考</h2>
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="现实会逼着人重新思考" speed={48} /></h2>
           </div>
 
           <div className="space-y-5 text-base sm:text-lg leading-relaxed">
@@ -227,7 +227,7 @@ export default function AboutPage() {
         <Section className="mb-40 sm:mb-52">
           <div className="mb-10 flex items-center gap-3">
             <SectionNum n="02" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight">当经验开始失效</h2>
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="当经验开始失效" speed={48} /></h2>
           </div>
 
           <div className="space-y-5 text-base sm:text-lg leading-relaxed">
@@ -255,7 +255,7 @@ export default function AboutPage() {
         <Section className="mb-40 sm:mb-52">
           <div className="mb-10 flex items-center gap-3">
             <SectionNum n="03" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight">迷上「系统」</h2>
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="迷上「系统」" speed={48} /></h2>
           </div>
 
           <div className="space-y-5 text-base sm:text-lg leading-relaxed">
@@ -279,7 +279,7 @@ export default function AboutPage() {
         <Section className="mb-40 sm:mb-52">
           <div className="mb-10 flex items-center gap-3">
             <SectionNum n="04" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight">真正让我震撼的，是另一件事</h2>
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="真正让我震撼的，是另一件事" speed={48} /></h2>
           </div>
 
           <div className="space-y-5 text-base sm:text-lg leading-relaxed">
@@ -305,7 +305,7 @@ export default function AboutPage() {
         <section className="mb-40 sm:mb-52">
           <div className="mb-10 flex items-center gap-3">
             <SectionNum n="05" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight">观点</h2>
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="观点" speed={48} /></h2>
           </div>
 
           <StaggerWrap className="space-y-4">
