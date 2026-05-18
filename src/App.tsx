@@ -11,6 +11,7 @@ import DashboardPage from "@/pages/DashboardPage"
 import InternalAdminPage from "@/pages/InternalAdminPage"
 import ChangelogPage from "@/pages/ChangelogPage"
 import PptPage from "@/pages/PptPage"
+import AboutPage from "@/pages/AboutPage"
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="internal/admin" element={<InternalAdminPage />} />
         <Route path="ppt/:id" element={<PptPage />} />
         <Route path="ppt" element={<PptPage />} />
+        <Route path="about" element={<AboutPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

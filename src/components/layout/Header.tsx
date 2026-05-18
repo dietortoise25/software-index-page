@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: "/", label: "首页", match: (p: string) => p === "/" },
   { to: "/catalog", label: "工具库", match: (p: string) => p.startsWith("/catalog") || p.startsWith("/software") },
   { to: "/articles", label: "文章", match: (p: string) => p.startsWith("/articles") },
+  { to: "/about", label: "关于", match: (p: string) => p === "/about" },
   { to: "/review", label: "审查", match: (p: string) => p === "/review" },
   { to: "/changelog", label: "更新日志", match: (p: string) => p === "/changelog" },
   { to: "/dashboard", label: "看板", match: (p: string) => p === "/dashboard" },
