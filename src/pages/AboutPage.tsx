@@ -1,23 +1,23 @@
 import { useRef } from "react"
-import { motion, useScroll, useTransform, useInView } from "framer-motion"
+import { motion, useScroll, useTransform, useInView, type Variants } from "framer-motion"
 import { ArrowRight, Database, Bot, Workflow, MessageSquare, BarChart3, Globe, Terminal, type LucideIcon } from "lucide-react"
 
 /* ── 动画工具 ── */
 
 const fadeIn = {
   hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: "easeOut" } },
-}
+  visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: "easeOut" as const } },
+} satisfies Variants
 
 const staggerContainer = {
   hidden: {},
   visible: { transition: { staggerChildren: 0.15, delayChildren: 0.1 } },
-}
+} satisfies Variants
 
 const slowFade = {
   hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: 1.2, ease: "easeOut" } },
-}
+  visible: { opacity: 1, transition: { duration: 1.2, ease: "easeOut" as const } },
+} satisfies Variants
 
 function Section({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
