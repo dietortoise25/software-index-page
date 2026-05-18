@@ -5,8 +5,9 @@ import ChatDialog from "@/components/chat/ChatDialog"
 
 /* ── 打字机效果 ── */
 
-function Typewriter({ text, className, speed = 60 }: { text: string; className?: string; speed?: number }) {
+function Typewriter({ text, className, speed = 80 }: { text: string; className?: string; speed?: number }) {
   const [displayed, setDisplayed] = useState("")
+  const [done, setDone] = useState(false)
   const [started, setStarted] = useState(false)
   const ref = useRef<HTMLSpanElement>(null)
 
@@ -14,11 +15,21 @@ function Typewriter({ text, className, speed = 60 }: { text: string; className?:
     if (started) return
     setStarted(true)
     let i = 0
-    const interval = setInterval(() => {
+    const typeNext = () => {
       i++
-      if (i <= text.length) setDisplayed(text.slice(0, i))
-      else clearInterval(interval)
-    }, speed)
+      if (i <= text.length) {
+        setDisplayed(text.slice(0, i))
+        // 标点后稍长停顿，模拟流式输出节奏
+        const ch = text[i - 1]
+        const delay = ch === '，' || ch === '。' || ch === '？' || ch === '！' ? speed * 2.5
+          : ch === '、' || ch === '；' || ch === '：' ? speed * 1.8
+          : speed * (0.7 + Math.random() * 0.6)
+        setTimeout(typeNext, delay)
+      } else {
+        setDone(true)
+      }
+    }
+    typeNext()
   }, [text, speed, started])
 
   useEffect(() => {
@@ -32,7 +43,7 @@ function Typewriter({ text, className, speed = 60 }: { text: string; className?:
   return (
     <span ref={ref} className={className} aria-label={text}>
       {displayed}
-      <span className="animate-pulse text-primary/60">|</span>
+      {!done && <span className="animate-pulse text-primary/60">|</span>}
     </span>
   )
 }
@@ -111,6 +122,14 @@ export default function AboutPage() {
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end end"] })
   const progressBarWidth = useTransform(scrollYProgress, [0, 1], ["0%", "100%"])
 
+  // 默认播放
+  useEffect(() => {
+    const a = audioRef.current
+    if (!a) return
+    a.volume = 0.3
+    a.play().then(() => setMusicOn(true)).catch(() => {})
+  }, [])
+
   const toggleMusic = () => {
     if (!audioRef.current) return
     if (musicOn) { audioRef.current.pause(); setMusicOn(false) }
@@ -131,10 +150,14 @@ export default function AboutPage() {
       {/* 音乐开关 */}
       <button
         onClick={toggleMusic}
-        className="fixed right-4 bottom-4 z-50 flex size-10 items-center justify-center rounded-full border border-border/40 bg-background/80 backdrop-blur text-muted-foreground transition-all hover:text-foreground hover:border-primary/30"
+        className="group fixed right-4 bottom-4 z-50 flex size-10 items-center justify-center rounded-full border border-border/40 bg-background/80 backdrop-blur text-muted-foreground transition-all hover:text-foreground hover:border-primary/30"
         aria-label={musicOn ? "暂停音乐" : "播放音乐"}
+        title="塞勒涅之梦 · 古典钢琴"
       >
         {musicOn ? <Volume2 className="size-4 text-primary" /> : <VolumeX className="size-4" />}
+        <span className="pointer-events-none absolute right-full mr-3 whitespace-nowrap rounded-lg border border-border/30 bg-background/90 px-3 py-1.5 text-muted-foreground text-xs opacity-0 transition-opacity group-hover:opacity-100 backdrop-blur">
+          塞勒涅之梦 · 古典钢琴
+        </span>
       </button>
 
       {/* 阅读进度条 */}
@@ -147,7 +170,7 @@ export default function AboutPage() {
             {/* 引言 */}
             <FadeItem>
               <p className="max-w-lg text-base sm:text-lg leading-relaxed text-muted-foreground italic">
-                「<Typewriter text="人们高估了短期变化，却低估了长期变革。" speed={60} />」
+                「<Typewriter text="人们高估了短期变化，却低估了长期变革。" />」
               </p>
               <p className="mt-1 text-muted-foreground/50 text-sm">
                 —— 《精益创业》
@@ -164,7 +187,7 @@ export default function AboutPage() {
             </FadeItem>
             <FadeItem>
               <p className="mt-3 font-mono text-base sm:text-lg tracking-wide text-muted-foreground/60">
-                <Typewriter text="Redefining individual leverage" speed={55} />
+                <Typewriter text="Redefining individual leverage" speed={90} />
               </p>
             </FadeItem>
 
@@ -198,7 +221,7 @@ export default function AboutPage() {
         <Section className="mb-40 sm:mb-52">
           <div className="mb-10 flex items-center gap-3">
             <SectionNum n="01" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="现实会逼着人重新思考" speed={48} /></h2>
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="现实会逼着人重新思考" /></h2>
           </div>
 
           <div className="space-y-5 text-base sm:text-lg leading-relaxed">
@@ -227,7 +250,7 @@ export default function AboutPage() {
         <Section className="mb-40 sm:mb-52">
           <div className="mb-10 flex items-center gap-3">
             <SectionNum n="02" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="当经验开始失效" speed={48} /></h2>
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="当经验开始失效" /></h2>
           </div>
 
           <div className="space-y-5 text-base sm:text-lg leading-relaxed">
@@ -255,7 +278,7 @@ export default function AboutPage() {
         <Section className="mb-40 sm:mb-52">
           <div className="mb-10 flex items-center gap-3">
             <SectionNum n="03" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="迷上「系统」" speed={48} /></h2>
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="迷上「系统」" /></h2>
           </div>
 
           <div className="space-y-5 text-base sm:text-lg leading-relaxed">
@@ -279,7 +302,7 @@ export default function AboutPage() {
         <Section className="mb-40 sm:mb-52">
           <div className="mb-10 flex items-center gap-3">
             <SectionNum n="04" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="真正让我震撼的，是另一件事" speed={48} /></h2>
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="真正让我震撼的，是另一件事" /></h2>
           </div>
 
           <div className="space-y-5 text-base sm:text-lg leading-relaxed">
@@ -305,7 +328,7 @@ export default function AboutPage() {
         <section className="mb-40 sm:mb-52">
           <div className="mb-10 flex items-center gap-3">
             <SectionNum n="05" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="观点" speed={48} /></h2>
+            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="观点" /></h2>
           </div>
 
           <StaggerWrap className="space-y-4">
