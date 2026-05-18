@@ -122,12 +122,19 @@ export default function AboutPage() {
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end end"] })
   const progressBarWidth = useTransform(scrollYProgress, [0, 1], ["0%", "100%"])
 
-  // 默认播放
+  // 默认播放：先试直接播放，被浏览器拦截则等首次交互
   useEffect(() => {
     const a = audioRef.current
     if (!a) return
     a.volume = 0.3
-    a.play().then(() => setMusicOn(true)).catch(() => {})
+    a.play().then(() => setMusicOn(true)).catch(() => {
+      const events = ["click", "scroll", "keydown", "touchstart"] as const
+      const tryPlay = () => {
+        a.play().then(() => setMusicOn(true)).catch(() => {})
+        events.forEach((e) => document.removeEventListener(e, tryPlay))
+      }
+      events.forEach((e) => document.addEventListener(e, tryPlay, { once: true }))
+    })
   }, [])
 
   const toggleMusic = () => {
