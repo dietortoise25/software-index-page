@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase"
+import type { Dimension, Platform } from "@/hooks/useDashboardFilter"
 
-export type Dimension = "all" | "platform" | "operator"
-export type Platform = "TIKTOK" | "SHOPEE"
+export type { Dimension, Platform }
 const PLATFORMS: Platform[] = ["TIKTOK", "SHOPEE"]
 
 interface Operator { id: number; name: string }

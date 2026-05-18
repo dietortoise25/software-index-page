@@ -3,7 +3,7 @@
  */
 
 const APP_ID = "cli_a9646f769479dbd4"
-const APP_SECRET = process.env.FEISHU_APP_SECRET || "NQomqTYaZHapPxb3uDf6HbantJLyOLwQ"
+const APP_SECRET = process.env.FEISHU_APP_SECRET || ""
 const TARGET_USER = "Alan"
 
 interface TokenCache {
@@ -12,11 +12,9 @@ interface TokenCache {
 }
 
 let tokenCache: TokenCache | null = null
+let refreshPromise: Promise<string> | null = null
 
-export async function getTenantToken(): Promise<string> {
-  if (tokenCache && tokenCache.expire > Date.now() + 60_000) {
-    return tokenCache.token
-  }
+async function fetchToken(): Promise<string> {
   const resp = await fetch(
     "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
     {
@@ -31,6 +29,16 @@ export async function getTenantToken(): Promise<string> {
     expire: Date.now() + (data.expire || 7200) * 1000,
   }
   return tokenCache.token
+}
+
+export async function getTenantToken(): Promise<string> {
+  if (tokenCache && tokenCache.expire > Date.now() + 60_000) {
+    return tokenCache.token
+  }
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = fetchToken().finally(() => { refreshPromise = null })
+  return refreshPromise
 }
 
 export async function getUserOpenId(token: string): Promise<string | null> {

@@ -4,24 +4,23 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import PinGate from "@/components/review/PinGate"
-import { FilterBar, type Dimension, type Platform } from "@/components/dashboard/FilterBar"
+import { FilterBar } from "@/components/dashboard/FilterBar"
 import { RevenueOverview } from "@/components/dashboard/RevenueOverview"
 import { ChannelCharts } from "@/components/dashboard/ChannelCharts"
 import { OperatorRanking } from "@/components/dashboard/OperatorRanking"
 import { OrderHealth } from "@/components/dashboard/OrderHealth"
 import { AdCostSection } from "@/components/dashboard/AdCostSection"
+import { verifyPin } from "@/lib/api"
+import { useDashboardFilter, type Dimension, type Platform } from "@/hooks/useDashboardFilter"
 
 export default function DashboardPage() {
   const [pinUnlocked, setPinUnlocked] = useState(() => import.meta.env.DEV || sessionStorage.getItem("dash_pin") !== null)
   const [pinError, setPinError] = useState<string>()
 
   const handlePinUnlock = async (p: string) => {
-    try {
-      const resp = await fetch("/api/verify-pin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: p }) })
-      const data = await resp.json()
-      if (data.ok) { sessionStorage.setItem("dash_pin", p); setPinUnlocked(true); setPinError(undefined) }
-      else setPinError("PIN 不正确")
-    } catch { setPinError("网络错误") }
+    const data = await verifyPin(p)
+    if (data.ok) { sessionStorage.setItem("dash_pin", p); setPinUnlocked(true); setPinError(undefined) }
+    else setPinError(data.error || "PIN 不正确")
   }
 
   if (!pinUnlocked) return <PinGate onUnlock={handlePinUnlock} error={pinError} />
@@ -34,9 +33,7 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
-  const [dimension, setDimension] = useState<Dimension>("all")
-  const [platform, setPlatform] = useState<Platform>("TIKTOK")
-  const [operatorId, setOperatorId] = useState<number>(0)
+  const { dimension, setDimension, platform, setPlatform, operatorId, setOperatorId } = useDashboardFilter()
 
   return (
     <div className="container mx-auto max-w-7xl px-4 py-8">
