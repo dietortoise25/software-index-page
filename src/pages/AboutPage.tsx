@@ -159,7 +159,7 @@ export default function AboutPage() {
         onClick={toggleMusic}
         className={`group fixed right-4 bottom-4 z-50 flex items-center gap-2 rounded-full border bg-background/80 backdrop-blur text-muted-foreground transition-all hover:text-foreground hover:border-primary/30 ${musicOn ? "size-10 justify-center border-border/40" : "border-primary/30 px-5 py-2.5 animate-pulse"}`}
         aria-label={musicOn ? "暂停音乐" : "播放音乐"}
-        title="塞勒涅之梦 · 古典钢琴"
+        title="俄尔甫斯 · 古典钢琴"
       >
         {musicOn
           ? <Volume2 className="size-4 shrink-0 text-primary" />
@@ -167,7 +167,7 @@ export default function AboutPage() {
         }
         {musicOn && (
           <span className="pointer-events-none absolute right-full mr-3 whitespace-nowrap rounded-lg border border-border/30 bg-background/90 px-3 py-1.5 text-muted-foreground text-xs opacity-0 transition-opacity group-hover:opacity-100 backdrop-blur">
-            塞勒涅之梦 · 古典钢琴 —— 这首曲子陪我写下了这一页
+            俄尔甫斯 · 古典钢琴 —— 这首曲子陪我写下了这一页
           </span>
         )}
       </button>
