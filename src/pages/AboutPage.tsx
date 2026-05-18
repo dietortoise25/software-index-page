@@ -408,30 +408,49 @@ export default function AboutPage() {
 
             {/* CTA */}
             <FadeItem>
-              <div className="mt-12 rounded-2xl border border-primary/20 bg-primary/[0.03] p-6 sm:p-8">
-                <p className="font-semibold text-lg">
+              <div className="mt-16">
+                <p className="text-center font-semibold text-xl sm:text-2xl tracking-tight">
                   如果你也在思考同样的问题
                 </p>
-                <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
+                <p className="mt-3 text-center text-muted-foreground text-sm">
                   项目合作 · 数字化改造 · AI/自动化落地 · 工作流重塑
                 </p>
-                <div className="mt-6 flex flex-wrap gap-3">
+
+                <div className="mt-10 grid gap-4 sm:grid-cols-2">
+                  {/* 真人连接 */}
                   <a
                     href="https://www.feishu.cn/invitation/page/add_contact/?token=102j6c0a-8ed3-4a50-b129-89036a174e38&amp;unique_id=hPB8x5jEunvd3Cp-jQ5bAA=="
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 font-medium text-primary-foreground text-sm transition-all hover:opacity-85"
+                    className="group rounded-2xl bg-primary p-6 transition-all hover:shadow-lg hover:shadow-primary/20"
                   >
-                    <Send className="size-4" /> 飞书联系我
+                    <div className="flex size-10 items-center justify-center rounded-xl bg-white/20">
+                      <Send className="size-5 text-white" />
+                    </div>
+                    <p className="mt-4 font-semibold text-primary-foreground text-lg">飞书联系我</p>
+                    <p className="mt-1 text-primary-foreground/70 text-sm leading-relaxed">
+                      直接聊聊你的业务场景，看看有没有合作的可能。
+                    </p>
+                    <span className="mt-4 inline-flex items-center gap-1 font-medium text-primary-foreground/90 text-sm group-hover:gap-2 transition-all">
+                      发起对话 <span className="group-hover:translate-x-0.5 transition-transform">→</span>
+                    </span>
                   </a>
-                  <div className="flex flex-col">
+
+                  {/* AI 助手 */}
+                  <div className="flex flex-col rounded-2xl border border-border/60 bg-card/50 p-6 transition-all hover:border-primary/20 hover:bg-card">
+                    <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+                      <Bot className="size-5 text-primary" />
+                    </div>
+                    <p className="mt-4 font-semibold text-lg">聊聊你的需求</p>
+                    <p className="mt-1 text-muted-foreground text-sm leading-relaxed">
+                      还不确定聊什么？先和 AI 助手说说你的情况，它会帮你理清思路。
+                    </p>
                     <button
                       onClick={() => setChatOpen(true)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-5 py-2.5 font-medium text-sm transition-all hover:border-primary/30 hover:text-primary"
+                      className="mt-4 inline-flex items-center gap-1 self-start rounded-lg px-3 py-1.5 font-medium text-primary text-sm transition-colors hover:bg-primary/10"
                     >
-                      <Bot className="size-4" /> 聊聊你的需求
+                      开始对话 →
                     </button>
-                    <span className="mt-1.5 text-muted-foreground/60 text-xs">还不确定聊什么？先和 AI 助手说说你的情况</span>
                   </div>
                 </div>
               </div>
