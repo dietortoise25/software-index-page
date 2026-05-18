@@ -1,6 +1,41 @@
-import { useRef, useState } from "react"
+import { useRef, useState, useEffect, useCallback } from "react"
 import { motion, useScroll, useTransform, useInView, type Variants } from "framer-motion"
 import { Volume2, VolumeX } from "lucide-react"
+import ChatButton from "@/components/chat/ChatButton"
+
+/* ── 打字机效果 ── */
+
+function Typewriter({ text, className, speed = 60 }: { text: string; className?: string; speed?: number }) {
+  const [displayed, setDisplayed] = useState("")
+  const [started, setStarted] = useState(false)
+  const ref = useRef<HTMLSpanElement>(null)
+
+  const startTyping = useCallback(() => {
+    if (started) return
+    setStarted(true)
+    let i = 0
+    const interval = setInterval(() => {
+      i++
+      if (i <= text.length) setDisplayed(text.slice(0, i))
+      else clearInterval(interval)
+    }, speed)
+  }, [text, speed, started])
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const obs = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) startTyping() }, { threshold: 0.5 })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [startTyping])
+
+  return (
+    <span ref={ref} className={className} aria-label={text}>
+      {displayed}
+      <span className="animate-pulse text-primary/60">|</span>
+    </span>
+  )
+}
 
 /* ── 动效 variants ── */
 
@@ -128,7 +163,7 @@ export default function AboutPage() {
             </FadeItem>
             <FadeItem>
               <p className="mt-3 font-mono text-base sm:text-lg tracking-wide text-muted-foreground/60">
-                Redefining individual leverage
+                <Typewriter text="Redefining individual leverage" speed={55} />
               </p>
             </FadeItem>
 
@@ -322,19 +357,39 @@ export default function AboutPage() {
                 探索继续：<Highlight>未来的个体，究竟还能拥有多大的能力边界。</Highlight>
               </p>
             </FadeItem>
+
+            {/* CTA */}
             <FadeItem>
-              <a
-                href="https://www.feishu.cn/invitation/page/add_contact/?token=102j6c0a-8ed3-4a50-b129-89036a174e38&amp;unique_id=hPB8x5jEunvd3Cp-jQ5bAA=="
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 font-medium text-primary-foreground text-sm transition-all hover:opacity-85"
-              >
-                通过飞书联系我
-              </a>
+              <div className="mt-12 rounded-2xl border border-primary/20 bg-primary/[0.03] p-6 sm:p-8">
+                <p className="font-semibold text-lg">
+                  如果你也在思考同样的问题
+                </p>
+                <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
+                  项目合作 · 数字化改造 · AI/自动化落地 · 工作流重塑
+                </p>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <a
+                    href="https://www.feishu.cn/invitation/page/add_contact/?token=102j6c0a-8ed3-4a50-b129-89036a174e38&amp;unique_id=hPB8x5jEunvd3Cp-jQ5bAA=="
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 font-medium text-primary-foreground text-sm transition-all hover:opacity-85"
+                  >
+                    飞书联系我
+                  </a>
+                  <button
+                    onClick={() => document.querySelector<HTMLButtonElement>('[aria-label="AI 需求助手"]')?.click()}
+                    className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-5 py-2.5 font-medium text-sm transition-all hover:border-primary/30 hover:text-primary"
+                  >
+                    试用 AI 需求助手
+                  </button>
+                </div>
+              </div>
             </FadeItem>
           </StaggerWrap>
         </Section>
       </div>
+
+      <ChatButton />
     </div>
   )
 }
