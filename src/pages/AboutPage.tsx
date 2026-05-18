@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from "react"
 import { motion, useScroll, useTransform, useInView, type Variants } from "framer-motion"
 import { Volume2, VolumeX } from "lucide-react"
-import ChatButton from "@/components/chat/ChatButton"
+import ChatDialog from "@/components/chat/ChatDialog"
 
 /* ── 打字机效果 ── */
 
@@ -107,6 +107,7 @@ export default function AboutPage() {
   const containerRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
   const [musicOn, setMusicOn] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
   const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end end"] })
   const progressBarWidth = useTransform(scrollYProgress, [0, 1], ["0%", "100%"])
 
@@ -377,10 +378,10 @@ export default function AboutPage() {
                     飞书联系我
                   </a>
                   <button
-                    onClick={() => document.querySelector<HTMLButtonElement>('[aria-label="AI 需求助手"]')?.click()}
+                    onClick={() => setChatOpen(true)}
                     className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-5 py-2.5 font-medium text-sm transition-all hover:border-primary/30 hover:text-primary"
                   >
-                    试用 AI 需求助手
+                    AI 需求助手
                   </button>
                 </div>
               </div>
@@ -389,7 +390,7 @@ export default function AboutPage() {
         </Section>
       </div>
 
-      <ChatButton />
+      <ChatDialog open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   )
 }
