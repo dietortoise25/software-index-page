@@ -1,8 +1,8 @@
 import { useRef } from "react"
 import { motion, useScroll, useTransform, useInView, type Variants } from "framer-motion"
-import { ArrowRight, Database, Bot, Workflow, MessageSquare, BarChart3, Globe, Terminal, type LucideIcon } from "lucide-react"
+import { ArrowRight, Lightbulb, Grip, type LucideIcon } from "lucide-react"
 
-/* ── 动画工具 ── */
+/* ── 动效 variants ── */
 
 const fadeIn = {
   hidden: { opacity: 0, y: 24 },
@@ -11,17 +11,19 @@ const fadeIn = {
 
 const staggerContainer = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.15, delayChildren: 0.1 } },
+  visible: { transition: { staggerChildren: 0.12, delayChildren: 0.1 } },
 } satisfies Variants
 
 const slowFade = {
   hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: 1.2, ease: "easeOut" as const } },
+  visible: { opacity: 1, transition: { duration: 1.4, ease: "easeOut" as const } },
 } satisfies Variants
+
+/* ── 子组件 ── */
 
 function Section({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, margin: "-100px" })
+  const inView = useInView(ref, { once: true, margin: "-120px" })
   return (
     <motion.div ref={ref} initial="hidden" animate={inView ? "visible" : "hidden"} variants={fadeIn} className={className}>
       {children}
@@ -31,7 +33,7 @@ function Section({ children, className = "" }: { children: React.ReactNode; clas
 
 function SectionStagger({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, margin: "-80px" })
+  const inView = useInView(ref, { once: true, margin: "-100px" })
   return (
     <motion.div ref={ref} initial="hidden" animate={inView ? "visible" : "hidden"} variants={staggerContainer} className={className}>
       {children}
@@ -43,44 +45,46 @@ function FadeItem({ children, className = "" }: { children: React.ReactNode; cla
   return <motion.div variants={fadeIn} className={className}>{children}</motion.div>
 }
 
-/* ── 子组件 ── */
-
 function SectionTitle({ number, title }: { number: string; title: string }) {
   return (
-    <div className="mb-8 flex items-center gap-3">
-      <span className="font-mono text-xs tracking-widest text-muted-foreground/50">{number}</span>
-      <h2 className="font-semibold text-xl tracking-tight">{title}</h2>
+    <div className="mb-10 flex items-center gap-3">
+      <span className="font-mono text-sm tracking-widest text-muted-foreground/40">{number}</span>
+      <h2 className="font-bold text-2xl sm:text-3xl tracking-tight">{title}</h2>
     </div>
   )
 }
 
-function FlowNode({ icon: Icon, label, sub, last = false }: { icon: LucideIcon; label: string; sub: string; last?: boolean }) {
+function Highlight({ children }: { children: React.ReactNode }) {
+  return <span className="font-semibold text-foreground">{children}</span>
+}
+
+function FlowNode({ label, desc, last = false }: { label: string; desc: string; last?: boolean }) {
   return (
-    <div className="flex flex-col items-center gap-1">
-      <div className="flex size-12 items-center justify-center rounded-xl bg-primary/10">
-        <Icon className="size-5 text-primary" />
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10">
+        <span className="font-bold text-primary text-sm">{label.slice(0, 1)}</span>
       </div>
       <span className="font-semibold text-sm">{label}</span>
-      <span className="text-muted-foreground text-xs">{sub}</span>
-      {!last && <ArrowRight className="mt-2 size-4 text-muted-foreground/40 rotate-90 sm:rotate-0" />}
+      <span className="text-muted-foreground text-xs">{desc}</span>
+      {!last && <ArrowRight className="mt-1 size-4 text-muted-foreground/30 rotate-90 sm:rotate-0" />}
     </div>
   )
 }
 
-function ProjectCard({ icon: Icon, title, desc, tags }: { icon: LucideIcon; title: string; desc: string; tags: string[] }) {
+function ThoughtCard({ text }: { text: string }) {
+  return (
+    <motion.div variants={slowFade} className="group rounded-2xl border border-border/40 bg-muted/10 px-6 py-5 transition-colors hover:bg-muted/20">
+      <p className="text-lg sm:text-xl leading-relaxed text-muted-foreground">{text}</p>
+    </motion.div>
+  )
+}
+
+function ProjectItem({ title, desc }: { title: string; desc: string }) {
   return (
     <FadeItem>
-      <div className="rounded-2xl border bg-card/50 p-6 transition-colors hover:bg-card">
-        <div className="mb-3 flex size-9 items-center justify-center rounded-lg bg-primary/10">
-          <Icon className="size-[18px] text-primary" />
-        </div>
-        <h3 className="mb-1 font-semibold text-base">{title}</h3>
-        <p className="mb-3 text-muted-foreground text-sm leading-relaxed">{desc}</p>
-        <div className="flex flex-wrap gap-1.5">
-          {tags.map((t) => (
-            <span key={t} className="rounded-md bg-muted px-2 py-0.5 font-mono text-muted-foreground text-xs">{t}</span>
-          ))}
-        </div>
+      <div className="rounded-2xl border border-border/40 bg-card/40 p-6 transition-colors hover:bg-card">
+        <h3 className="mb-2 font-bold text-lg">{title}</h3>
+        <p className="text-muted-foreground text-sm leading-relaxed">{desc}</p>
       </div>
     </FadeItem>
   )
@@ -94,189 +98,190 @@ export default function AboutPage() {
   const progressBarWidth = useTransform(scrollYProgress, [0, 1], ["0%", "100%"])
 
   return (
-    <div ref={containerRef} className="relative">
-      {/* 顶部阅读进度条 */}
-      <motion.div className="fixed top-14 left-0 z-40 h-0.5 bg-primary/60" style={{ width: progressBarWidth }} />
+    <div ref={containerRef} className="relative overflow-hidden">
+      {/* 顶部渐变光斑 */}
+      <div
+        className="pointer-events-none absolute inset-x-0 -top-32 h-[600px]"
+        style={{ background: "radial-gradient(ellipse 60% 50% at 50% 0%, hsl(var(--primary) / 0.07), transparent 70%)" }}
+      />
 
-      <div className="container mx-auto max-w-3xl px-4 py-20 sm:py-28">
-        {/* ── 1. Opening ── */}
-        <section className="mb-36 sm:mb-48">
+      {/* 阅读进度条 */}
+      <motion.div className="fixed top-14 left-0 z-40 h-0.5 bg-primary/50" style={{ width: progressBarWidth }} />
+
+      <div className="container mx-auto max-w-3xl px-4 py-24 sm:py-32">
+        {/* ══════════ 1. Opening ══════════ */}
+        <section className="mb-44 sm:mb-56">
           <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
             <FadeItem>
-              <p className="text-muted-foreground text-sm tracking-widest">ABOUT</p>
+              <h1 className="font-bold text-4xl sm:text-5xl md:text-6xl tracking-tight leading-tight">
+                重新定义一个人的
+                <br />
+                <span className="text-primary">生产力</span>
+              </h1>
             </FadeItem>
             <FadeItem>
-              <p className="mt-8 text-lg leading-relaxed sm:text-xl sm:leading-relaxed">
-                我越来越发现：很多公司的问题，并不是缺工具。<br />
-                <span className="text-muted-foreground">而是没人真正理解问题本身。</span>
+              <p className="mt-3 font-mono text-base sm:text-lg tracking-wide text-muted-foreground/60">
+                Redefining individual leverage
               </p>
             </FadeItem>
             <FadeItem>
-              <p className="mt-4 text-muted-foreground leading-relaxed">
-                现在，我主要关注 AI、数据与自动化如何真正进入业务流程。
+              <p className="mt-14 max-w-xl text-lg sm:text-xl leading-relaxed">
+                我越来越感觉：旧世界里的很多工作方式，<span className="text-muted-foreground">正在快速失效。</span>
               </p>
             </FadeItem>
             <FadeItem>
-              <p className="mt-12 font-mono text-muted-foreground/60 text-xs">
+              <p className="mt-3 max-w-xl text-base leading-relaxed text-muted-foreground">
+                组织结构、信息流转、协作方式——甚至「一个人能做到什么」的定义，都在被重新改写。
+              </p>
+            </FadeItem>
+            <FadeItem>
+              <p className="mt-4 max-w-xl text-base leading-relaxed">
+                我现在关注的是：<Highlight>下一代个体，如何建立过去只有组织才能拥有的能力。</Highlight>
+              </p>
+            </FadeItem>
+            <FadeItem>
+              <p className="mt-16 font-mono text-muted-foreground/50 text-sm">
                 Alan Leung · 梁思骏
               </p>
             </FadeItem>
           </motion.div>
         </section>
 
-        {/* ── 2. 起点 ── */}
-        <Section className="mb-36 sm:mb-48">
-          <SectionTitle number="01" title="起点" />
-          <div className="space-y-5 text-base leading-relaxed">
+        {/* ══════════ 2. 起点 ══════════ */}
+        <Section className="mb-40 sm:mb-52">
+          <SectionTitle number="01" title="怀疑" />
+          <div className="space-y-5 text-base sm:text-lg leading-relaxed">
             <p>
-              最早接触业务的时候，很多决策其实依赖经验与感觉。
-              在销售和电商的环境里，大家更习惯说「我觉得」「上次就是这样做的」——
-              这本身没什么错。
+              最早接触真实业务时，我发现很多组织内部真正稀缺的并不是努力。<Highlight>而是信息处理能力。</Highlight>
             </p>
             <p className="text-muted-foreground">
-              但业务规模一大，感觉会迅速失效。
+              大量沟通、重复协作、流程传递、经验依赖——正在持续吞噬组织效率。
               当你要同时面对几十个店铺、几百个 SKU、跨平台的营销数据时，直觉已经无法胜任。
             </p>
-            <p>
-              那段时间我在 Temu 和其他电商平台之间来回切换，大量时间花在了信息搬运上：从一个后台复制数据，到另一个表格里手动整理。我开始想：<span className="text-foreground">有没有更聪明的方式？</span>
+            <p className="font-semibold text-xl sm:text-2xl leading-relaxed">
+              我开始对旧的工作方式产生怀疑。
             </p>
           </div>
         </Section>
 
-        {/* ── 3. 数据阶段 ── */}
-        <Section className="mb-36 sm:mb-48">
+        {/* ══════════ 3. 数据 ══════════ */}
+        <Section className="mb-40 sm:mb-52">
           <SectionTitle number="02" title="数据" />
-          <div className="space-y-5 text-base leading-relaxed">
+          <div className="space-y-5 text-base sm:text-lg leading-relaxed">
             <p>
-              于是开始依赖数据。SQL、Excel、报表——不是为了做「数据分析师」，而是为了在混乱中找到确定性。
+              后来我开始越来越依赖数据。不是因为喜欢报表——而是因为：
+              当业务复杂到一定程度后，<Highlight>「感觉」会失效。</Highlight>
             </p>
             <p className="text-muted-foreground">
-              但后来慢慢发现：数据本身并不会给答案。
-              同样的数据，不同的人能读出完全不同的结论。
-            </p>
-            <p>
-              真正重要的，不是你会写多复杂的查询。<span className="text-foreground">而是你是否理解业务问题本身。</span>
-              数据只是帮你验证假设的工具——前提是你知道该问什么问题。
+              数据真正重要的地方，不是统计。而是帮助人重新理解现实。
+              同样的数据，不同的人能读出完全不同的结论——前提是你知道该问什么问题。
             </p>
           </div>
         </Section>
 
-        {/* ── 4. 自动化阶段 ── */}
-        <Section className="mb-36 sm:mb-48">
+        {/* ══════════ 4. 自动化 ══════════ */}
+        <Section className="mb-40 sm:mb-52">
           <SectionTitle number="03" title="自动化" />
-          <div className="space-y-5 text-base leading-relaxed">
+          <div className="space-y-5 text-base sm:text-lg leading-relaxed">
             <p>
-              后来又发现：大量工作其实只是重复的信息搬运。
+              后来我又发现：很多所谓的「工作」，本质上只是信息搬运。
+            </p>
+            <p className="text-muted-foreground">
               订单数据、广告报表、客服消息——它们在不同的系统里，用着不同的格式，需要同一个人手动搬运。
             </p>
-            <p className="text-muted-foreground">
-              真正浪费的，不是时间。而是人的注意力与认知资源。
-              当你的大脑被重复操作占满，就没有空间思考更重要的问题。
-            </p>
-            <p>
-              于是开始研究 workflow、browser automation、API 对接。<span className="text-foreground">让机器做机器该做的事，让人做人该做的事。</span>
+            <p className="font-semibold text-xl sm:text-2xl leading-relaxed">
+              如果一个人每天都在重复执行流程，<br />
+              那么真正被浪费的，不是时间。<br />
+              <Highlight>而是认知资源。</Highlight>
             </p>
           </div>
         </Section>
 
-        {/* ── 5. AI 阶段 ── */}
-        <Section className="mb-36 sm:mb-48">
-          <SectionTitle number="04" title="AI" />
-          <div className="space-y-5 text-base leading-relaxed">
+        {/* ══════════ 5. 认知升级 ══════════ */}
+        <Section className="mb-40 sm:mb-52">
+          <SectionTitle number="04" title="个体能力" />
+          <div className="space-y-5 text-base sm:text-lg leading-relaxed">
+            <p className="font-semibold text-2xl sm:text-3xl leading-snug">
+              过去很多复杂事情，需要依赖组织协作。
+            </p>
+            <p className="font-semibold text-2xl sm:text-3xl leading-snug text-primary">
+              但现在，越来越多能力，开始重新回到个体身上。
+            </p>
+            <p className="mt-6 text-muted-foreground">
+              我不再把 AI 看作工具或兴趣。它正在成为生产力基础设施——帮你阅读、分析、总结、生成，让你把注意力集中在真正需要判断的地方。
+            </p>
             <p>
-              开始大量使用 AI 之后，第一次有了一种强烈的感觉：
-            </p>
-            <p className="font-semibold text-lg">
-              很多原本需要多人协作的事情，一个人也能完成。
-            </p>
-            <p className="text-muted-foreground">
-              AI 真正改变的，不是聊天。
-              而是信息处理能力——它能帮你阅读、分析、总结、生成，让你把注意力集中在真正需要判断的地方。
-            </p>
-            <p>
-              AI 不是兴趣，也不是工具。<span className="text-foreground">它正在成为生产力基础设施。</span>
-              对我来说，AI 不是「偶尔问一下」，而是日常工作中不可分割的一部分。
+              <Highlight>我越来越关注：下一代个体，如何建立过去只有组织才能拥有的能力。</Highlight>
             </p>
           </div>
         </Section>
 
-        {/* ── 6. 当前工作方式 ── */}
-        <Section className="mb-36 sm:mb-48">
-          <SectionTitle number="05" title="工作方式" />
-          <p className="mb-8 text-muted-foreground leading-relaxed">
-            这几年的实践下来，逐渐形成了一套自己的工作闭环：
+        {/* ══════════ 6. 工作方式 ══════════ */}
+        <Section className="mb-40 sm:mb-52">
+          <SectionTitle number="05" title="新工作方式" />
+          <p className="mb-10 text-base sm:text-lg text-muted-foreground leading-relaxed">
+            不是技能列表。而是在实践中逐渐形成的一套闭环：
           </p>
-          <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-center sm:gap-4">
-            <FlowNode icon={BarChart3} label="业务问题" sub="理解本质" />
-            <FlowNode icon={Database} label="数据定位" sub="量化分析" />
-            <FlowNode icon={Bot} label="AI 处理" sub="信息加工" />
-            <FlowNode icon={Workflow} label="自动化执行" sub="重复清零" />
+          <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-6">
+            <FlowNode label="理解问题" desc="看清本质" />
+            <FlowNode label="建立系统" desc="结构思维" />
+            <FlowNode label="降低重复" desc="释放认知" />
+            <FlowNode label="个体杠杆" desc="持续放大" last />
           </div>
-          <div className="mt-8 rounded-2xl border bg-muted/20 p-6">
-            <p className="text-center text-muted-foreground text-sm leading-relaxed">
+          <div className="mt-10 rounded-2xl border border-border/30 bg-muted/10 px-6 py-5">
+            <p className="text-center text-muted-foreground text-sm">
               能力之间的连接，比单一技能本身重要得多。
             </p>
           </div>
         </Section>
 
-        {/* ── 7. 项目实践 ── */}
-        <section className="mb-36 sm:mb-48">
-          <SectionTitle number="06" title="项目" />
+        {/* ══════════ 7. 项目 ══════════ */}
+        <section className="mb-40 sm:mb-52">
+          <SectionTitle number="06" title="实践" />
+          <p className="mb-8 text-base sm:text-lg text-muted-foreground leading-relaxed">
+            这些想法后来逐渐变成了一些实际实践。<Highlight>每个项目，都是在试图解决一个具体的旧问题。</Highlight>
+          </p>
           <SectionStagger className="grid gap-4 sm:grid-cols-2">
-            <ProjectCard
-              icon={MessageSquare}
-              title="AI 写稿工具"
-              desc="结构化 Prompt + 内容工作流，实现批量自动化内容生成"
-              tags={["Prompt", "Workflow", "内容生成"]}
+            <ProjectItem
+              title="自动化工作流"
+              desc="减少重复的信息处理与流程执行，让更多精力重新回到判断与决策本身。"
             />
-            <ProjectCard
-              icon={BarChart3}
+            <ProjectItem
               title="电商数据分析"
-              desc="多平台数据聚合分析，从 GMV 到广告费率的全链路看板"
-              tags={["SQL", "数据分析", "可视化"]}
+              desc="在复杂业务中建立更稳定的决策依据，让数据成为理解现实的工具而非报表。"
             />
-            <ProjectCard
-              icon={Terminal}
-              title="浏览器自动化工作流"
-              desc="模拟人工操作的自动化脚本，降低跨系统的重复劳动"
-              tags={["Browser Automation", "Workflow", "降本"]}
+            <ProjectItem
+              title="AI 内容工具"
+              desc="用结构化 Prompt 与工作流替代重复性内容生产，探索人机协作的新边界。"
             />
-            <ProjectCard
-              icon={Globe}
+            <ProjectItem
               title="运营工具发布站"
-              desc="内部工具分发 + AI 需求助手 + 数据看板 + 运营管理一体化站点"
-              tags={["React", "AI", "全栈"]}
+              desc="内部工具分发 + AI 需求助手 + 数据看板，一个持续演化的个人实践场。"
             />
           </SectionStagger>
         </section>
 
-        {/* ── 8. Thoughts ── */}
-        <section className="mb-36 sm:mb-48">
-          <SectionTitle number="07" title="Thoughts" />
-          <motion.div initial="hidden" whileInView="visible" variants={staggerContainer} viewport={{ once: true, margin: "-80px" }} className="space-y-8">
-            {[
-              "很多公司不是缺数据。而是缺真正理解业务的人。",
-              "AI 不会替代所有人。但会迅速放大高认知个体的能力。",
-              "自动化减少的，不是工作量。而是低价值注意力消耗。",
-              "最好的工具，是让使用者感觉不到它的存在。",
-              "过去几年我学到最重要的一件事：先理解问题，再谈技术方案。",
-            ].map((text) => (
-              <motion.p key={text} variants={slowFade} className="text-lg leading-relaxed text-muted-foreground">
-                {text}
-              </motion.p>
-            ))}
+        {/* ══════════ 8. Thoughts ══════════ */}
+        <section className="mb-40 sm:mb-52">
+          <SectionTitle number="07" title="观点" />
+          <motion.div initial="hidden" whileInView="visible" variants={staggerContainer} viewport={{ once: true, margin: "-100px" }} className="space-y-4">
+            <ThoughtCard text="旧世界的大多数组织结构，建立在信息不对称之上。" />
+            <ThoughtCard text="真正重要的，不是工具。而是重新组织现实的能力。" />
+            <ThoughtCard text="未来最强的个体，会越来越像过去的小型组织。" />
+            <ThoughtCard text="很多团队的问题，本质上是信息处理效率问题。" />
+            <ThoughtCard text="真正稀缺的，是把复杂问题重新结构化的人。" />
           </motion.div>
         </section>
 
-        {/* ── 9. Contact ── */}
+        {/* ══════════ 9. Contact ══════════ */}
         <Section>
           <SectionTitle number="08" title="联系" />
-          <p className="text-muted-foreground leading-relaxed">
-            如果你对 AI、数据、自动化在业务中的应用感兴趣，<br />
-            或者想讨论如何让这些技术真正进入你的工作流程——<br />
-            <span className="text-foreground">欢迎通过飞书联系我。</span>
+          <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
+            如果你也在思考类似的问题——<br />
+            或者想讨论未来的个体将如何工作——<br />
+            <Highlight>欢迎通过飞书联系我。</Highlight>
           </p>
-          <p className="mt-4 font-mono text-muted-foreground/60 text-sm">
+          <p className="mt-4 font-mono text-muted-foreground/50 text-sm">
             Feishu: Alan Leung
           </p>
         </Section>
