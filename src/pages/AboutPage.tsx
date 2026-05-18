@@ -244,122 +244,146 @@ export default function AboutPage() {
 
         {/* ══════════ Part 1：现实业务 ══════════ */}
         <Section className="mb-40 sm:mb-52">
-          <div className="mb-10 flex items-center gap-3">
-            <SectionNum n="01" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="现实会逼着人重新思考" /></h2>
-          </div>
+          <div className="grid gap-6 sm:grid-cols-[1fr_2fr] sm:gap-12">
+            <div>
+              <div className="flex items-center gap-3">
+                <SectionNum n="01" />
+                <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="现实会逼着人重新思考" /></h2>
+              </div>
+            </div>
+            <div className="space-y-4 text-base sm:text-lg leading-relaxed">
+              <p>
+                最早接触的，不是技术。<Highlight>是真实业务。</Highlight>
+              </p>
+              <p className="text-muted-foreground">
+                刚接手业务时，最让我困惑的是一张库存表：销售手里一个数字，仓库一个数字，财务又是另一个。<br />
+                没有人说谎——只是<span className="text-foreground">信息每流转一次，就失真一次</span>。
+              </p>
 
-          <div className="space-y-5 text-base sm:text-lg leading-relaxed">
-            <p>
-              最早接触的，不是技术。<Highlight>是真实业务。</Highlight>
-            </p>
-            <p className="text-muted-foreground">
-              刚接手业务时，最让我困惑的是一张库存表：销售手里一个数字，仓库一个数字，财务又是另一个。<br />
-              没有人说谎——只是<span className="text-foreground">信息每流转一次，就失真一次</span>。
-            </p>
-            <p className="text-muted-foreground">
-              很多人的工作，本质上只是：不断复制、确认、同步、转发。
-            </p>
+              {/* 数据呼吸点 */}
+              <div className="flex gap-6 py-3">
+                <div className="text-center">
+                  <span className="block font-bold text-2xl sm:text-3xl tracking-tight">3</span>
+                  <span className="text-muted-foreground text-xs">人维护同一个库存</span>
+                </div>
+                <div className="text-center">
+                  <span className="block font-bold text-2xl sm:text-3xl tracking-tight">4</span>
+                  <span className="text-muted-foreground text-xs">种不同订单版本</span>
+                </div>
+              </div>
 
-            <Quote
-              text="人无法一次理解七个以上的信息单位。"
-              source="《金字塔原理》"
-            />
-            <p>
-              现实里的组织，<Highlight>每天都在制造远超人脑负荷的信息复杂度。</Highlight>
-            </p>
+              <p className="text-muted-foreground">
+                很多人的工作，本质上只是：不断复制、确认、同步、转发。
+              </p>
+              <Quote
+                text="人无法一次理解七个以上的信息单位。"
+                source="《金字塔原理》"
+              />
+              <p>
+                现实里的组织，<Highlight>每天都在制造远超人脑负荷的信息复杂度。</Highlight>
+              </p>
+            </div>
           </div>
         </Section>
 
         {/* ══════════ Part 2：数据 ══════════ */}
         <Section className="mb-40 sm:mb-52">
-          <div className="mb-10 flex items-center gap-3">
-            <SectionNum n="02" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="当经验开始失效" /></h2>
-          </div>
-
-          <div className="space-y-5 text-base sm:text-lg leading-relaxed">
-            <p>
-              SKU 越来越多，平台越来越多，广告数据越来越多。
-            </p>
-            <p className="text-muted-foreground">
-              <Highlight>很多过去依赖经验的判断，迅速失效。</Highlight>
-            </p>
-
-            <Quote
-              text="创业最大的风险，不是构建产品失败。而是构建了没人需要的东西。"
-              source="《精益数据分析》"
-            />
-            <p>
-              很多业务问题，本质上也是如此。
-            </p>
-            <p>
-              真正重要的，不是收集更多数据。<Highlight>而是找到真正关键的变量。</Highlight>
-            </p>
+          <div className="grid gap-6 sm:grid-cols-[1fr_2fr] sm:gap-12">
+            <div>
+              <div className="flex items-center gap-3">
+                <SectionNum n="02" />
+                <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="当经验开始失效" /></h2>
+              </div>
+            </div>
+            <div className="space-y-4 text-base sm:text-lg leading-relaxed">
+              <p className="text-muted-foreground">
+                广告账户同时在跑 5 个平台。每天早上手动登录、导出、整理——<br />
+                这件事花掉 2 个小时，但没人觉得不对。
+                因为<span className="text-foreground">「一直都是这么做的」</span>。
+              </p>
+              <p>
+                <Highlight>很多过去依赖经验的判断，迅速失效。</Highlight>
+              </p>
+              <Quote
+                text="创业最大的风险，不是构建产品失败。而是构建了没人需要的东西。"
+                source="《精益数据分析》"
+              />
+              <p className="text-muted-foreground">
+                很多业务问题，本质上也是如此。真正重要的，不是收集更多数据。<Highlight>而是找到真正关键的变量。</Highlight>
+              </p>
+              <p className="text-muted-foreground text-sm">
+                但找到变量只是第一步。真正的改变，来自把判断固化为流程。
+              </p>
+            </div>
           </div>
         </Section>
 
         {/* ══════════ Part 3：系统化 ══════════ */}
         <Section className="mb-40 sm:mb-52">
-          <div className="mb-10 flex items-center gap-3">
-            <SectionNum n="03" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="迷上「系统」" /></h2>
-          </div>
-
-          <div className="space-y-5 text-base sm:text-lg leading-relaxed">
-            <p className="font-semibold text-xl sm:text-2xl leading-snug">
-              人会疲惫、会波动、会遗忘。<br />
-              <Highlight>但系统不会。</Highlight>
-            </p>
-
-            <Quote
-              text="长期来看，决定结果的不是情绪，而是系统。"
-              source="《海龟交易法则》"
-            />
-
-            <p className="text-muted-foreground">
-              无论是数据、流程、工作流——建立系统，而非依赖记忆与经验。
-            </p>
+          <div className="grid gap-6 sm:grid-cols-[1fr_2fr] sm:gap-12">
+            <div>
+              <div className="flex items-center gap-3">
+                <SectionNum n="03" />
+                <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="迷上「系统」" /></h2>
+              </div>
+            </div>
+            <div className="space-y-4 text-base sm:text-lg leading-relaxed">
+              <p className="font-semibold text-xl sm:text-2xl leading-snug">
+                经验靠不住——不是经验本身错了，<br />
+                而是人会疲惫、会波动、会遗忘。<br />
+                <Highlight>但流程不会。系统不会。</Highlight>
+              </p>
+              <Quote
+                text="长期来看，决定结果的不是情绪，而是系统。"
+                source="《海龟交易法则》"
+              />
+              <p className="text-muted-foreground">
+                无论是数据、流程、工作流——建立系统，而非依赖记忆与经验。
+              </p>
+            </div>
           </div>
         </Section>
 
         {/* ══════════ Part 4：真正的变化 ══════════ */}
         <Section className="mb-40 sm:mb-52">
-          <div className="mb-10 flex items-center gap-3">
-            <SectionNum n="04" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="真正让我震撼的，是另一件事" /></h2>
-          </div>
-
-          <div className="space-y-5 text-base sm:text-lg leading-relaxed">
-            <p className="text-muted-foreground">
-              过去很多复杂工作，意味着：多人协作。写内容、分析数据、开发工具、建立流程——往往需要一个小团队。
-            </p>
-            <p className="font-semibold text-2xl sm:text-3xl leading-snug text-primary">
-              但一个人，开始拥有过去「小团队」才能拥有的能力。
-            </p>
-            <p className="text-muted-foreground">
-              这种感受很奇特——像你一直习惯用双手搬重物，忽然有人递给你一台叉车，<span className="text-foreground">却发现周围大多数人还在弯腰</span>。
-            </p>
-
-            <Quote
-              text="AI 不是工具革命，而是组织革命。"
-              source="安克 AI 火箭班"
-            />
-
-            <p>
-              <Highlight>真正改变的，不是工具本身，而是一个人的<Highlight>能力半径</Highlight>。</Highlight>
-            </p>
+          <div className="grid gap-6 sm:grid-cols-[1fr_2fr] sm:gap-12">
+            <div>
+              <div className="flex items-center gap-3">
+                <SectionNum n="04" />
+                <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="真正让我震撼的，是另一件事" /></h2>
+              </div>
+            </div>
+            <div className="space-y-4 text-base sm:text-lg leading-relaxed">
+              <p className="text-muted-foreground">
+                过去很多复杂工作，意味着：多人协作。写内容、分析数据、开发工具、建立流程——往往需要一个小团队。
+              </p>
+              <p className="font-semibold text-2xl sm:text-3xl leading-snug text-primary">
+                但一个人，开始拥有过去「小团队」才能拥有的能力。
+              </p>
+              <p className="text-muted-foreground">
+                这种感受很奇特——像你一直习惯用双手搬重物，忽然有人递给你一台叉车，<span className="text-foreground">却发现周围大多数人还在弯腰</span>。
+              </p>
+              <Quote
+                text="AI 不是工具革命，而是组织革命。"
+                source="安克 AI 火箭班"
+              />
+              <p>
+                <Highlight>真正改变的，不是工具本身，而是一个人的能力半径。</Highlight>
+              </p>
+            </div>
           </div>
         </Section>
 
         {/* ══════════ Thoughts ══════════ */}
         <section className="mb-40 sm:mb-52">
-          <div className="mb-10 flex items-center gap-3">
-            <SectionNum n="05" />
-            <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="观点" /></h2>
-          </div>
-
-          <StaggerWrap className="space-y-4">
+          <div className="grid gap-6 sm:grid-cols-[1fr_2fr] sm:gap-12">
+            <div>
+              <div className="flex items-center gap-3">
+                <SectionNum n="05" />
+                <h2 className="font-bold text-2xl sm:text-3xl tracking-tight"><Typewriter text="观点" /></h2>
+              </div>
+            </div>
+            <StaggerWrap className="space-y-4">
             <motion.div variants={slowFade} className="rounded-2xl border border-border/40 bg-muted/10 px-6 py-5">
               <p className="text-lg sm:text-xl leading-relaxed text-muted-foreground italic">
                 「如果我有一小时解决问题，我会花 55 分钟理解问题。」
@@ -387,6 +411,7 @@ export default function AboutPage() {
               </p>
             </motion.div>
           </StaggerWrap>
+            </div>
         </section>
 
         {/* ══════════ Ending ══════════ */}
