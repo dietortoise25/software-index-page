@@ -78,3 +78,40 @@ platform/src/                # 千易ERP数据中台
 - **图标**: 使用 lucide-react，不自行创建 SVG
 - **包管理**: pnpm
 
+## 开发规范：TDD（本项目强制执行）
+
+所有功能开发、Bug 修复、重构、行为变更都必须遵循 TDD 铁律：**没有先看到测试失败，绝不写生产代码。**
+
+### 流程（Red-Green-Refactor）
+
+1. **RED** — 先写一个最小的失败测试，描述期望行为
+2. **Verify RED** — 运行测试，确认失败且原因正确（功能缺失，而非语法错误）
+3. **GREEN** — 写最少代码让测试通过
+4. **Verify GREEN** — 运行测试，确认通过且其他测试不挂
+5. **REFACTOR** — 清理代码，消除重复，保持测试绿
+
+### 运行测试
+```bash
+cd server && npx tsc --noEmit    # 后端类型检查
+pnpm tsc -b                       # 前端类型检查
+node tests/e2e.mjs                # E2E 测试
+```
+
+## Superpowers Skills 使用指南
+
+本项目安装了 Superpowers 技能包，在以下场景通过 `Skill` 工具调用：
+
+| Skill | 触发场景 |
+|-------|---------|
+| `superpowers:brainstorming` | 新功能/创意工作开始前，探索需求与设计 |
+| `superpowers:test-driven-development` | 本项目强制执行，所有实现前先写测试 |
+| `superpowers:systematic-debugging` | 遇到 Bug、测试失败、非预期行为时 |
+| `superpowers:verification-before-completion` | 声称工作完成/修复/通过前，先跑验证 |
+| `superpowers:writing-plans` | 有 spec 或需求的多步骤任务，先出计划 |
+| `superpowers:executing-plans` | 有书面实现计划的开发任务 |
+| `superpowers:requesting-code-review` | 完成任务、实现功能、合并前 |
+| `superpowers:finishing-a-development-branch` | 实现完成、测试通过后，决定如何合并 |
+| `superpowers:dispatching-parallel-agents` | 2+ 个独立任务可并行执行时 |
+| `superpowers:subagent-driven-development` | 当前会话中执行独立步骤的实现计划 |
+| `superpowers:using-git-worktrees` | 需要隔离当前工作区的功能开发 |
+
