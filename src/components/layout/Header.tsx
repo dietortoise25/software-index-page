@@ -1,9 +1,10 @@
-import { useState } from "react"
-import { Link, useLocation } from "react-router"
-import { Package, Moon, Sun, Menu, X } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Link, useLocation, useNavigate } from "react-router"
+import { Package, Moon, Sun, Menu, X, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SITE_NAME } from "@/lib/constants"
 import { useDarkMode } from "@/hooks/useDarkMode"
+import { getSession, signOut } from "@/lib/auth-client"
 
 const NAV_ITEMS = [
   { to: "/", label: "首页", match: (p: string) => p === "/" },
@@ -18,7 +19,19 @@ const NAV_ITEMS = [
 export default function Header() {
   const [dark, toggleDark] = useDarkMode()
   const { pathname } = useLocation()
+  const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [loggedIn, setLoggedIn] = useState(false)
+
+  useEffect(() => {
+    getSession().then((r) => setLoggedIn(!!r.data?.session))
+  }, [])
+
+  const handleLogout = async () => {
+    await signOut()
+    setLoggedIn(false)
+    navigate("/")
+  }
 
   const linkClass = (active: boolean) =>
     `rounded-lg px-3 py-1.5 text-sm transition-all duration-200 ${active
@@ -59,6 +72,17 @@ export default function Header() {
           >
             {dark ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
           </Button>
+          {loggedIn && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleLogout}
+              aria-label="退出登录"
+              className="transition-all duration-200 hover:bg-accent/60"
+            >
+              <LogOut className="size-[18px]" />
+            </Button>
+          )}
           {/* 移动端汉堡按钮 */}
           <button
             onClick={() => setMenuOpen(!menuOpen)}
