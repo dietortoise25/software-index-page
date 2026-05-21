@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { Plus, Trash2, Pencil, Loader2, AlertCircle, Users, UserCog, Link2, Lock, ShieldCheck } from "lucide-react"
 import AuthGuard from "@/components/auth/AuthGuard"
+import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -19,25 +20,21 @@ interface Binding {
 }
 
 function api(path: string, body?: Record<string, unknown>) {
-  const saved = sessionStorage.getItem("dash_pin") || ""
-  const sep = path.includes("?") ? "&" : "?"
-  return fetch(`/api/internal${path}${sep}pin=${saved}`, {
+  return fetch(`/api/internal${path}`, {
     method: body ? "POST" : "GET",
     headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify({ ...body, pin: saved }) : undefined,
+    body: body ? JSON.stringify(body) : undefined,
   }).then(r => r.json())
 }
 function apiPut(path: string, body: Record<string, unknown>) {
-  const saved = sessionStorage.getItem("dash_pin") || ""
   return fetch(`/api/internal${path}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...body, pin: saved }),
+    body: JSON.stringify(body),
   }).then(r => r.json())
 }
 function apiDel(path: string) {
-  const saved = sessionStorage.getItem("dash_pin") || ""
-  return fetch(`/api/internal${path}?pin=${saved}`, { method: "DELETE" }).then(r => r.json())
+  return fetch(`/api/internal${path}`, { method: "DELETE" }).then(r => r.json())
 }
 
 // ─── Shop picker helper ───
@@ -496,6 +493,7 @@ function ApprovalTab() {
 
 // ─── Page ───
 export default function InternalAdminPage() {
+  const { logout } = useAuth()
   const [tab, setTab] = useState<Tab>("groups")
 
   const tabs: { key: Tab; label: string; icon: typeof Users }[] = [
@@ -516,7 +514,7 @@ export default function InternalAdminPage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => { sessionStorage.removeItem("dash_pin"); window.location.reload() }}
+          onClick={() => { logout() }}
         >
           <Lock className="mr-1 size-3" />
           锁定

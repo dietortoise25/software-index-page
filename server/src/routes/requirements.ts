@@ -21,12 +21,6 @@ import type { StoredRequirement } from "../lib/storage.js"
 
 const router = Router()
 
-const REVIEW_PIN = process.env.REVIEW_PIN!
-
-function checkPin(body: Record<string, unknown>): boolean {
-  return String(body.pin || "") === REVIEW_PIN
-}
-
 const deepseek = createDeepSeek({
   apiKey: process.env.DEEPSEEK_API_KEY || "",
   baseURL: process.env.DEEPSEEK_API_URL_OpenAI || "https://api.deepseek.com",
@@ -82,21 +76,13 @@ router.post("/", async (req, res) => {
 
 /** 列表所有需求（需 PIN，用 POST 避免 URL 泄露） */
 router.post("/list", (req, res) => {
-  if (!checkPin(req.body as Record<string, unknown>)) {
-    res.status(403).json({ ok: false, error: "PIN 码错误" })
-    return
-  }
-  const list = readRequirements()
+const list = readRequirements()
   res.json({ ok: true, data: list })
 })
 
 /** 获取单个需求（需 PIN） */
 router.post("/:id/detail", (req, res) => {
-  if (!checkPin(req.body as Record<string, unknown>)) {
-    res.status(403).json({ ok: false, error: "PIN 码错误" })
-    return
-  }
-  const record = getRequirement(req.params.id)
+const record = getRequirement(req.params.id)
   if (!record) {
     res.status(404).json({ ok: false, error: "需求不存在" })
     return
@@ -106,10 +92,6 @@ router.post("/:id/detail", (req, res) => {
 
 /** 通过审批 — 原子性：先验证，再创建事件+发卡片，最后更新状态 */
 router.post("/:id/approve", async (req, res) => {
-  if (!checkPin(req.body as Record<string, unknown>)) {
-    res.status(403).json({ ok: false, error: "PIN 码错误" })
-    return
-  }
 
   try {
     // 1. 验证前置条件
@@ -176,10 +158,6 @@ router.post("/:id/approve", async (req, res) => {
 
 /** 驳回需求 + 发送飞书通知 */
 router.post("/:id/reject", async (req, res) => {
-  if (!checkPin(req.body as Record<string, unknown>)) {
-    res.status(403).json({ ok: false, error: "PIN 码错误" })
-    return
-  }
 
   const record = getRequirement(req.params.id)
   if (!record) {
@@ -216,10 +194,6 @@ router.post("/:id/reject", async (req, res) => {
 
 /** 重新生成排期 */
 router.post("/:id/reschedule", async (req, res) => {
-  if (!checkPin(req.body as Record<string, unknown>)) {
-    res.status(403).json({ ok: false, error: "PIN 码错误" })
-    return
-  }
 
   const record = getRequirement(req.params.id)
   if (!record) {
@@ -259,10 +233,6 @@ router.post("/:id/reschedule", async (req, res) => {
 
 /** 更新需求字段 */
 router.post("/:id/update", async (req, res) => {
-  if (!checkPin(req.body as Record<string, unknown>)) {
-    res.status(403).json({ ok: false, error: "PIN 码错误" })
-    return
-  }
 
   const record = getRequirement(req.params.id)
   if (!record) {
@@ -284,10 +254,6 @@ router.post("/:id/update", async (req, res) => {
 
 /** 删除需求 */
 router.post("/:id/delete", async (req, res) => {
-  if (!checkPin(req.body as Record<string, unknown>)) {
-    res.status(403).json({ ok: false, error: "PIN 码错误" })
-    return
-  }
 
   const deleted = await removeRequirementAsync(req.params.id)
   if (!deleted) {
@@ -300,10 +266,6 @@ router.post("/:id/delete", async (req, res) => {
 
 /** 手动发送飞书卡片（不改变状态） */
 router.post("/:id/send-card", async (req, res) => {
-  if (!checkPin(req.body as Record<string, unknown>)) {
-    res.status(403).json({ ok: false, error: "PIN 码错误" })
-    return
-  }
 
   const record = getRequirement(req.params.id)
   if (!record) {
@@ -334,11 +296,7 @@ router.post("/:id/send-card", async (req, res) => {
 
 /** 批量删除 */
 router.post("/batch-delete", async (req, res) => {
-  if (!checkPin(req.body as Record<string, unknown>)) {
-    res.status(403).json({ ok: false, error: "PIN 码错误" })
-    return
-  }
-  const { ids } = req.body as { ids?: string[] }
+const { ids } = req.body as { ids?: string[] }
   if (!ids || !Array.isArray(ids) || ids.length === 0) {
     res.status(400).json({ ok: false, error: "缺少 ids 数组" })
     return

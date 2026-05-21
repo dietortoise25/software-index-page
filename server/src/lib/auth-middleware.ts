@@ -10,33 +10,26 @@ declare global {
   }
 }
 
-/**
- * 认证中间件：优先读 Session Cookie，fallback 到旧 PIN 码
- */
-export async function requireAuth(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  // 1. 尝试 Better Auth session cookie
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const session = await auth.api.getSession({
     headers: fromNodeHeaders(req.headers),
   })
 
   if (session?.user) {
-    req.user = { id: session.user.id, email: session.user.email }
-    return next()
-  }
-
-  // 2. Fallback: 旧 PIN 码验证
-  const pin =
-    (req.body as Record<string, unknown>)?.pin ||
-    (req.query as Record<string, string>)?.pin
-
-  if (pin && String(pin) === process.env.REVIEW_PIN) {
-    req.user = { id: "admin:pin", role: "admin" }
+    req.user = {
+      id: session.user.id,
+      email: session.user.email,
+      role: (session.user as any).role,
+    }
     return next()
   }
 
   res.status(401).json({ ok: false, error: "Unauthorized" })
+}
+
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (req.user?.role !== "admin") {
+    return res.status(403).json({ ok: false, error: "需要管理员权限" })
+  }
+  next()
 }

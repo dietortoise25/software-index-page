@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import AuthGuard from "@/components/auth/AuthGuard"
+import { useAuth } from "@/lib/auth-context"
 import { FilterBar } from "@/components/dashboard/FilterBar"
 import { RevenueOverview } from "@/components/dashboard/RevenueOverview"
 import { ChannelCharts } from "@/components/dashboard/ChannelCharts"
@@ -23,6 +24,7 @@ export default function DashboardPage() {
 
 function DashboardContent() {
   const { dimension, setDimension, platform, setPlatform, operatorId, setOperatorId } = useDashboardFilter()
+  const { logout } = useAuth()
 
   return (
     <div className="container mx-auto max-w-7xl px-4 py-8">
@@ -68,7 +70,7 @@ function DashboardContent() {
           <div className="flex items-center gap-2"><Lock className="size-3 text-muted-foreground" /><span className="text-muted-foreground text-xs">{dimension === "all" ? "全部平台" : dimension === "platform" ? `平台: ${platform}` : "全部运营者"}</span></div>
           <a href="/internal/admin" className="text-muted-foreground text-xs hover:text-foreground transition-colors">管理分组与绑定 →</a>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => { sessionStorage.removeItem("dash_pin"); window.location.reload() }}><Lock className="mr-1 size-3" />锁定</Button>
+        <Button variant="ghost" size="sm" onClick={() => { logout() }}><Lock className="mr-1 size-3" />锁定</Button>
       </div>
     </div>
   )
