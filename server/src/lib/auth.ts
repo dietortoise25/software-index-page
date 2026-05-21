@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth"
+import { getMigrations } from "better-auth/db/migration"
 import { username } from "better-auth/plugins"
 import { Pool } from "pg"
 
@@ -17,10 +18,22 @@ export const auth = betterAuth({
   plugins: [username()],
 })
 
-async function seedAdmin() {
+async function migrateAndSeed() {
   if (!pool) {
     console.log("[auth] 无 DATABASE_URL，使用内存存储")
     return
+  }
+
+  try {
+    const { toBeCreated, toBeAdded, runMigrations } = await getMigrations(auth.options)
+    const total = toBeCreated.length + toBeAdded.length
+    if (total > 0) {
+      console.log(`[auth] 建表迁移: ${total} 项`)
+      await runMigrations()
+      console.log("[auth] 迁移完成")
+    }
+  } catch (e) {
+    console.warn("[auth] 迁移失败:", (e as Error).message)
   }
 
   const adminEmail = process.env.ADMIN_EMAIL
@@ -51,4 +64,4 @@ async function seedAdmin() {
   }
 }
 
-seedAdmin()
+setTimeout(migrateAndSeed, 500)
