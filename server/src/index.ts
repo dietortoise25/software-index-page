@@ -40,11 +40,11 @@ app.use((_req, res, next) => {
 
 app.use(express.urlencoded({ extended: false }))
 
+// 飞书 OAuth — 必须比 /api/auth/* 更早注册，否则被 Better Auth 拦截
+app.use("/api/auth/feishu", feishuAuthRouter)
+
 // Better Auth handler — 必须在 express.json() 之前
 app.all("/api/auth/*", toNodeHandler(auth))
-
-// 飞书 OAuth（独立于 Better Auth 路由体系）
-app.use("/api/auth/feishu", feishuAuthRouter)
 
 app.use(express.json({ limit: "100kb" }))
 
