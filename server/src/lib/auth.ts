@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth"
+import { username } from "better-auth/plugins"
 import { Pool } from "pg"
 
 const baseURL = process.env.AUTH_BASE_URL || "http://localhost:8765"
@@ -10,10 +11,7 @@ const pool = process.env.DATABASE_URL
 export const auth = betterAuth({
   baseURL,
   database: pool,
-  emailAndPassword: {
-    enabled: true,
-    autoSignIn: true,
-  },
+  plugins: [username()],
 })
 
 async function seedAdmin() {
@@ -35,13 +33,14 @@ async function seedAdmin() {
         email: adminEmail,
         password: adminPassword,
         name: "Admin",
+        username: adminEmail,
       },
       headers: new Headers({ "content-type": "application/json" }),
     } as Parameters<typeof auth.api.signUpEmail>[0])
     console.log("[auth] Admin 用户已创建")
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    if (msg.includes("already exists") || msg.includes("duplicate")) {
+    if (msg.includes("already exists") || msg.includes("duplicate") || msg.includes("unique")) {
       console.log("[auth] Admin 用户已存在")
     } else {
       console.warn(`[auth] 种子 Admin 失败: ${msg}`)
