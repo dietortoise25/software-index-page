@@ -56,6 +56,8 @@ ok "部署完成"
 # ===== Step 5: Restart =====
 log "重启服务..."
 $SSH $SERVER_USER@$SERVER_IP "
+  sudo fuser -k 8765/tcp 2>/dev/null || true
+  sleep 1
   sudo systemctl restart relay qianyi-scheduler
   sleep 3
 

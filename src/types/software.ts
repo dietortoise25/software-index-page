@@ -17,4 +17,5 @@ export interface Software {
   category: string
   versions: SoftwareVersion[]
   homepageUrl?: string
+  requirePin?: boolean
 }

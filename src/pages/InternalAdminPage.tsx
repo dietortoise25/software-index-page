@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
-import { Plus, Trash2, Pencil, Loader2, AlertCircle, Users, UserCog, Link2, Lock } from "lucide-react"
+import { Plus, Trash2, Pencil, Loader2, AlertCircle, Users, UserCog, Link2, Lock, ShieldCheck } from "lucide-react"
 import PinGate from "@/components/review/PinGate"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 
-type Tab = "groups" | "operators" | "bindings"
+type Tab = "groups" | "operators" | "bindings" | "approval"
 
 interface Group { id: number; name: string; shop_count: number; created_at: string }
 interface Operator { id: number; name: string; created_at: string }
@@ -15,6 +15,7 @@ interface Binding {
   id: number; shop_id: number; operator_id: number; group_id: number | null; created_at: string
   shop_name: string; platform: string; shop_status: string
   operator_name: string
+  is_primary: boolean; effective_from: string | null; effective_to: string | null
 }
 
 function api(path: string, body?: Record<string, unknown>) {
@@ -300,9 +301,9 @@ function BindingsTab() {
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="px-4 py-2.5 text-left font-medium">店铺</th>
-              <th className="px-4 py-2.5 text-left font-medium">平台</th>
-              <th className="px-4 py-2.5 text-left font-medium">状态</th>
               <th className="px-4 py-2.5 text-left font-medium">运营者</th>
+              <th className="px-4 py-2.5 text-left font-medium">角色</th>
+              <th className="px-4 py-2.5 text-left font-medium">负责时间</th>
               <th className="px-4 py-2.5 text-left font-medium">分组</th>
               <th className="px-4 py-2.5 text-right font-medium">操作</th>
             </tr>
@@ -312,14 +313,25 @@ function BindingsTab() {
               <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">暂无绑定</td></tr>
             )}
             {items.map(b => (
-              <tr key={b.id} className="border-b last:border-b-0 hover:bg-muted/30">
+              <tr key={b.id} className={`border-b last:border-b-0 hover:bg-muted/30 ${b.is_primary ? "bg-emerald-500/5" : ""}`}>
                 <td className="px-4 py-2.5">
-                  <span className="font-medium text-sm">{b.shop_name}</span>
-                  <code className="ml-1.5 text-muted-foreground text-[10px]">#{b.shop_id}</code>
+                  <div className="flex items-center gap-1.5">
+                    {b.is_primary && <span className="size-1.5 rounded-full bg-emerald-500" title="主负责人" />}
+                    <span className="font-medium text-sm">{b.shop_name}</span>
+                  </div>
+                  <code className="ml-1.5 text-muted-foreground text-[10px]">#{b.shop_id} · {b.platform}</code>
                 </td>
-                <td className="px-4 py-2.5"><Badge variant="secondary" className="text-xs">{b.platform}</Badge></td>
-                <td className="px-4 py-2.5 text-xs">{b.shop_status}</td>
                 <td className="px-4 py-2.5 text-sm">{b.operator_name}</td>
+                <td className="px-4 py-2.5">
+                  {b.is_primary ? (
+                    <Badge className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/30">主负责人</Badge>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">协助者</span>
+                  )}
+                </td>
+                <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                  {b.effective_from ? `${b.effective_from} ~ ${b.effective_to || "至今"}` : "-"}
+                </td>
                 <td className="px-4 py-2.5 text-xs text-muted-foreground">{groupName(b.group_id)}</td>
                 <td className="px-4 py-2.5 text-right">
                   <Button size="sm" variant="ghost" onClick={() => del(b.id)}><Trash2 className="size-3.5 text-destructive" /></Button>
@@ -328,6 +340,155 @@ function BindingsTab() {
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  )
+}
+
+// ─── Approval Tab ───
+function ApprovalTab() {
+  const [shops, setShops] = useState<{ shop_id: number; name: string; platform: string }[]>([])
+  const [operators, setOperators] = useState<{ id: number; name: string }[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selShop, setSelShop] = useState(0)
+  const [selOp, setSelOp] = useState(0)
+  const [selDate, setSelDate] = useState(new Date().toISOString().slice(0, 10))
+  const [selReason, setSelReason] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+  const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null)
+  const [reviewInstance, setReviewInstance] = useState("")
+  const [changes, setChanges] = useState<any[]>([])
+
+  const fetch = async () => {
+    setLoading(true)
+    const [s, o, c] = await Promise.all([
+      api("/shop-operators"),
+      api("/operators"),
+      api("/approval/changes"),
+    ])
+    if (s.ok) {
+      setShops([...new Map((s.data || []).map((b: any) => [b.shop_id, { shop_id: b.shop_id, name: b.shop_name, platform: b.platform }])).values()] as any)
+    }
+    if (o.ok) setOperators(o.data || [])
+    if (c.ok) setChanges(c.data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetch() }, [])
+
+  const submit = async () => {
+    if (!selShop || !selOp || !selDate || !selReason.trim()) return
+    setSubmitting(true); setMsg(null)
+    const r = await api("/approval/submit", {
+      shop_id: selShop, operator_id: selOp, change_type: "transfer",
+      effective_from: selDate, reason: selReason.trim(),
+    } as any)
+    if (r.ok) {
+      setMsg({ type: "ok", text: `审批已提交 (${r.instance_code})` })
+      setSelShop(0); setSelOp(0); setSelReason("")
+      fetch()
+    } else {
+      setMsg({ type: "err", text: r.error })
+    }
+    setSubmitting(false)
+  }
+
+  const review = async () => {
+    if (!reviewInstance) return
+    const r = await api("/approval/" + reviewInstance + "/review", { action: "approve" } as any)
+    if (r.ok) { setMsg({ type: "ok", text: r.message }); setReviewInstance(""); fetch() }
+    else setMsg({ type: "err", text: r.error })
+  }
+
+  if (loading) return <div className="flex justify-center py-16"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
+
+  return (
+    <div className="space-y-6">
+      {/* 提交审批 */}
+      <div className="rounded-lg border bg-card p-4">
+        <h3 className="font-semibold text-sm mb-3">发起负责人变动</h3>
+        <div className="flex gap-2 flex-wrap items-end">
+          <div className="w-[200px]">
+            <label className="text-xs text-muted-foreground mb-1 block">店铺</label>
+            <select value={selShop} onChange={e => setSelShop(Number(e.target.value))} className="w-full rounded-lg border bg-background px-3 py-2 text-sm">
+              <option value={0}>选择店铺...</option>
+              {shops.map(s => <option key={s.shop_id} value={s.shop_id}>{s.name} ({s.platform})</option>)}
+            </select>
+          </div>
+          <div className="w-[140px]">
+            <label className="text-xs text-muted-foreground mb-1 block">新负责人</label>
+            <select value={selOp} onChange={e => setSelOp(Number(e.target.value))} className="w-full rounded-lg border bg-background px-3 py-2 text-sm">
+              <option value={0}>选择人员...</option>
+              {operators.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          </div>
+          <div className="w-[140px]">
+            <label className="text-xs text-muted-foreground mb-1 block">生效日期</label>
+            <Input type="date" value={selDate} onChange={e => setSelDate(e.target.value)} className="h-9 text-sm" />
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <label className="text-xs text-muted-foreground mb-1 block">变动原因</label>
+            <Input placeholder="如：转岗、离职交接..." value={selReason} onChange={e => setSelReason(e.target.value)} className="h-9 text-sm" />
+          </div>
+          <Button size="sm" onClick={submit} disabled={submitting || !selShop || !selOp || !selReason.trim()}>
+            {submitting ? <Loader2 className="size-4 animate-spin mr-1" /> : null}提交审批
+          </Button>
+        </div>
+        {msg && (
+          <div className={`mt-3 rounded-lg px-3 py-2 text-xs ${msg.type === "ok" ? "border border-emerald-500/30 bg-emerald-500/5 text-emerald-600" : "border border-destructive/30 bg-destructive/5 text-destructive"}`}>
+            {msg.text}
+          </div>
+        )}
+      </div>
+
+      {/* 模拟审批（Mock） */}
+      <div className="rounded-lg border bg-card p-4">
+        <h3 className="font-semibold text-sm mb-3">⚡ Mock 审批（模拟飞书审批人操作）</h3>
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <label className="text-xs text-muted-foreground mb-1 block">审批单号 (instance_code)</label>
+            <Input placeholder="change_xxx..." value={reviewInstance} onChange={e => setReviewInstance(e.target.value)} className="h-9 text-sm" />
+          </div>
+          <Button size="sm" onClick={review} disabled={!reviewInstance}>同意审批</Button>
+          <Button size="sm" variant="outline" onClick={async () => {
+            if (!reviewInstance) return
+            const r = await api("/approval/" + reviewInstance + "/review", { action: "reject" } as any)
+            if (r.ok) { setMsg({ type: "ok", text: r.message }); setReviewInstance(""); fetch() }
+            else setMsg({ type: "err", text: r.error })
+          }}>驳回</Button>
+        </div>
+      </div>
+
+      {/* 变动记录 */}
+      <div>
+        <h3 className="font-semibold text-sm mb-3">变动记录</h3>
+        <div className="rounded-lg border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="px-4 py-2 text-left font-medium">时间</th>
+                <th className="px-4 py-2 text-left font-medium">店铺ID</th>
+                <th className="px-4 py-2 text-left font-medium">运营者</th>
+                <th className="px-4 py-2 text-left font-medium">生效日期</th>
+                <th className="px-4 py-2 text-left font-medium">原因</th>
+                <th className="px-4 py-2 text-left font-medium">状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              {changes.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">暂无记录</td></tr>}
+              {changes.map((c: any) => (
+                <tr key={c.id} className="border-b last:border-b-0 hover:bg-muted/30">
+                  <td className="px-4 py-2 text-xs text-muted-foreground">{new Date(c.submitted_at).toLocaleString("zh-CN")}</td>
+                  <td className="px-4 py-2 font-mono text-xs">{c.shop_id}</td>
+                  <td className="px-4 py-2 text-sm">{c.operator?.name || "?"}</td>
+                  <td className="px-4 py-2 text-xs">{c.effective_from}</td>
+                  <td className="px-4 py-2 text-xs text-muted-foreground max-w-[200px] truncate">{c.reason}</td>
+                  <td className="px-4 py-2"><Badge variant={c.status === "approved" ? "default" : c.status === "rejected" ? "destructive" : "secondary"} className="text-xs">{c.status === "approved" ? "已通过" : c.status === "rejected" ? "已驳回" : "待审批"}</Badge></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
@@ -367,6 +528,7 @@ export default function InternalAdminPage() {
     { key: "groups", label: "分组管理", icon: Users },
     { key: "operators", label: "人员管理", icon: UserCog },
     { key: "bindings", label: "店铺绑定", icon: Link2 },
+    { key: "approval", label: "负责人管理", icon: ShieldCheck },
   ]
 
   return (
@@ -409,6 +571,7 @@ export default function InternalAdminPage() {
           {tab === "groups" && <GroupsTab />}
           {tab === "operators" && <OperatorsTab />}
           {tab === "bindings" && <BindingsTab />}
+          {tab === "approval" && <ApprovalTab />}
         </CardContent>
       </Card>
 

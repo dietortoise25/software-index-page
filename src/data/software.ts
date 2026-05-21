@@ -2,6 +2,25 @@ import type { Software } from "@/types/software"
 
 export const softwareList: Software[] = [
   {
+    id: "douyin-tool",
+    name: "抖音工具",
+    description: "抖音运营辅助工具",
+    iconName: "Video",
+    category: "效率工具",
+    requirePin: true,
+    versions: [
+      {
+        version: "1.0.0",
+        releaseDate: "2026-05-21",
+        isLatest: true,
+        changelog: ["首个发布版本"],
+        downloads: {
+          windows: "http://42.193.170.109/downloads/douyin_tool.exe",
+        },
+      },
+    ],
+  },
+  {
     id: "tf-service",
     name: "TF客服值守",
     description: "自动客服值守工具，智能应答与工单处理",
@@ -9,9 +28,24 @@ export const softwareList: Software[] = [
     category: "效率工具",
     versions: [
       {
+        version: "3.5.0",
+        releaseDate: "2026-05-19",
+        isLatest: true,
+        changelog: [
+          "AI回复质量：程序接管回复决策权，AI只管生成文字；AI忘用工具时自动重试；客户只发产品卡片也能识别",
+          "人工待处理面板：侧边栏新增红色升级列表，AI判断需人工介入时显示客户名/原因/时间，支持一键解除",
+          "Shopee物流卡片：自动识别Shopee专属流程，多步操作自动完成；发了卡片忘写文字程序自动补发",
+          "对话识别增强：产品卡片不再漏掉；其他插件自动回复可识别；切换对话按客户名定位不再点错",
+          "稳定性大幅提升：热重载不再报错；回复去重存到浏览器存储；对话列表自动刷新；消息区域自动滚动加载",
+        ],
+        downloads: {
+          windows: "http://42.193.170.109/downloads/TF客服值守v3.5.0.zip",
+        },
+      },
+      {
         version: "3.4.3",
         releaseDate: "2026-05-13",
-        isLatest: true,
+        isLatest: false,
         changelog: [
           "双层日志系统：用户侧边栏显示轻量运行日志，开发者完整日志隐藏在后台，点击「导出调试日志」按钮可下载完整 txt 文件用于排查 bug",
           "非中文界面值守失效修复：每次开始处理前自动检测界面语言，非中文简体时自动切换，确保识别正常",

@@ -1,0 +1,85 @@
+<h2>About 页文字占比过高 — 4种解法对比</h2>
+<p class="subtitle">当前 5 个叙事段全是纯文本段落，像长文阅读而非品牌页面。目标是保持叙事深度，同时降低阅读疲劳。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-body" style="font-size:13px;line-height:1.7;color:#888">
+          <p style="color:#ccc;font-weight:600;margin-bottom:8px">01 · 怀疑</p>
+          <p>最早接触的，不是技术。<b style="color:#fff">是真实业务。</b></p>
+          <p>刚接手业务时，最让我困惑的是一张库存表...</p>
+          <p>很多人的工作，本质上只是...</p>
+          <blockquote style="border-left:2px solid #444;padding-left:12px;margin:10px 0;color:#999;font-style:italic">「人无法一次理解七个以上的信息单位。」<br><span style="font-size:12px;color:#666">—— 《金字塔原理》</span></blockquote>
+          <p>现实里的组织，<b style="color:#fff">每天都在制造远超人脑负荷的信息复杂度。</b></p>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · 纯文本（现状）</h3>
+      <p>5个section全是段落文字，像一篇排版精美的文章。氛围好但阅读成本高，扫描式读者很难抓到重点。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-body" style="font-size:13px;line-height:1.7">
+          <p style="color:#999;font-weight:700;font-size:28px;line-height:1.2;margin:12px 0">最早接触的，<br>不是技术。<br><span style="color:#7dd3fc">是真实业务。</span></p>
+          <div style="margin:10px 0;padding:8px 0;border-top:1px solid #333;border-bottom:1px solid #333;display:flex;gap:12px">
+            <div style="flex:1;text-align:center"><span style="font-size:22px;font-weight:700;color:#fff">3</span><br><span style="font-size:11px;color:#888">人维护同一个库存</span></div>
+            <div style="flex:1;text-align:center"><span style="font-size:22px;font-weight:700;color:#fff">4</span><br><span style="font-size:11px;color:#888">种不同订单版本</span></div>
+          </div>
+          <p style="color:#999;font-size:12px;margin-top:8px">很多人的工作，只是：不断复制、确认、同步、转发。</p>
+          <blockquote style="border-left:2px solid #38bdf8;padding-left:12px;margin:10px 0;color:#aaa;font-style:italic">「人无法一次理解七个以上的信息单位。」<br><span style="font-size:11px;color:#666">——《金字塔原理》</span></blockquote>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B · 提取关键数据</h3>
+      <p>把段落中的事实提炼为数字/短句模块，穿插在段落之间。阅读节奏从「连续朗读」变成「扫一眼数据→读一段→再扫一眼」。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-body" style="font-size:13px;line-height:1.7">
+          <p style="color:#ccc;font-weight:700;font-size:17px;margin:8px 0">01 · 现实会逼着人重新思考</p>
+          <p style="color:#fff;font-weight:600;margin:6px 0">最早接触的，不是技术。是真实业务。</p>
+          <p style="color:#999;font-size:12px">销售、电商、供应链、运营——信息永远不完整。</p>
+          <p style="color:#666;font-size:11px;margin:6px 0">▼ 展开故事</p>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C · 折叠式阅读</h3>
+      <p>每个section默认只显示核心句，详细叙事折叠。让读者自主控制信息密度——想深读就展开，想速览就扫标题。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="d" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-body" style="font-size:13px;line-height:1.7;display:flex;gap:16px;align-items:flex-start">
+          <div style="flex:1">
+            <p style="color:#fa0;font-size:10px;letter-spacing:3px;margin-bottom:4px">01</p>
+            <p style="color:#fff;font-weight:700;font-size:20px;line-height:1.15">现实会逼着人<br>重新思考</p>
+          </div>
+          <div style="flex:2">
+            <p style="color:#999;font-size:12px">最早接触的，不是技术。<b style="color:#ccc">是真实业务。</b>销售、电商、供应链、运营。共同点：信息永远不完整。</p>
+            <div style="margin:8px 0;padding:6px 0 6px 10px;border-left:3px solid #38bdf8">
+              <p style="color:#aaa;font-size:11px;font-style:italic">「人无法一次理解七个以上的信息单位。」</p>
+              <p style="color:#666;font-size:10px">《金字塔原理》</p>
+            </div>
+            <p style="color:#888;font-size:12px">现实里的组织，每天都在制造远超人脑负荷的信息复杂度。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>D · 不对称杂志式</h3>
+      <p>标题占1/3宽度，正文占2/3。用留白和不对称比例制造呼吸感。引用块和关键句自然穿插，不是「段落砌墙」。</p>
+    </div>
+  </div>
+</div>

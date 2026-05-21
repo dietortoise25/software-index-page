@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "v2.2.0",
+    date: "2026-05-19",
+    title: "TF客服值守 v3.5.0 发布 + AI经营Copilot前端Mock",
+    items: [
+      { type: "new", text: "TF客服值守 v3.5.0：AI回复决策权程序接管、人工待处理面板、Shopee物流卡片、对话识别增强、稳定性大幅提升" },
+      { type: "new", text: "新增 /future 页面：AI经营Copilot仪表盘前端Mock（事件流+ChatBI+日报+Skills+设置）" },
+    ],
+  },
+  {
     version: "v2.1.0",
     date: "2026-05-18",
     title: "个人品牌页面 /about — 认知叙事 + AI流式打字机 + 背景音乐",

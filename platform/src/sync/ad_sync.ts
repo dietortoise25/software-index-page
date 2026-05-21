@@ -54,19 +54,25 @@ export async function syncAdCosts(sdk: QianyiSDK, _env: string) {
             }) as { result?: unknown[]; notSuccess?: boolean }
             const items = res?.result || []
             if (!items.length || res?.notSuccess) break
+            const batch: Record<string, unknown>[] = []
             for (const r of items as Record<string, unknown>[]) {
               const m = String(r.settlementTimeFormatted || "").slice(0, 7)
-              if (!m) continue
-              if (!monthMap[m]) monthMap[m] = { platform: "TIKTOK", report_month: m, affiliate_cost: 0, tech_ad_cost: 0, total_cost: 0 }
               const a = Math.abs(parseFloat(String(r.feeAffiliateAdsCommissionAmount || 0)))
               const b = Math.abs(parseFloat(String(r.feeAffiliateCommissionAmount || 0)))
               const c = Math.abs(parseFloat(String(r.feeAffiliatePartnerCommissionAmount || 0)))
               const d = Math.abs(parseFloat(String(r.udf12 || 0)))
               const e = Math.abs(parseFloat(String(r.udf18 || 0)))
-              monthMap[m].affiliate_cost += a + b + c
-              monthMap[m].tech_ad_cost += d + e
-              monthMap[m].total_cost += a + b + c + d + e
+              const total = a + b + c + d + e
+              if (m) {
+                if (!monthMap[m]) monthMap[m] = { platform: "TIKTOK", report_month: m, affiliate_cost: 0, tech_ad_cost: 0, total_cost: 0 }
+                monthMap[m].affiliate_cost += a + b + c; monthMap[m].tech_ad_cost += d + e; monthMap[m].total_cost += total
+              }
+              const date = String(r.settlementTimeFormatted || "").slice(0, 10)
+              if (date && total > 0) {
+                batch.push({ platform: "TIKTOK", shop_id: r.shopId, shop_name: r.shopName, settlement_date: date, order_id: String(r.orderId || ""), affiliate_cost: a + b + c, tech_ad_cost: d + e, total_cost: total, raw_data: r, sync_at: new Date().toISOString() })
+              }
             }
+            if (batch.length) await sb.from("ad_cost_details").upsert(batch, { onConflict: "platform,order_id,settlement_date" }).then(() => {}, () => {})
             if (items.length < 200) break
             page++
           }
@@ -88,15 +94,22 @@ export async function syncAdCosts(sdk: QianyiSDK, _env: string) {
             }) as { result?: unknown[]; notSuccess?: boolean }
             const items = res?.result || []
             if (!items.length || res?.notSuccess) break
+            const batch: Record<string, unknown>[] = []
             for (const r of items as Record<string, unknown>[]) {
               const m = String(r.payoutTimeFormatted || "").slice(0, 7)
-              if (!m) continue
-              if (!monthMap[m]) monthMap[m] = { platform: "SHOPEE", report_month: m, affiliate_cost: 0, tech_ad_cost: 0, total_cost: 0 }
               const a = Math.abs(parseFloat(String(r.orderAmsCommissionFee || 0)))
               const b = Math.abs(parseFloat(String(r.udf7 || 0)))
-              monthMap[m].tech_ad_cost += a + b
-              monthMap[m].total_cost += a + b
+              const total = a + b
+              if (m) {
+                if (!monthMap[m]) monthMap[m] = { platform: "SHOPEE", report_month: m, affiliate_cost: 0, tech_ad_cost: 0, total_cost: 0 }
+                monthMap[m].tech_ad_cost += total; monthMap[m].total_cost += total
+              }
+              const date = String(r.payoutTimeFormatted || "").slice(0, 10)
+              if (date && total > 0) {
+                batch.push({ platform: "SHOPEE", shop_id: r.shopId, shop_name: r.shopName, settlement_date: date, order_id: String(r.orderId || ""), affiliate_cost: 0, tech_ad_cost: total, total_cost: total, raw_data: r, sync_at: new Date().toISOString() })
+              }
             }
+            if (batch.length) await sb.from("ad_cost_details").upsert(batch, { onConflict: "platform,order_id,settlement_date" }).then(() => {}, () => {})
             if (items.length < 200) break
             page++
           }

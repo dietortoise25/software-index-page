@@ -11,7 +11,7 @@ import { OperatorRanking } from "@/components/dashboard/OperatorRanking"
 import { OrderHealth } from "@/components/dashboard/OrderHealth"
 import { AdCostSection } from "@/components/dashboard/AdCostSection"
 import { verifyPin } from "@/lib/api"
-import { useDashboardFilter, type Dimension, type Platform } from "@/hooks/useDashboardFilter"
+import { useDashboardFilter } from "@/hooks/useDashboardFilter"
 
 export default function DashboardPage() {
   const [pinUnlocked, setPinUnlocked] = useState(() => import.meta.env.DEV || sessionStorage.getItem("dash_pin") !== null)

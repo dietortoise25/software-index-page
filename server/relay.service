@@ -14,6 +14,8 @@ RestartSec=5
 # Environment=FEISHU_APP_SECRET=xxx
 Environment=DEEPSEEK_API_KEY=REDACTED_DEEPSEEK_API_KEY
 Environment=DEEPSEEK_API_URL_OpenAI=https://api.deepseek.com
+Environment=FEISHU_CALENDAR_ID=7638812552629668820
+Environment=REVIEW_PIN=123456
 
 [Install]
 WantedBy=multi-user.target

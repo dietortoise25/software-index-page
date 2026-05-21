@@ -9,6 +9,7 @@ import requirementsRouter from "./routes/requirements.js"
 import internalRouter from "./routes/internal.js"
 import approvalRouter from "./routes/approval.js"
 import pinRouter from "./routes/pin.js"
+import downloadRouter from "./routes/download.js"
 import quickFormRouter from "./routes/quick-form.js"
 
 const PORT = parseInt(process.env.PORT || "8765", 10)
@@ -40,6 +41,7 @@ app.get("/health", (_req, res) => res.json({ ok: true }))
 
 // 路由挂载
 app.use("/api", pinRouter)
+app.use("/api", downloadRouter)
 app.use("/api/chat", chatRouter)
 app.use("/api/requirement/generate", generateRouter)
 app.use("/api/requirement", quickFormRouter)

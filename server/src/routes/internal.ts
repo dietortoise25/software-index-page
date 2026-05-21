@@ -106,7 +106,7 @@ router.delete("/operators/:id", async (req, res) => {
 
 router.get("/shop-operators", async (_req, res) => {
   const [bindings, operators, shops] = await Promise.all([
-    supabase.schema("internal").from("shop_operators").select("*").order("created_at", { ascending: false }),
+    supabase.schema("internal").from("shop_operators").select("*").order("is_primary", { ascending: false }).order("effective_from", { ascending: false }),
     supabase.schema("internal").from("operators").select("id, name"),
     supabase.from("shops").select("shop_id, name, platform, status"),
   ])
@@ -124,6 +124,9 @@ router.get("/shop-operators", async (_req, res) => {
       shop_name: sh?.name || "?",
       platform: sh?.platform || "?",
       shop_status: sh?.status || "?",
+      is_primary: b.is_primary || false,
+      effective_from: b.effective_from || null,
+      effective_to: b.effective_to || null,
     }
   })
   res.json({ ok: true, data: result })

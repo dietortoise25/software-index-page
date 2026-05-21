@@ -18,11 +18,28 @@ export interface Requirement {
   expectedDate: string
 }
 
+export interface SchedulePhase {
+  phase: string
+  date: string
+  startTime: string
+  endTime: string
+  description: string
+}
+
+export interface ScheduleProposal {
+  estimatedEffort: string
+  estimatedHours: number
+  totalWorkDays: number
+  proposedDeadline: string
+  schedule: SchedulePhase[]
+  note: string
+}
+
 export interface StoredRequirement {
   id: string
   status: "pending" | "approved" | "rejected"
   requirement: Requirement
-  schedule?: Record<string, unknown> | null
+  schedule?: ScheduleProposal | null
   submitter: string
   submittedAt: string
   reviewedAt?: string | null

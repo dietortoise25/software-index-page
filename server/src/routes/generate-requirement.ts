@@ -8,6 +8,7 @@ import { requirementSchema } from "../schemas/requirement.js"
 import { EXTRACTION_PROMPT } from "../lib/interview-prompt.js"
 import { getTenantToken, getUserOpenId, sendFeishuCard } from "../lib/feishu.js"
 import { buildRequirementsCard } from "../lib/feishu-card.js"
+import type { ScheduleProposal } from "../lib/schedule-prompt.js"
 
 const router = Router()
 
@@ -18,9 +19,10 @@ const deepseek = createDeepSeek({
 
 router.post("/", async (req, res) => {
   try {
-    const { messages, edited } = req.body as {
+    const { messages, edited, schedule } = req.body as {
       messages?: Array<{ role: string; content: string }>
       edited?: Record<string, unknown>
+      schedule?: ScheduleProposal
     }
 
     let structured: Record<string, unknown>
@@ -31,7 +33,7 @@ router.post("/", async (req, res) => {
     } else if (messages) {
       // 从对话中提取
       const result = await generateObject({
-        model: deepseek("deepseek-chat"),
+        model: deepseek("deepseek-v4-pro"),
         system: EXTRACTION_PROMPT,
         messages: messages.slice(-20).map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
         schema: requirementSchema,
@@ -52,7 +54,7 @@ router.post("/", async (req, res) => {
       return
     }
 
-    const card = buildRequirementsCard(structured as Parameters<typeof buildRequirementsCard>[0])
+    const card = buildRequirementsCard(structured as Parameters<typeof buildRequirementsCard>[0], schedule)
     const feishuResult = await sendFeishuCard(token, openId, card)
 
     console.log(`[generate] 飞书结果: code=${feishuResult.code}`)

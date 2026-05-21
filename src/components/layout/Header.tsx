@@ -9,10 +9,10 @@ const NAV_ITEMS = [
   { to: "/", label: "首页", match: (p: string) => p === "/" },
   { to: "/catalog", label: "工具库", match: (p: string) => p.startsWith("/catalog") || p.startsWith("/software") },
   { to: "/articles", label: "文章", match: (p: string) => p.startsWith("/articles") },
-  { to: "/about", label: "关于", match: (p: string) => p === "/about" },
-  { to: "/review", label: "审查", match: (p: string) => p === "/review" },
-  { to: "/changelog", label: "更新日志", match: (p: string) => p === "/changelog" },
   { to: "/dashboard", label: "看板", match: (p: string) => p === "/dashboard" },
+  { to: "/changelog", label: "更新日志", match: (p: string) => p === "/changelog" },
+  { to: "/review", label: "审查", match: (p: string) => p === "/review" },
+  { to: "/about", label: "关于", match: (p: string) => p === "/about" },
 ]
 
 export default function Header() {
@@ -21,10 +21,9 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   const linkClass = (active: boolean) =>
-    `rounded-lg px-3 py-1.5 text-sm transition-all duration-200 ${
-      active
-        ? "bg-accent/80 font-medium shadow-sm"
-        : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+    `rounded-lg px-3 py-1.5 text-sm transition-all duration-200 ${active
+      ? "bg-accent/80 font-medium shadow-sm"
+      : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
     }`
 
   return (
@@ -80,11 +79,10 @@ export default function Header() {
                 key={item.to}
                 to={item.to}
                 onClick={() => setMenuOpen(false)}
-                className={`rounded-lg px-3 py-2.5 text-sm transition-colors ${
-                  item.match(pathname)
+                className={`rounded-lg px-3 py-2.5 text-sm transition-colors ${item.match(pathname)
                     ? "bg-accent/80 font-medium"
                     : "text-muted-foreground hover:bg-accent/40"
-                }`}
+                  }`}
               >
                 {item.label}
               </Link>

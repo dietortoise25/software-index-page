@@ -23,7 +23,7 @@ function Typewriter({ text, className, speed = 80 }: { text: string; className?:
         const ch = text[i - 1]
         const delay = ch === '，' || ch === '。' || ch === '？' || ch === '！' ? speed * 2.5
           : ch === '、' || ch === '；' || ch === '：' ? speed * 1.8
-          : speed * (0.7 + Math.random() * 0.6)
+            : speed * (0.7 + Math.random() * 0.6)
         setTimeout(typeNext, delay)
       } else {
         setDone(true)
@@ -130,7 +130,7 @@ export default function AboutPage() {
     a.play().then(() => setMusicOn(true)).catch(() => {
       const events = ["click", "scroll", "keydown", "touchstart"] as const
       const tryPlay = () => {
-        a.play().then(() => setMusicOn(true)).catch(() => {})
+        a.play().then(() => setMusicOn(true)).catch(() => { })
         events.forEach((e) => document.removeEventListener(e, tryPlay))
       }
       events.forEach((e) => document.addEventListener(e, tryPlay, { once: true }))
@@ -449,14 +449,14 @@ export default function AboutPage() {
                   >
                     <Send className="mr-0.5 inline size-3.5 align-[-1px]" />飞书联系我
                   </a>
-                  ，或者先
+                  ，或者先和我的
                   <button
                     onClick={() => setChatOpen(true)}
                     className="mx-0.5 inline-block border-b border-primary/30 pb-px font-medium text-primary transition-all hover:border-primary"
                   >
-                    <Bot className="mr-0.5 inline size-3.5 align-[-1px]" />和 AI 助手聊聊
+                    <Bot className="mr-0.5 inline size-3.5 align-[-1px]" /> AI助手
                   </button>
-                  你的情况。
+                  聊聊你的情况。
                 </p>
                 <p className="mt-6 text-muted-foreground/50 text-sm">
                   项目合作 · 数字化改造 · AI/自动化落地 · 工作流重塑

@@ -12,26 +12,27 @@ export function OperatorRanking({ dimension, platform, operatorId }: { dimension
   useEffect(() => {
     const thisMonth = getMonthRange(0);
     (async () => {
-      const { data: bindings } = await supabase.schema("internal").from("shop_operators").select("shop_id, operator_id, operator:operators(name)")
+      const { data: bindings } = await supabase.schema("internal").from("shop_operators")
+        .select("shop_id, operator_id, operator:operators(name)").eq("is_primary", true)
       if (!bindings) return
-      const shopToOps = new Map<number, { id: number; name: string }[]>()
+      const shopToOp = new Map<number, { id: number; name: string }>()
       for (const b of bindings) {
         const op = (b as Record<string, unknown>).operator as Record<string, unknown>
-        const sid = Number(b.shop_id); if (!shopToOps.has(sid)) shopToOps.set(sid, []); shopToOps.get(sid)!.push({ id: Number(b.operator_id), name: String(op?.name || "?") })
+        shopToOp.set(Number(b.shop_id), { id: Number(b.operator_id), name: String(op?.name || "?") })
       }
       let q = supabase.from("orders").select("shop_id, total_amount").gte("pay_time", thisMonth.start).lte("pay_time", thisMonth.end)
       if (dimension === "platform") q = q.eq("platform", platform)
       if (dimension === "operator" && operatorId > 0) {
-        const ids: number[] = []; for (const [sid, ops] of shopToOps) { if (ops.some(o => o.id === operatorId)) ids.push(sid) }
+        const ids = [...shopToOp.entries()].filter(([, op]) => op.id === operatorId).map(([sid]) => sid)
         if (ids.length) q = q.in("shop_id", ids)
       }
       const { data: rows } = await q
       const opMap: Record<string, { name: string; gmv: number; orders: number }> = {}
       for (const r of (rows || [])) {
-        const ops = shopToOps.get(Number(r.shop_id)) || []
-        const amount = parseFloat(String(r.total_amount || 0)); const share = ops.length > 0 ? amount / ops.length : 0
-        if (ops.length === 0) { const k = "unassigned"; if (!opMap[k]) opMap[k] = { name: "未分配", gmv: 0, orders: 0 }; opMap[k].gmv += amount; opMap[k].orders++ }
-        else { for (const op of ops) { const k = `${op.id}`; if (!opMap[k]) opMap[k] = { name: op.name, gmv: 0, orders: 0 }; opMap[k].gmv += share; opMap[k].orders += 1 / ops.length } }
+        const op = shopToOp.get(Number(r.shop_id))
+        const amount = parseFloat(String(r.total_amount || 0))
+        if (!op) { const k = "unassigned"; if (!opMap[k]) opMap[k] = { name: "未分配", gmv: 0, orders: 0 }; opMap[k].gmv += amount; opMap[k].orders++ }
+        else { const k = `${op.id}`; if (!opMap[k]) opMap[k] = { name: op.name, gmv: 0, orders: 0 }; opMap[k].gmv += amount; opMap[k].orders++ }
       }
       setData(Object.values(opMap).sort((a, b) => b.gmv - a.gmv).slice(0, 8))
     })()

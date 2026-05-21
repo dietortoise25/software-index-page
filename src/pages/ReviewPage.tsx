@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { RefreshCw } from "lucide-react"
 import PinGate from "@/components/review/PinGate"
 import RequirementCard from "@/components/review/RequirementCard"
-import type { StoredRequirement, FilterStatus } from "@/types/requirement"
+import type { StoredRequirement, FilterStatus, ScheduleProposal } from "@/types/requirement"
 import { verifyPin } from "@/lib/api"
 
 export default function ReviewPage() {
@@ -118,7 +118,7 @@ export default function ReviewPage() {
       })
       const data = await resp.json()
       if (data.ok) {
-        setItems((prev) => prev.map((r) => (r.id === id ? { ...r, schedule: data.data as Record<string, unknown> } : r)))
+        setItems((prev) => prev.map((r) => (r.id === id ? { ...r, schedule: data.data as ScheduleProposal } : r)))
       } else {
         setErrorMsg(data.error || "重新排期失败")
       }

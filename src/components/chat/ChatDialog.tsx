@@ -1,15 +1,18 @@
 import { useState, useEffect, useRef } from "react"
-import { X, Bot, RotateCcw } from "lucide-react"
+import { X, Bot, RotateCcw, Maximize2, Minimize2 } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
-import type { Requirement } from "./types"
+import type { Requirement, ScheduleProposal } from "./types"
 import MessageBubble from "./MessageBubble"
 import TypingIndicator from "./TypingIndicator"
 import RequirementPreview from "./RequirementPreview"
+import ScheduleProposalView from "./ScheduleProposal"
 
 type ChatState =
   | { phase: "chat" }
   | { phase: "preview"; requirement: Requirement }
+  | { phase: "scheduling"; requirement: Requirement; scheduleProposal: ScheduleProposal }
   | { phase: "submitting" }
   | { phase: "done" }
 
@@ -31,6 +34,11 @@ function parseRequirement(content: string): Requirement | null {
   }
 }
 
+/** 检查 AI 回复是否包含 JSON（可能截断中） */
+function hasPartialJson(content: string): boolean {
+  return content.includes("```json") || content.includes('"title"')
+}
+
 /** 从消息流中提取后端注入的模型名称 */
 function extractModelName(messages: Array<{ parts: Array<{ type: string; data?: unknown }> }>): string {
   for (const m of messages) {
@@ -46,10 +54,15 @@ function extractModelName(messages: Array<{ parts: Array<{ type: string; data?: 
 export default function ChatDialog({ open, onClose }: Props) {
   const [state, setState] = useState<ChatState>({ phase: "chat" })
   const [input, setInput] = useState("")
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const hasStartedRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [modelName, setModelName] = useState("")
+  const [scheduleLoading, setScheduleLoading] = useState(false)
+  const [scheduleError, setScheduleError] = useState("")
+  const [jsonParseFailed, setJsonParseFailed] = useState(false)
 
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, setMessages, status } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
     onFinish: ({ message }) => {
       const fullText = message.parts
@@ -57,7 +70,15 @@ export default function ChatDialog({ open, onClose }: Props) {
         .map((p: { type: string; text?: string }) => p.text || "")
         .join("")
       const req = parseRequirement(fullText)
-      if (req) setState({ phase: "preview", requirement: req })
+      if (req) {
+        setJsonParseFailed(false)
+        setState({ phase: "preview", requirement: req })
+      } else if (hasPartialJson(fullText)) {
+        setJsonParseFailed(true)
+      }
+    },
+    onError: () => {
+      setJsonParseFailed(false)
     },
   })
 
@@ -66,6 +87,14 @@ export default function ChatDialog({ open, onClose }: Props) {
     const name = extractModelName(messages)
     if (name) setModelName(name)
   }, [messages])
+
+  // 打开对话时自动触发开场白（仅一次）
+  useEffect(() => {
+    if (open && !hasStartedRef.current && status === "ready") {
+      hasStartedRef.current = true
+      sendMessage({ text: "你好，请自我介绍" })
+    }
+  }, [open, status])
 
   const isLoading = status === "submitted" || status === "streaming"
   const isReady = status === "ready"
@@ -76,6 +105,13 @@ export default function ChatDialog({ open, onClose }: Props) {
     }
   }, [messages, status])
 
+  const handleReset = () => {
+    setMessages([])
+    setState({ phase: "chat" })
+    setJsonParseFailed(false)
+    hasStartedRef.current = false
+  }
+
   const handleSend = () => {
     if (!input.trim()) return
     sendMessage({ text: input })
@@ -83,18 +119,48 @@ export default function ChatDialog({ open, onClose }: Props) {
   }
 
   const handleConfirm = async (edited?: Requirement) => {
-    setState({ phase: "submitting" })
-    try {
-      // Extract text content from parts for the API
-      const conversationText = messages.map((m) => ({
-        role: m.role,
-        content: m.parts.filter((p) => p.type === "text").map((p) => p.text || "").join(""),
-      }))
+    const req = edited || (state.phase === "preview" ? state.requirement : undefined)
+    if (!req) return
 
-      const resp = await fetch("/api/requirement/generate", {
+    setScheduleError("")
+    setScheduleLoading(true)
+
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30_000)
+      const resp = await fetch("/api/calendar/propose-schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(edited ? { edited } : { messages: conversationText }),
+        body: JSON.stringify({ requirement: req }),
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+      const data = await resp.json()
+      if (data.ok) {
+        setScheduleLoading(false)
+        setState({ phase: "scheduling", requirement: req, scheduleProposal: data.data })
+      } else {
+        throw new Error(data.error || "排期生成失败")
+      }
+    } catch (err) {
+      setScheduleLoading(false)
+      setScheduleError(err instanceof Error ? err.message : "网络错误，可跳过排期直接提交")
+    }
+  }
+
+  const handleScheduleConfirm = async (submitter: string) => {
+    if (state.phase !== "scheduling") return
+    setState({ phase: "submitting" })
+
+    try {
+      const resp = await fetch("/api/requirements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requirement: state.requirement,
+          schedule: state.scheduleProposal,
+          submitter,
+        }),
       })
       const data = await resp.json()
       if (data.ok) {
@@ -102,13 +168,44 @@ export default function ChatDialog({ open, onClose }: Props) {
         setTimeout(() => {
           setState({ phase: "chat" })
           onClose()
-        }, 2500)
+        }, 3000)
       } else {
         throw new Error(data.error || "提交失败")
       }
     } catch {
-      // stay in preview on error
-      setState({ phase: "preview", requirement: edited || (state as { requirement: Requirement }).requirement })
+      setState({ phase: "scheduling", requirement: state.requirement, scheduleProposal: state.scheduleProposal })
+    }
+  }
+
+  const handleScheduleBack = () => {
+    if (state.phase === "scheduling") {
+      setState({ phase: "preview", requirement: state.requirement })
+    }
+  }
+
+  const handleSkipSchedule = async () => {
+    setScheduleError("")
+    setScheduleLoading(false)
+    setState({ phase: "submitting" })
+
+    try {
+      const req = state.phase === "preview" ? state.requirement : null
+      if (!req) return
+
+      const resp = await fetch("/api/requirements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requirement: req, submitter: "匿名" }),
+      })
+      const data = await resp.json()
+      if (data.ok) {
+        setState({ phase: "done" })
+      } else {
+        throw new Error(data.error || "提交失败")
+      }
+    } catch {
+      const req = (state as { phase: "preview"; requirement: Requirement }).requirement
+      setState({ phase: "preview", requirement: req })
     }
   }
 
@@ -117,8 +214,9 @@ export default function ChatDialog({ open, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-end p-4 pointer-events-none">
       <div
-        className="pointer-events-auto flex w-full max-w-[420px] flex-col rounded-2xl border bg-background shadow-2xl overflow-hidden animate-[fadeInUp_0.3s_ease-out]"
-        style={{ height: "min(640px, calc(100vh - 32px))" }}
+        className={`pointer-events-auto flex flex-col rounded-2xl border bg-background shadow-2xl overflow-hidden animate-[fadeInUp_0.3s_ease-out] transition-all duration-300
+          ${isFullscreen ? "fixed inset-4 z-[61] w-auto h-auto max-w-none" : "w-full max-w-[420px]"}`}
+        style={isFullscreen ? {} : { height: "min(640px, calc(100vh - 32px))" }}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
@@ -137,20 +235,44 @@ export default function ChatDialog({ open, onClose }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <button
-              onClick={() => setState({ phase: "chat" })}
-              className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent transition-colors"
-              aria-label="重新开始"
-            >
-              <RotateCcw className="size-4" />
-            </button>
-            <button
-              onClick={onClose}
-              className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent transition-colors"
-              aria-label="关闭"
-            >
-              <X className="size-4" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger>
+                <button
+                  onClick={handleReset}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent transition-colors"
+                  aria-label="重新开始"
+                >
+                  <RotateCcw className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">开启新一轮对话</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger>
+                <button
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent transition-colors"
+                  aria-label={isFullscreen ? "退出全屏" : "全屏"}
+                >
+                  {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{isFullscreen ? "退出全屏" : "全屏"}</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger>
+                <button
+                  onClick={onClose}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent transition-colors"
+                  aria-label="关闭"
+                >
+                  <X className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">关闭</TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
@@ -174,15 +296,63 @@ export default function ChatDialog({ open, onClose }: Props) {
           })}
 
           {isLoading && <TypingIndicator />}
+
+          {status === "error" && (
+            <div className="px-4 py-3">
+              <p className="text-destructive text-xs mb-2">AI 响应失败，请重试</p>
+              <button
+                onClick={() => { const lastMsg = messages[messages.length - 1]; if (lastMsg && lastMsg.role === "user") { const text = lastMsg.parts.filter(p => p.type === "text").map(p => p.text || "").join(""); sendMessage({ text: "请重新回答: " + text }) } }}
+                className="rounded-lg border border-destructive/30 px-3 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+              >
+                重试最后一次消息
+              </button>
+            </div>
+          )}
+
+          {jsonParseFailed && (
+            <div className="px-4 py-2.5 bg-amber-50 dark:bg-amber-950/20 border-t border-amber-200 dark:border-amber-800">
+              <p className="text-amber-700 dark:text-amber-400 text-xs">
+                AI 未生成完整需求文档，请继续对话或输入"请整理成需求文档"重试
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Footer states */}
-        {state.phase === "preview" && (
-          <RequirementPreview
-            requirement={state.requirement}
-            submitting={false}
-            onBack={() => setState({ phase: "chat" })}
-            onConfirm={handleConfirm}
+        {state.phase === "preview" && !scheduleLoading && (
+          <>
+            {scheduleError && (
+              <div className="border-t px-4 py-2.5 bg-destructive/10">
+                <p className="text-destructive text-xs mb-2">{scheduleError}</p>
+                <button
+                  onClick={handleSkipSchedule}
+                  className="rounded-lg border border-destructive/30 px-3 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+                >
+                  跳过排期，直接提交
+                </button>
+              </div>
+            )}
+            <RequirementPreview
+              requirement={state.requirement}
+              submitting={false}
+              onBack={() => { setScheduleError(""); setState({ phase: "chat" }) }}
+              onConfirm={handleConfirm}
+            />
+          </>
+        )}
+
+        {scheduleLoading && (
+          <div className="border-t p-6 text-center">
+            <div className="mx-auto size-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="mt-2 text-muted-foreground text-sm">正在分析日程并生成排期...</p>
+          </div>
+        )}
+
+        {state.phase === "scheduling" && (
+          <ScheduleProposalView
+            proposal={state.scheduleProposal}
+            onBack={handleScheduleBack}
+            onConfirm={handleScheduleConfirm}
           />
         )}
 
@@ -201,7 +371,13 @@ export default function ChatDialog({ open, onClose }: Props) {
               </svg>
             </div>
             <p className="mt-2 font-medium text-sm">提交成功</p>
-            <p className="text-muted-foreground text-xs">飞书卡片已发送</p>
+            <p className="text-muted-foreground text-xs mb-3">已提交，等待 Alan 审查</p>
+            <button
+              onClick={() => { setState({ phase: "chat" }); onClose(); }}
+              className="rounded-xl bg-muted px-4 py-2 text-xs font-medium hover:bg-accent transition-colors"
+            >
+              关闭
+            </button>
           </div>
         )}
 

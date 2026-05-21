@@ -1,8 +1,12 @@
 import { useParams, Link } from "react-router"
-import { ArrowLeft, Calendar, User, Tag } from "lucide-react"
+import { ArrowLeft, Calendar, User, Tag, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { articles } from "@/data/articles"
 import EmptyState from "@/components/common/EmptyState"
+
+// 关联到 /future MVP 演示的文章 ID
+const FUTURE_LINKED_IDS = new Set(["ai-data-operating-system", "ai-business-copilot"])
 
 export default function ArticleDetailPage() {
   const { id } = useParams()
@@ -77,7 +81,7 @@ export default function ArticleDetailPage() {
         {/* Content */}
         {article.content ? (
           <div
-            className="prose prose-neutral max-w-none
+            className="prose prose-neutral dark:prose-invert max-w-none
               prose-headings:font-semibold prose-headings:tracking-tight
               prose-h2:mt-8 prose-h2:mb-4 prose-h2:text-xl
               prose-h3:mt-6 prose-h3:mb-3 prose-h3:text-lg
@@ -92,6 +96,22 @@ export default function ArticleDetailPage() {
           />
         ) : (
           <p className="text-muted-foreground">{article.summary}</p>
+        )}
+
+        {/* /future MVP 演示链接 */}
+        {FUTURE_LINKED_IDS.has(article.id) && (
+          <Card className="mt-10 overflow-hidden border-primary/20">
+            <div className="flex items-center gap-4 p-5">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <ExternalLink className="size-5 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-medium text-sm">查看 MVP 前端演示</p>
+                <p className="text-xs text-muted-foreground mt-0.5">基于本文理念构建的经营 Copilot 仪表盘原型</p>
+              </div>
+              <Button className="shrink-0 ml-auto" render={<Link to="/future">打开演示 <ExternalLink className="size-3.5 ml-1" /></Link>} />
+            </div>
+          </Card>
         )}
       </div>
     </div>

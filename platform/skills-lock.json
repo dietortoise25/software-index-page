@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "E-commerce Domain Knowledge": {
+      "source": "danhvb/my-ba-skills",
+      "sourceType": "github",
+      "skillPath": "multi-agent-ba/.agent/skills/domain-knowledge/ecommerce/SKILL.md",
+      "computedHash": "72adcd9022ef7584aa3c03177d6e62bc6605866748d7692e5ea0abe53ea6d039"
+    },
+    "E-commerce Manager": {
+      "source": "jmsktm/claude-settings",
+      "sourceType": "github",
+      "skillPath": "skills/ecommerce-manager/SKILL.md",
+      "computedHash": "e826e859e0dd8f793f890391534f243ecba673a64daf52d425d63e5c2af56bdd"
+    },
+    "analytics-metrics": {
+      "source": "hoodini/ai-agents-skills",
+      "sourceType": "github",
+      "skillPath": "skills/analytics-metrics/SKILL.md",
+      "computedHash": "2962c0cd7454bbf35f0e894433e8905584631d70d45ce76d3965a07622a558d2"
+    },
+    "business-metrics-calculator": {
+      "source": "nimrodfisher/data-analytics-skills",
+      "sourceType": "github",
+      "skillPath": "03-data-analysis-investigation/business-metrics-calculator/SKILL.md",
+      "computedHash": "be80cb5b028413caa5feab1d903e2bb8fb5c5c3f4fb2da83b99859b95baec3a0"
+    },
+    "business-operator": {
+      "source": "shipshitdev/library",
+      "sourceType": "github",
+      "skillPath": "skills/business-operator/SKILL.md",
+      "computedHash": "532f29fcaec81291b9fe8a717771ab2dd038e2c7f9bf2dfb62702ef9c2e882cb"
+    }
+  }
+}
