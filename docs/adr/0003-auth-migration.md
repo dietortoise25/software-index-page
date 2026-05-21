@@ -51,3 +51,17 @@
 - `POST /api/verify-pin` 继续工作
 - API 路由中间件优先读 session cookie，fallback 读 `req.body.pin`
 - 确认稳定后进入 Phase 2 清理
+
+## Phase 2 实施记录（2026-05-21）
+
+**已完成：**
+- [x] Part A: 删除所有 PIN 代码（`pin.ts`、`PinGate`、`apiPostWithPin` 系列、`checkPin`、PIN fallback）
+- [x] Part B: 飞书 OAuth 登录（`/api/auth/feishu/login` → 授权页 → callback → 创建用户 → session）
+- [x] Part C: 多角色权限（`user.role` 列、`requireAdmin` 中间件、AuthGuard `requireAdmin` prop）
+
+**当前认证架构：**
+- 用户名密码登录 → `/login`（requireAuth）
+- 飞书 OAuth 登录 → `/login` → "飞书账号登录" 按钮
+- admin 用户 → 访问 `/internal/admin`
+- 普通用户 → 可访问 `/review`、`/dashboard`、`/return-workflow`
+- 权限中间件链：`requireAuth` → `requireAdmin`（仅 admin 路由）
