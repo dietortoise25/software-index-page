@@ -15,6 +15,7 @@ const pool = process.env.DATABASE_URL
 export const auth = betterAuth({
   baseURL,
   database: pool,
+  emailAndPassword: { enabled: true },
   plugins: [username()],
 })
 
@@ -36,10 +37,10 @@ async function migrateAndSeed() {
     console.warn("[auth] 迁移失败:", (e as Error).message)
   }
 
-  const adminEmail = process.env.ADMIN_EMAIL
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@leverage.works"
   const adminPassword = process.env.ADMIN_PASSWORD
-  if (!adminEmail || !adminPassword) {
-    console.log("[auth] 未配置 ADMIN_EMAIL/ADMIN_PASSWORD，跳过种子")
+  if (!adminPassword) {
+    console.log("[auth] 未配置 ADMIN_PASSWORD，跳过种子")
     return
   }
 
@@ -49,7 +50,7 @@ async function migrateAndSeed() {
         email: adminEmail,
         password: adminPassword,
         name: "Admin",
-        username: adminEmail,
+        username: "admin",
       },
       headers: new Headers({ "content-type": "application/json" }),
     } as Parameters<typeof auth.api.signUpEmail>[0])
