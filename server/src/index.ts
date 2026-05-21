@@ -10,6 +10,7 @@ import calendarRouter from "./routes/calendar.js"
 import requirementsRouter from "./routes/requirements.js"
 import internalRouter from "./routes/internal.js"
 import approvalRouter from "./routes/approval.js"
+import { requireAuth } from "./lib/auth-middleware.js"
 import pinRouter from "./routes/pin.js"
 import downloadRouter from "./routes/download.js"
 import quickFormRouter from "./routes/quick-form.js"
@@ -53,10 +54,12 @@ app.use("/api", downloadRouter)
 app.use("/api/chat", chatRouter)
 app.use("/api/requirement/generate", generateRouter)
 app.use("/api/requirement", quickFormRouter)
-app.use("/api/requirements", requirementsRouter)
-app.use("/api/internal", internalRouter)
-app.use("/api/internal", approvalRouter)
 app.use("/api/feishu", approvalRouter)
+
+// === 受保护路由（需要认证） ===
+app.use("/api/requirements", requireAuth, requirementsRouter)
+app.use("/api/internal", requireAuth, internalRouter)
+app.use("/api/internal", requireAuth, approvalRouter)
 
 // 全局错误处理
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
