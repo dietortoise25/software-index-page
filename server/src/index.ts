@@ -23,16 +23,11 @@ if (!process.env.REVIEW_PIN) {
 }
 
 const app = express()
-app.use(express.urlencoded({ extended: false }))
 
-// Better Auth handler — 必须在 express.json() 之前
-app.all("/api/auth/*", toNodeHandler(auth))
-
-app.use(express.json({ limit: "100kb" }))
-
-// CORS
+// CORS — 必须在所有路由之前
 app.use((_req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*")
+  res.setHeader("Access-Control-Allow-Origin", _req.headers.origin || "*")
+  res.setHeader("Access-Control-Allow-Credentials", "true")
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS, GET")
   res.setHeader("Access-Control-Allow-Headers", "Content-Type")
   if (_req.method === "OPTIONS") {
@@ -41,6 +36,13 @@ app.use((_req, res, next) => {
   }
   next()
 })
+
+app.use(express.urlencoded({ extended: false }))
+
+// Better Auth handler — 必须在 express.json() 之前
+app.all("/api/auth/*", toNodeHandler(auth))
+
+app.use(express.json({ limit: "100kb" }))
 
 // 健康检查
 app.get("/health", (_req, res) => res.json({ ok: true }))
