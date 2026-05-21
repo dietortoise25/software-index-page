@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from "react-router"
+import { AuthProvider } from "@/lib/auth-context"
 import Layout from "@/components/layout/Layout"
 import LandingPage from "@/pages/LandingPage"
 import HomePage from "@/pages/HomePage"
@@ -18,6 +19,7 @@ import LoginPage from "@/pages/LoginPage"
 
 export default function App() {
   return (
+    <AuthProvider>
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<LandingPage />} />
@@ -39,5 +41,6 @@ export default function App() {
       </Route>
       <Route path="future" element={<FuturePage />} />
     </Routes>
+    </AuthProvider>
   )
 }

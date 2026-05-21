@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router"
 import { Package, Moon, Sun, Menu, X, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SITE_NAME } from "@/lib/constants"
 import { useDarkMode } from "@/hooks/useDarkMode"
-import { getSession, signOut } from "@/lib/auth-client"
+import { useAuth } from "@/lib/auth-context"
 
 const NAV_ITEMS = [
   { to: "/", label: "首页", match: (p: string) => p === "/" },
@@ -20,16 +20,11 @@ export default function Header() {
   const [dark, toggleDark] = useDarkMode()
   const { pathname } = useLocation()
   const navigate = useNavigate()
+  const { loggedIn, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [loggedIn, setLoggedIn] = useState(false)
-
-  useEffect(() => {
-    getSession().then((r) => setLoggedIn(!!r.data?.session))
-  }, [])
 
   const handleLogout = async () => {
-    await signOut()
-    setLoggedIn(false)
+    await logout()
     navigate("/")
   }
 

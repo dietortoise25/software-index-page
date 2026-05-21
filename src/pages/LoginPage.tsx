@@ -5,6 +5,7 @@ import { z } from "zod"
 import { LogIn } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { signInUsername } from "@/lib/auth-client"
+import { useAuth } from "@/lib/auth-context"
 
 const schema = z.object({
   username: z.string().min(1, "请输入用户名"),
@@ -16,6 +17,7 @@ type FormData = z.infer<typeof schema>
 export default function LoginPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const { refresh } = useAuth()
 
   const {
     register,
@@ -32,6 +34,7 @@ export default function LoginPage() {
       if (result.error) {
         setError("root", { message: result.error.message || "登录失败" })
       } else {
+        await refresh()
         navigate(searchParams.get("redirect") || "/internal/admin")
       }
     } catch {
