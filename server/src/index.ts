@@ -13,6 +13,7 @@ import approvalRouter from "./routes/approval.js"
 import { requireAuth } from "./lib/auth-middleware.js"
 import downloadRouter from "./routes/download.js"
 import quickFormRouter from "./routes/quick-form.js"
+import feishuAuthRouter from "./routes/feishu-auth.js"
 
 const PORT = parseInt(process.env.PORT || "8765", 10)
 
@@ -41,6 +42,9 @@ app.use(express.urlencoded({ extended: false }))
 
 // Better Auth handler — 必须在 express.json() 之前
 app.all("/api/auth/*", toNodeHandler(auth))
+
+// 飞书 OAuth（独立于 Better Auth 路由体系）
+app.use("/api/auth/feishu", feishuAuthRouter)
 
 app.use(express.json({ limit: "100kb" }))
 
