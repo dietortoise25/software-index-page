@@ -10,7 +10,7 @@ import calendarRouter from "./routes/calendar.js"
 import requirementsRouter from "./routes/requirements.js"
 import internalRouter from "./routes/internal.js"
 import approvalRouter from "./routes/approval.js"
-import { requireAuth } from "./lib/auth-middleware.js"
+import { requireAuth, requireAdmin } from "./lib/auth-middleware.js"
 import downloadRouter from "./routes/download.js"
 import quickFormRouter from "./routes/quick-form.js"
 import feishuAuthRouter from "./routes/feishu-auth.js"
@@ -60,8 +60,8 @@ app.use("/api/feishu", approvalRouter)
 
 // === 受保护路由（需要认证） ===
 app.use("/api/requirements", requireAuth, requirementsRouter)
-app.use("/api/internal", requireAuth, internalRouter)
-app.use("/api/internal", requireAuth, approvalRouter)
+app.use("/api/internal", requireAuth, requireAdmin, internalRouter)
+app.use("/api/internal", requireAuth, requireAdmin, approvalRouter)
 
 // 全局错误处理
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

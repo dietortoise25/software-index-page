@@ -8,8 +8,8 @@ interface Props {
   requireAdmin?: boolean
 }
 
-export default function AuthGuard({ children, requireAdmin: _requireAdmin }: Props) {
-  const { loggedIn, loading } = useAuth()
+export default function AuthGuard({ children, requireAdmin }: Props) {
+  const { loggedIn, loading, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -29,6 +29,17 @@ export default function AuthGuard({ children, requireAdmin: _requireAdmin }: Pro
   }
 
   if (!loggedIn) return null
+
+  if (requireAdmin && user?.role !== "admin") {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg font-semibold mb-1">权限不足</p>
+          <p className="text-muted-foreground text-sm">需要管理员权限</p>
+        </div>
+      </div>
+    )
+  }
 
   return <>{children}</>
 }

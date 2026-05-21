@@ -66,6 +66,13 @@ async function migrateAndSeed() {
       console.warn(`[auth] 种子 Admin 失败: ${msg}`)
     }
   }
+
+  // 确保 admin 账号有 admin 角色
+  if (pool) {
+    try {
+      await pool.query(`UPDATE "user" SET role = 'admin' WHERE email = $1`, [adminEmail])
+    } catch { /* role 列可能还不存在 */ }
+  }
 }
 
 setTimeout(migrateAndSeed, 500)

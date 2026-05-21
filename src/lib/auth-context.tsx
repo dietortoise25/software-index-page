@@ -4,7 +4,7 @@ import { getSession, signOut } from "@/lib/auth-client"
 interface AuthState {
   loggedIn: boolean
   loading: boolean
-  user: { id: string; name?: string; email?: string; username?: string } | null
+  user: { id: string; name?: string; email?: string; username?: string; role?: string } | null
   logout: () => Promise<void>
   refresh: () => Promise<void>
 }
