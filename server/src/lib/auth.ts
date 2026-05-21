@@ -17,7 +17,9 @@ export const auth = betterAuth({
   database: pool,
   emailAndPassword: { enabled: true },
   plugins: [username()],
-  trustedOrigins: [baseURL],
+  advanced: {
+    disableCSRFCheck: true,
+  },
 })
 
 async function migrateAndSeed() {
