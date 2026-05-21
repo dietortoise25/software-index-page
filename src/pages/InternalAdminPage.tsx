@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { Plus, Trash2, Pencil, Loader2, AlertCircle, Users, UserCog, Link2, Lock, ShieldCheck } from "lucide-react"
-import PinGate from "@/components/review/PinGate"
+import AuthGuard from "@/components/auth/AuthGuard"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -496,33 +496,7 @@ function ApprovalTab() {
 
 // ─── Page ───
 export default function InternalAdminPage() {
-  const [pinUnlocked, setPinUnlocked] = useState(() => import.meta.env.DEV || sessionStorage.getItem("dash_pin") !== null)
-  const [pinError, setPinError] = useState<string>()
   const [tab, setTab] = useState<Tab>("groups")
-
-  const handlePinUnlock = async (p: string) => {
-    try {
-      const resp = await fetch("/api/verify-pin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin: p }),
-      })
-      const data = await resp.json()
-      if (data.ok) {
-        sessionStorage.setItem("dash_pin", p)
-        setPinUnlocked(true)
-        setPinError(undefined)
-      } else {
-        setPinError("PIN 不正确")
-      }
-    } catch {
-      setPinError("网络错误")
-    }
-  }
-
-  if (!pinUnlocked) {
-    return <PinGate onUnlock={handlePinUnlock} error={pinError} />
-  }
 
   const tabs: { key: Tab; label: string; icon: typeof Users }[] = [
     { key: "groups", label: "分组管理", icon: Users },
@@ -532,6 +506,7 @@ export default function InternalAdminPage() {
   ]
 
   return (
+    <AuthGuard requireAdmin>
     <div className="container mx-auto max-w-4xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
@@ -580,5 +555,6 @@ export default function InternalAdminPage() {
         <a href="/dashboard" className="text-muted-foreground text-sm hover:text-foreground transition-colors">← 返回看板</a>
       </div>
     </div>
+    </AuthGuard>
   )
 }

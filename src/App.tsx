@@ -14,6 +14,7 @@ import PptPage from "@/pages/PptPage"
 import AboutPage from "@/pages/AboutPage"
 import FuturePage from "@/pages/FuturePage"
 import TikTokShopTestPage from "@/pages/TikTokShopTestPage"
+import LoginPage from "@/pages/LoginPage"
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="ppt" element={<PptPage />} />
         <Route path="about" element={<AboutPage />} />
         <Route path="tiktok-shop-test" element={<TikTokShopTestPage />} />
+        <Route path="login" element={<LoginPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
       <Route path="future" element={<FuturePage />} />

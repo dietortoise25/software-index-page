@@ -2,6 +2,8 @@
  * 软件发布站后端服务
  */
 import express from "express"
+import { toNodeHandler } from "better-auth/node"
+import { auth } from "./lib/auth.js"
 import chatRouter from "./routes/chat.js"
 import generateRouter from "./routes/generate-requirement.js"
 import calendarRouter from "./routes/calendar.js"
@@ -22,6 +24,10 @@ if (!process.env.REVIEW_PIN) {
 
 const app = express()
 app.use(express.urlencoded({ extended: false }))
+
+// Better Auth handler — 必须在 express.json() 之前
+app.all("/api/auth/*", toNodeHandler(auth))
+
 app.use(express.json({ limit: "100kb" }))
 
 // CORS

@@ -6,7 +6,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import PinGate from "@/components/review/PinGate"
+import AuthGuard from "@/components/auth/AuthGuard"
 
 interface TaskInfo {
   id: string
@@ -139,30 +139,6 @@ export default function ReturnWorkflowPage() {
   const [configSaving, setConfigSaving] = useState(false)
   const [configMsg, setConfigMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null)
   const [showGuide, setShowGuide] = useState(true)
-
-  // ── 配置 PIN 锁 ──
-  const [configUnlocked, setConfigUnlocked] = useState(() => sessionStorage.getItem("rw_config_pin") === "1")
-  const [pinError, setPinError] = useState<string>()
-
-  const handleConfigUnlock = async (p: string) => {
-    try {
-      const resp = await fetch("/api/verify-pin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin: p }),
-      })
-      const data = await resp.json()
-      if (data.ok) {
-        sessionStorage.setItem("rw_config_pin", "1")
-        setConfigUnlocked(true)
-        setPinError(undefined)
-      } else {
-        setPinError("PIN 不正确")
-      }
-    } catch {
-      setPinError("网络错误")
-    }
-  }
 
   // ── 快速配置状态 ──
   const [quickUrl, setQuickUrl] = useState("")
@@ -593,10 +569,8 @@ export default function ReturnWorkflowPage() {
 
       {/* ======================== 配置 Tab ======================== */}
       {tab === "config" && (
-        <>
-          {!configUnlocked ? (
-            <PinGate onUnlock={handleConfigUnlock} error={pinError} />
-          ) : !config ? (
+        <AuthGuard requireAdmin>
+          {!config ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
             </div>
@@ -721,7 +695,7 @@ export default function ReturnWorkflowPage() {
               </div>
             </div>
           )}
-        </>
+        </AuthGuard>
       )}
     </div>
   )

@@ -1,15 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { RefreshCw } from "lucide-react"
-import PinGate from "@/components/review/PinGate"
 import RequirementCard from "@/components/review/RequirementCard"
 import type { StoredRequirement, FilterStatus, ScheduleProposal } from "@/types/requirement"
-import { verifyPin } from "@/lib/api"
+import AuthGuard from "@/components/auth/AuthGuard"
+import { signOut } from "@/lib/auth-client"
 
 export default function ReviewPage() {
-  const [pin, setPin] = useState("")
-  const [unlocked, setUnlocked] = useState(false)
-  const [pinError, setPinError] = useState("")
-
   const [items, setItems] = useState<StoredRequirement[]>([])
   const [filter, setFilter] = useState<FilterStatus>("pending")
   const [search, setSearch] = useState("")
@@ -26,7 +22,7 @@ export default function ReviewPage() {
       const resp = await fetch("/api/requirements/list", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({}),
       })
       const data = await resp.json()
       if (data.ok) {
@@ -37,31 +33,9 @@ export default function ReviewPage() {
       }
     } catch { /* ignore */ }
     finally { setLoading(false) }
-  }, [pin])
-
-  useEffect(() => {
-    if (unlocked) fetchItems()
-  }, [unlocked, fetchItems])
-
-  const handleUnlock = async (p: string) => {
-    setPinError("")
-    const data = await verifyPin(p)
-    if (data.ok) {
-      setPin(p)
-      setUnlocked(true)
-      sessionStorage.setItem("review_pin", p)
-    } else {
-      setPinError(data.error || "PIN 码不正确")
-    }
-  }
-
-  useEffect(() => {
-    const saved = sessionStorage.getItem("review_pin")
-    if (saved) {
-      setPin(saved)
-      setUnlocked(true)
-    }
   }, [])
+
+  useEffect(() => { fetchItems() }, [fetchItems])
 
   const handleApprove = async (id: string) => {
     setActionLoading(id)
@@ -70,7 +44,7 @@ export default function ReviewPage() {
       const resp = await fetch(`/api/requirements/${id}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({}),
       })
       const data = await resp.json()
       if (data.ok) {
@@ -92,7 +66,7 @@ export default function ReviewPage() {
       const resp = await fetch(`/api/requirements/${id}/reject`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin, note }),
+        body: JSON.stringify({ note }),
       })
       const data = await resp.json()
       if (data.ok) {
@@ -114,7 +88,7 @@ export default function ReviewPage() {
       const resp = await fetch(`/api/requirements/${id}/reschedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({}),
       })
       const data = await resp.json()
       if (data.ok) {
@@ -134,7 +108,7 @@ export default function ReviewPage() {
     setErrorMsg("")
     try {
       const resp = await fetch(`/api/requirements/${id}/update`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin, fields }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields }),
       })
       const data = await resp.json()
       if (data.ok) {
@@ -149,7 +123,7 @@ export default function ReviewPage() {
     setErrorMsg("")
     try {
       const resp = await fetch(`/api/requirements/${id}/delete`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
       })
       const data = await resp.json()
       if (data.ok) {
@@ -164,7 +138,7 @@ export default function ReviewPage() {
     setErrorMsg("")
     try {
       const resp = await fetch(`/api/requirements/${id}/send-card`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
       })
       const data = await resp.json()
       if (!data.ok) { setErrorMsg(data.error || "发送失败") }
@@ -206,7 +180,7 @@ export default function ReviewPage() {
     try {
       const resp = await fetch("/api/requirements/batch-delete", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin, ids: [...selected] }),
+        body: JSON.stringify({ ids: [...selected] }),
       })
       const data = await resp.json()
       if (data.ok) {
@@ -234,15 +208,8 @@ export default function ReviewPage() {
   const approvedCount = items.filter((r) => r.status === "approved").length
   const rejectedCount = items.filter((r) => r.status === "rejected").length
 
-  if (!unlocked) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <PinGate onUnlock={handleUnlock} error={pinError} />
-      </div>
-    )
-  }
-
   return (
+    <AuthGuard requireAdmin>
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -257,10 +224,10 @@ export default function ReviewPage() {
             + 新增需求
           </button>
           <button
-            onClick={() => { sessionStorage.removeItem("review_pin"); setUnlocked(false); setPin("") }}
+            onClick={() => { signOut() }}
             className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent transition-colors"
           >
-            退出管理者模式
+            退出登录
           </button>
           <button
             onClick={fetchItems}
@@ -398,5 +365,6 @@ export default function ReviewPage() {
         </div>
       )}
     </div>
+    </AuthGuard>
   )
 }

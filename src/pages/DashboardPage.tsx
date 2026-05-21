@@ -1,34 +1,23 @@
-import { useState } from "react"
 import { Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import PinGate from "@/components/review/PinGate"
+import AuthGuard from "@/components/auth/AuthGuard"
 import { FilterBar } from "@/components/dashboard/FilterBar"
 import { RevenueOverview } from "@/components/dashboard/RevenueOverview"
 import { ChannelCharts } from "@/components/dashboard/ChannelCharts"
 import { OperatorRanking } from "@/components/dashboard/OperatorRanking"
 import { OrderHealth } from "@/components/dashboard/OrderHealth"
 import { AdCostSection } from "@/components/dashboard/AdCostSection"
-import { verifyPin } from "@/lib/api"
 import { useDashboardFilter } from "@/hooks/useDashboardFilter"
 
 export default function DashboardPage() {
-  const [pinUnlocked, setPinUnlocked] = useState(() => import.meta.env.DEV || sessionStorage.getItem("dash_pin") !== null)
-  const [pinError, setPinError] = useState<string>()
-
-  const handlePinUnlock = async (p: string) => {
-    const data = await verifyPin(p)
-    if (data.ok) { sessionStorage.setItem("dash_pin", p); setPinUnlocked(true); setPinError(undefined) }
-    else setPinError(data.error || "PIN 不正确")
-  }
-
-  if (!pinUnlocked) return <PinGate onUnlock={handlePinUnlock} error={pinError} />
-
   return (
+    <AuthGuard requireAdmin>
     <TooltipProvider>
       <DashboardContent />
     </TooltipProvider>
+    </AuthGuard>
   )
 }
 
