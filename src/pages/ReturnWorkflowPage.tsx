@@ -569,7 +569,7 @@ export default function ReturnWorkflowPage() {
 
       {/* ======================== 配置 Tab ======================== */}
       {tab === "config" && (
-        <AuthGuard requireAdmin>
+        <AuthGuard>
           {!config ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 className="size-6 animate-spin text-muted-foreground" />

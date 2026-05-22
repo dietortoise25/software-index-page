@@ -14,7 +14,7 @@ import { useDashboardFilter } from "@/hooks/useDashboardFilter"
 
 export default function DashboardPage() {
   return (
-    <AuthGuard requireAdmin>
+    <AuthGuard>
     <TooltipProvider>
       <DashboardContent />
     </TooltipProvider>
