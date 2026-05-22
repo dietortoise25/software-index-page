@@ -87,6 +87,7 @@ router.get("/callback", async (req, res) => {
       headers: { Authorization: `Bearer ${userAccessToken}` },
     })
     const userData = (await userRes.json()) as any
+    console.log("[feishu] 用户信息:", JSON.stringify(userData?.data, null, 2))
     const feishuUser = userData?.data
     if (!feishuUser?.open_id) {
       console.error("[feishu] 用户信息获取失败:", JSON.stringify(userData))
