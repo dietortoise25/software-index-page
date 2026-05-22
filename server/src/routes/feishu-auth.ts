@@ -87,7 +87,6 @@ router.get("/callback", async (req, res) => {
       headers: { Authorization: `Bearer ${userAccessToken}` },
     })
     const userData = (await userRes.json()) as any
-    console.log("[feishu] 用户信息:", JSON.stringify(userData?.data, null, 2))
     const feishuUser = userData?.data
     if (!feishuUser?.open_id) {
       console.error("[feishu] 用户信息获取失败:", JSON.stringify(userData))
@@ -95,10 +94,11 @@ router.get("/callback", async (req, res) => {
     }
 
     const openId = feishuUser.open_id
+    const unionId = feishuUser.union_id || ""
     const email = `${openId}@feishu.user`
     const name = feishuUser.name || "飞书用户"
+    const avatar = feishuUser.avatar_thumb || feishuUser.avatar_url || ""
     const password = `Feishu_${openId}`
-    // username 限制 32 字符，open_id 可能过长，取前 30 位
     const username1 = openId.length > 30 ? openId.slice(0, 30) : openId
 
     // 4. 确保用户存在（不存在则创建）
@@ -117,6 +117,23 @@ router.get("/callback", async (req, res) => {
         console.error("[feishu] 用户创建失败:", e2)
         return res.status(500).send("飞书登录失败: user creation failed")
       }
+    }
+
+    // 5. 根据 union_id 白名单设置 admin 角色
+    const adminUnionIds = (process.env.ADMIN_UNION_IDS || "").split(",").map(s => s.trim()).filter(Boolean)
+    if (unionId && adminUnionIds.includes(unionId)) {
+      const { Pool } = await import("pg")
+      const tempPool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+      })
+      try {
+        await tempPool.query(
+          `UPDATE "user" SET role = 'admin', name = COALESCE(NULLIF(name, ''), $2), image = COALESCE(NULLIF(image, ''), $3) WHERE email = $1`,
+          [email, name, avatar]
+        )
+      } catch { /* ignore */ }
+      finally { tempPool.end() }
     }
 
     // 5. 通过 Better Auth HTTP API 登录，获取正确签名的 session cookie

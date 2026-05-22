@@ -16,6 +16,7 @@ import AboutPage from "@/pages/AboutPage"
 import FuturePage from "@/pages/FuturePage"
 import TikTokShopTestPage from "@/pages/TikTokShopTestPage"
 import LoginPage from "@/pages/LoginPage"
+import PermissionsPage from "@/pages/PermissionsPage"
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
         <Route path="return-workflow" element={<ReturnWorkflowPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="internal/admin" element={<InternalAdminPage />} />
+        <Route path="internal/permissions" element={<PermissionsPage />} />
         <Route path="ppt/:id" element={<PptPage />} />
         <Route path="ppt" element={<PptPage />} />
         <Route path="about" element={<AboutPage />} />
