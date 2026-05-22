@@ -93,9 +93,12 @@ router.get("/callback", async (req, res) => {
       return res.status(500).send("飞书登录失败: user info failed")
     }
 
-    const email = `${feishuUser.open_id}@feishu.user`
+    const openId = feishuUser.open_id
+    const email = `${openId}@feishu.user`
     const name = feishuUser.name || "飞书用户"
-    const password = `Feishu_${feishuUser.open_id}`
+    const password = `Feishu_${openId}`
+    // username 限制 32 字符，open_id 可能过长，取前 30 位
+    const username1 = openId.length > 30 ? openId.slice(0, 30) : openId
 
     // 4. 查找或创建用户
     let sessionToken: string | undefined
@@ -112,7 +115,7 @@ router.get("/callback", async (req, res) => {
             email,
             password,
             name,
-            username: feishuUser.open_id,
+            username: username1,
           },
           headers: new Headers({ "content-type": "application/json" }),
         } as any)
