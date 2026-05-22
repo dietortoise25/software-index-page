@@ -100,44 +100,35 @@ router.get("/callback", async (req, res) => {
     // username 限制 32 字符，open_id 可能过长，取前 30 位
     const username1 = openId.length > 30 ? openId.slice(0, 30) : openId
 
-    // 4. 查找或创建用户
-    let sessionToken: string | undefined
+    // 4. 确保用户存在（不存在则创建）
     try {
-      const signInRes = await auth.api.signInEmail({
+      await auth.api.signInEmail({
         body: { email, password },
         headers: new Headers(req.headers as any),
       } as any)
-      sessionToken = (signInRes as any)?.token
     } catch {
       try {
         await auth.api.signUpEmail({
-          body: {
-            email,
-            password,
-            name,
-            username: username1,
-          },
+          body: { email, password, name, username: username1 },
           headers: new Headers({ "content-type": "application/json" }),
         } as any)
-
-        const freshSignIn = await auth.api.signInEmail({
-          body: { email, password },
-          headers: new Headers(req.headers as any),
-        } as any)
-        sessionToken = (freshSignIn as any)?.token
       } catch (e2) {
         console.error("[feishu] 用户创建失败:", e2)
         return res.status(500).send("飞书登录失败: user creation failed")
       }
     }
 
-    if (sessionToken) {
-      res.cookie("better-auth.session_token", sessionToken, {
-        httpOnly: true,
-        secure: false,
-        sameSite: "lax",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      })
+    // 5. 通过 Better Auth HTTP API 登录，获取正确签名的 session cookie
+    const baseURL = process.env.AUTH_BASE_URL || `http://127.0.0.1:${process.env.PORT || "8765"}`
+    const loginRes = await fetch(`${baseURL}/api/auth/sign-in/email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+      redirect: "manual",
+    })
+    const setCookie = loginRes.headers.get("set-cookie")
+    if (setCookie) {
+      res.setHeader("Set-Cookie", setCookie)
     }
 
     res.redirect("/")
