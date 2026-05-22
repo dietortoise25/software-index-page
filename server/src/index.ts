@@ -53,8 +53,8 @@ app.get("/health", (_req, res) => res.json({ ok: true }))
 
 // 路由挂载
 app.use("/api", downloadRouter)
-app.use("/api/chat", chatRouter)
-app.use("/api/requirement/generate", generateRouter)
+app.use("/api/chat", requireAuth, chatRouter)
+app.use("/api/requirement/generate", requireAuth, generateRouter)
 app.use("/api/requirement", quickFormRouter)
 app.use("/api/feishu", approvalRouter)
 

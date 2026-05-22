@@ -1,7 +1,15 @@
 import { Router, Request, Response } from "express"
 import { createClient } from "@supabase/supabase-js"
+import { Pool } from "pg"
+import { createUserQueries } from "../lib/user-queries.js"
 
 const router = Router()
+
+const userPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+})
+const { listUsers, updateRole } = createUserQueries(userPool)
 
 const supabase = createClient(
   process.env.SUPABASE_URL || "",
@@ -152,6 +160,39 @@ router.delete("/shop-operators/:id", async (req, res) => {
     .delete().eq("id", req.params.id)
   if (error) { res.status(500).json({ ok: false, error: error.message }); return }
   res.json({ ok: true })
+})
+
+// ─────────── 权限管理（用户列表 + 角色修改）───────────
+
+router.get("/users", async (_req, res) => {
+  try {
+    const users = await listUsers()
+    res.json({ ok: true, data: users })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: (e as Error).message })
+  }
+})
+
+router.put("/users/role", async (req, res) => {
+  const { email, role } = (req.body || {}) as Record<string, unknown>
+  if (!email || !role) {
+    res.status(400).json({ ok: false, error: "缺少 email 或 role" })
+    return
+  }
+  if (role !== "admin" && role !== "user") {
+    res.status(400).json({ ok: false, error: "role 必须是 admin 或 user" })
+    return
+  }
+  try {
+    const updated = await updateRole(String(email), String(role))
+    if (!updated) {
+      res.status(404).json({ ok: false, error: "用户不存在" })
+      return
+    }
+    res.json({ ok: true, data: updated })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: (e as Error).message })
+  }
 })
 
 export default router

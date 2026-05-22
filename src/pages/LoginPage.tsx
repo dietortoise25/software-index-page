@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { useNavigate, useSearchParams } from "react-router"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -17,7 +18,14 @@ type FormData = z.infer<typeof schema>
 export default function LoginPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { refresh } = useAuth()
+  const { refresh, loggedIn, loading } = useAuth()
+
+  // 已登录自动跳转
+  useEffect(() => {
+    if (!loading && loggedIn) {
+      navigate(searchParams.get("redirect") || "/", { replace: true })
+    }
+  }, [loading, loggedIn])
 
   const {
     register,

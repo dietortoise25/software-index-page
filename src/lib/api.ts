@@ -13,6 +13,11 @@ interface ApiResponse<T = unknown> {
 async function request<T = unknown>(input: RequestInfo, init?: RequestInit): Promise<ApiResponse<T>> {
   try {
     const resp = await fetch(input, init)
+    if (resp.status === 401) {
+      const current = encodeURIComponent(window.location.pathname + window.location.search)
+      window.location.href = `/login?redirect=${current}`
+      return { ok: false, error: "登录已过期，正在跳转..." }
+    }
     const json = await resp.json()
     return json as ApiResponse<T>
   } catch {
@@ -20,7 +25,7 @@ async function request<T = unknown>(input: RequestInfo, init?: RequestInit): Pro
   }
 }
 
-/** POST JSON 请求 */
+/** POST JSON 请求（公开 API，不触发 401 跳转） */
 export function apiPost<T = unknown>(url: string, body?: Record<string, unknown>): Promise<ApiResponse<T>> {
   return request<T>(url, {
     method: "POST",
