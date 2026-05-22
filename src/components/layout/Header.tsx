@@ -1,9 +1,10 @@
 import { useState } from "react"
 import { Link, useLocation } from "react-router"
-import { Package, Moon, Sun, Menu, X } from "lucide-react"
+import { Package, Moon, Sun, Menu, X, LogIn } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SITE_NAME } from "@/lib/constants"
 import { useDarkMode } from "@/hooks/useDarkMode"
+import { useAuth } from "@/lib/auth-context"
 import UserMenu from "@/components/layout/UserMenu"
 
 const NAV_ITEMS = [
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
 export default function Header() {
   const [dark, toggleDark] = useDarkMode()
   const { pathname } = useLocation()
+  const { loggedIn } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
 
   const linkClass = (active: boolean) =>
@@ -60,7 +62,16 @@ export default function Header() {
           >
             {dark ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
           </Button>
-          <UserMenu />
+          {loggedIn ? (
+            <UserMenu />
+          ) : (
+            <Link to="/login">
+              <Button size="sm" className="gap-1.5">
+                <LogIn className="size-[15px]" />
+                登录
+              </Button>
+            </Link>
+          )}
           {/* 移动端汉堡按钮 */}
           <button
             onClick={() => setMenuOpen(!menuOpen)}
