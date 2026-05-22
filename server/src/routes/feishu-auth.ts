@@ -119,22 +119,21 @@ router.get("/callback", async (req, res) => {
       }
     }
 
-    // 5. 根据 union_id 白名单设置 admin 角色
+    // 5. 同步飞书头像和姓名（每次登录都更新）
     const adminUnionIds = (process.env.ADMIN_UNION_IDS || "").split(",").map(s => s.trim()).filter(Boolean)
-    if (unionId && adminUnionIds.includes(unionId)) {
-      const { Pool } = await import("pg")
-      const tempPool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false },
-      })
-      try {
-        await tempPool.query(
-          `UPDATE "user" SET role = 'admin', name = COALESCE(NULLIF(name, ''), $2), image = COALESCE(NULLIF(image, ''), $3) WHERE email = $1`,
-          [email, name, avatar]
-        )
-      } catch { /* ignore */ }
-      finally { tempPool.end() }
-    }
+    const isAdmin = unionId && adminUnionIds.includes(unionId)
+    const { Pool } = await import("pg")
+    const tempPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+    })
+    try {
+      await tempPool.query(
+        `UPDATE "user" SET name = $2, image = $3${isAdmin ? ", role = 'admin'" : ""} WHERE email = $1`,
+        [email, name, avatar]
+      )
+    } catch { /* ignore */ }
+    finally { tempPool.end() }
 
     // 5. 通过 Better Auth HTTP API 登录，获取正确签名的 session cookie
     const baseURL = process.env.AUTH_BASE_URL || `http://127.0.0.1:${process.env.PORT || "8765"}`
