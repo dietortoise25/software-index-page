@@ -50,6 +50,18 @@ export default function AuthGuard({ children, requireAdmin }: Props) {
 
   if (!loggedIn && !token) return null
 
+  // visitor 角色不能访问任何需登录页面（除非有放行 token）
+  if (user?.role === "visitor" && !token) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg font-semibold mb-1">权限不足</p>
+          <p className="text-muted-foreground text-sm">访客账号无法访问此页面，请联系管理员</p>
+        </div>
+      </div>
+    )
+  }
+
   if (requireAdmin && user?.role !== "admin") {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">

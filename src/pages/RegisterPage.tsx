@@ -26,10 +26,10 @@ export default function RegisterPage() {
 
   const onSubmit = async (data: FormData) => {
     try {
-      const res = await fetch("/api/auth/sign-up/email", {
+      const res = await fetch("/api/auth/sign-up/visitor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: `${data.username}@visitor.user`, password: data.password, name: data.username, username: data.username }),
+        body: JSON.stringify({ username: data.username, password: data.password }),
         credentials: "include",
       })
       const json = await res.json()
