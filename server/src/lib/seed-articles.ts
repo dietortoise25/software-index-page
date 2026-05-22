@@ -1,11 +1,37 @@
 import type { Pool } from "pg"
+import fs from "node:fs"
+import path from "node:path"
+
+function parseFrontmatter(raw: string) {
+  const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/)
+  if (!match) return null
+  const fm = { id: "", title: "", summary: "", author: "", tags: [] as string[] }
+  match[1].split("\n").forEach((line) => {
+    const m = line.match(/^(\w+):\s*(.+)/)
+    if (!m) return
+    const key = m[1], val = m[2]
+    if (key === "tags") {
+      try { fm.tags = JSON.parse(val) } catch { fm.tags = [] }
+    } else {
+      ;(fm as any)[key] = val
+    }
+  })
+  return { ...fm, content: match[2].trim() }
+}
+
+function readPosts(dir: string) {
+  try {
+    return fs.readdirSync(dir)
+      .filter((f) => f.endsWith(".md"))
+      .map((f) => ({ file: f, ...parseFrontmatter(fs.readFileSync(path.join(dir, f), "utf-8")) }))
+      .filter((a) => a.title)
+  } catch {
+    return []
+  }
+}
 
 export async function seedArticles(pool: Pool): Promise<number> {
-  const existing = await pool.query("SELECT COUNT(*) FROM articles")
-  const count = parseInt(existing.rows[0].count, 10)
-  if (count > 0) return count
-
-  const articles = [
+  const hardcoded = [
     {
       slug: "erp-data-hub-v2",
       title: "千易ERP数据中台 v2.0 上线：订单看板 + 广告费用分析 + 运营管理",
@@ -56,7 +82,19 @@ export async function seedArticles(pool: Pool): Promise<number> {
     },
   ]
 
-  for (const a of articles) {
+  // 合并 posts/ 目录下的 markdown 文件
+  const postsDir = path.resolve(process.cwd(), "posts")
+  const posts = readPosts(postsDir)
+  const allArticles = [...hardcoded, ...posts.map((p) => ({
+    slug: p.id || p.file!.replace(".md", ""),
+    title: p.title as string,
+    summary: (p.summary as string) || "",
+    content: p.content as string,
+    author: (p.author as string) || "Alan",
+    tags: (p.tags as string[]) || [],
+  }))]
+
+  for (const a of allArticles) {
     await pool.query(
       `INSERT INTO articles (slug, title, summary, content, author, tags, status)
        VALUES ($1, $2, $3, $4, $5, $6, 'published')
