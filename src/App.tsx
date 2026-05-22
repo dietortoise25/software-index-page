@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router"
 import { AuthProvider } from "@/lib/auth-context"
 import Layout from "@/components/layout/Layout"
+import DashboardLayout from "@/components/layout/DashboardLayout"
 import LandingPage from "@/pages/LandingPage"
 import HomePage from "@/pages/HomePage"
 import SoftwareDetailPage from "@/pages/SoftwareDetailPage"
@@ -10,13 +11,13 @@ import ReviewPage from "@/pages/ReviewPage"
 import ReturnWorkflowPage from "@/pages/ReturnWorkflowPage"
 import DashboardPage from "@/pages/DashboardPage"
 import InternalAdminPage from "@/pages/InternalAdminPage"
+import PermissionsPage from "@/pages/PermissionsPage"
 import ChangelogPage from "@/pages/ChangelogPage"
 import PptPage from "@/pages/PptPage"
 import AboutPage from "@/pages/AboutPage"
 import FuturePage from "@/pages/FuturePage"
 import TikTokShopTestPage from "@/pages/TikTokShopTestPage"
 import LoginPage from "@/pages/LoginPage"
-import PermissionsPage from "@/pages/PermissionsPage"
 
 export default function App() {
   return (
@@ -31,17 +32,22 @@ export default function App() {
         <Route path="review" element={<ReviewPage />} />
         <Route path="changelog" element={<ChangelogPage />} />
         <Route path="return-workflow" element={<ReturnWorkflowPage />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="internal/admin" element={<InternalAdminPage />} />
-        <Route path="internal/permissions" element={<PermissionsPage />} />
         <Route path="ppt/:id" element={<PptPage />} />
         <Route path="ppt" element={<PptPage />} />
         <Route path="about" element={<AboutPage />} />
         <Route path="tiktok-shop-test" element={<TikTokShopTestPage />} />
         <Route path="login" element={<LoginPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
+
+      {/* Dashboard — 侧边栏布局 */}
+      <Route path="dashboard" element={<DashboardLayout />}>
+        <Route index element={<DashboardPage />} />
+        <Route path="admin" element={<InternalAdminPage />} />
+        <Route path="permission" element={<PermissionsPage />} />
+      </Route>
+
       <Route path="future" element={<FuturePage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </AuthProvider>
   )
