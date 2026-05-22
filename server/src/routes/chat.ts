@@ -15,6 +15,18 @@ const deepseek = createDeepSeek({
   baseURL: process.env.DEEPSEEK_API_URL_OpenAI || "https://api.deepseek.com",
 })
 
+function buildSystemPrompt(user: { name?: string; email?: string; role?: string }) {
+  let context = ""
+  if (user.role === "visitor") {
+    context = `当前用户：${user.name || user.email || "访客"}，角色：访客。该用户只能咨询通用问题，无权提交需求。可建议其联系管理员升级权限。`
+  } else if (user.role === "admin") {
+    context = `当前用户：${user.name || user.email || "管理员"}，角色：管理员（最高权限）。可处理所有操作。`
+  } else {
+    context = `当前用户：${user.name || user.email || "内部用户"}，角色：内部用户。可提交需求、查看工单状态。`
+  }
+  return `${INTERVIEW_SYSTEM_PROMPT}\n\n[用户上下文]\n${context}`
+}
+
 router.post("/", async (req, res) => {
   try {
     const raw = req.body as { messages?: Array<{ role: string; content?: string; parts?: Array<{ type: string; text?: string }> }> }
@@ -30,6 +42,9 @@ router.post("/", async (req, res) => {
       return { role: m.role as "user" | "assistant", content: text }
     })
 
+    const user = (req as any).user || {}
+    const systemPrompt = buildSystemPrompt(user)
+
     pipeUIMessageStreamToResponse({
       response: res,
       stream: createUIMessageStream({
@@ -42,7 +57,7 @@ router.post("/", async (req, res) => {
 
           const result = streamText({
             model: deepseek(MODEL_NAME),
-            system: INTERVIEW_SYSTEM_PROMPT,
+            system: systemPrompt,
             messages,
             maxOutputTokens: 4096,
             temperature: 0.7,
