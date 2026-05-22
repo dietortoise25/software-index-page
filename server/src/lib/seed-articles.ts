@@ -82,8 +82,8 @@ export async function seedArticles(pool: Pool): Promise<number> {
     },
   ]
 
-  // 合并 posts/ 目录下的 markdown 文件（项目根目录）
-  const postsDir = path.resolve(process.cwd(), "..", "posts")
+  // 合并 posts/ 目录下的 markdown 文件
+  const postsDir = process.env.POSTS_DIR || path.resolve("/var/git/build/posts")
   const posts = readPosts(postsDir)
   const allArticles = [...hardcoded, ...posts.map((p) => ({
     slug: p.id || p.file!.replace(".md", ""),
