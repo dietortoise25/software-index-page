@@ -10,8 +10,30 @@ const router = Router()
 const FEISHU_APP_ID = process.env.FEISHU_APP_ID || "cli_a9646f769479dbd4"
 const FEISHU_APP_SECRET = process.env.FEISHU_APP_SECRET || ""
 const AUTH_URL = "https://open.feishu.cn/open-apis/authen/v1/authorize"
+const APP_TOKEN_URL = "https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal"
 const TOKEN_URL = "https://open.feishu.cn/open-apis/authen/v1/oidc/access_token"
 const USER_INFO_URL = "https://open.feishu.cn/open-apis/authen/v1/user_info"
+
+let cachedAppToken = ""
+let cachedTokenExpiry = 0
+
+async function getAppAccessToken(): Promise<string> {
+  if (cachedAppToken && Date.now() < cachedTokenExpiry) {
+    return cachedAppToken
+  }
+  const res = await fetch(APP_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      app_id: FEISHU_APP_ID,
+      app_secret: FEISHU_APP_SECRET,
+    }),
+  })
+  const data = (await res.json()) as any
+  cachedAppToken = data?.app_access_token || ""
+  cachedTokenExpiry = Date.now() + (data?.expire || 7200) * 1000 - 60000
+  return cachedAppToken
+}
 
 /** 跳转飞书授权页 */
 router.get("/login", (_req, res) => {
@@ -34,27 +56,35 @@ router.get("/callback", async (req, res) => {
   }
 
   try {
-    // 1. 用 code 换 token
+    // 1. 获取 app_access_token
+    const appToken = await getAppAccessToken()
+    if (!appToken) {
+      console.error("[feishu] 获取 app_access_token 失败")
+      return res.status(500).send("飞书登录失败: app auth failed")
+    }
+
+    // 2. 用 app_token + code 换取 user access_token
     const tokenRes = await fetch(TOKEN_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${appToken}`,
+      },
       body: JSON.stringify({
         grant_type: "authorization_code",
         code,
-        app_id: FEISHU_APP_ID,
-        app_secret: FEISHU_APP_SECRET,
       }),
     })
     const tokenData = (await tokenRes.json()) as any
-    const accessToken = tokenData?.data?.access_token
-    if (!accessToken) {
+    const userAccessToken = tokenData?.data?.access_token
+    if (!userAccessToken) {
       console.error("[feishu] token 换取失败:", JSON.stringify(tokenData))
       return res.status(500).send("飞书登录失败: token exchange failed")
     }
 
-    // 2. 获取飞书用户信息
+    // 3. 获取飞书用户信息
     const userRes = await fetch(USER_INFO_URL, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${userAccessToken}` },
     })
     const userData = (await userRes.json()) as any
     const feishuUser = userData?.data
@@ -65,31 +95,30 @@ router.get("/callback", async (req, res) => {
 
     const email = `${feishuUser.open_id}@feishu.user`
     const name = feishuUser.name || "飞书用户"
+    const password = `Feishu_${feishuUser.open_id}`
 
-    // 3. 查找或创建用户
+    // 4. 查找或创建用户
     let sessionToken: string | undefined
     try {
       const signInRes = await auth.api.signInEmail({
-        body: { email, password: `feishu:${feishuUser.open_id}` },
+        body: { email, password },
         headers: new Headers(req.headers as any),
       } as any)
       sessionToken = (signInRes as any)?.token
     } catch {
-      // 用户不存在，创建新用户
       try {
         await auth.api.signUpEmail({
           body: {
             email,
-            password: `feishu:${feishuUser.open_id}`,
+            password,
             name,
             username: feishuUser.open_id,
           },
           headers: new Headers({ "content-type": "application/json" }),
         } as any)
 
-        // 登录新用户
         const freshSignIn = await auth.api.signInEmail({
-          body: { email, password: `feishu:${feishuUser.open_id}` },
+          body: { email, password },
           headers: new Headers(req.headers as any),
         } as any)
         sessionToken = (freshSignIn as any)?.token
