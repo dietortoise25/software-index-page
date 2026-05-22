@@ -9,12 +9,11 @@ import UserMenu from "@/components/layout/UserMenu"
 
 const NAV_ITEMS = [
   { to: "/", label: "首页", match: (p: string) => p === "/" },
-  { to: "/catalog", label: "工具库", match: (p: string) => p.startsWith("/catalog") || p.startsWith("/software") },
   { to: "/articles", label: "文章", match: (p: string) => p.startsWith("/articles") },
-  { to: "/dashboard", label: "看板", match: (p: string) => p === "/dashboard" },
+  { to: "/catalog", label: "工具库", match: (p: string) => p.startsWith("/catalog") || p.startsWith("/software") },
   { to: "/changelog", label: "更新日志", match: (p: string) => p === "/changelog" },
-  { to: "/review", label: "审查", match: (p: string) => p === "/review" },
   { to: "/about", label: "关于", match: (p: string) => p === "/about" },
+  { to: "/dashboard", label: "看板", match: (p: string) => p === "/dashboard" },
 ]
 
 export default function Header() {
@@ -93,8 +92,8 @@ export default function Header() {
                 to={item.to}
                 onClick={() => setMenuOpen(false)}
                 className={`rounded-lg px-3 py-2.5 text-sm transition-colors ${item.match(pathname)
-                    ? "bg-accent/80 font-medium"
-                    : "text-muted-foreground hover:bg-accent/40"
+                  ? "bg-accent/80 font-medium"
+                  : "text-muted-foreground hover:bg-accent/40"
                   }`}
               >
                 {item.label}
