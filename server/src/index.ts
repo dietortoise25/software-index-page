@@ -15,7 +15,6 @@ import downloadRouter from "./routes/download.js"
 import quickFormRouter from "./routes/quick-form.js"
 import feishuAuthRouter from "./routes/feishu-auth.js"
 import articlesRouter from "./routes/articles.js"
-import visitorRegisterRouter from "./routes/visitor-register.js"
 
 const PORT = parseInt(process.env.PORT || "8765", 10)
 
@@ -24,9 +23,8 @@ const app = express()
 app.use(cors({ origin: true, credentials: true }))
 app.use(express.urlencoded({ extended: false }))
 
-// 飞书 OAuth + 访客注册 — 必须在 /api/auth/* 之前
+// 飞书 OAuth — 必须在 /api/auth/* 之前
 app.use("/api/auth/feishu", feishuAuthRouter)
-app.use("/api/auth", visitorRegisterRouter)
 
 // Better Auth handler — 必须在 express.json() 之前
 app.all("/api/auth/*", toNodeHandler(auth))

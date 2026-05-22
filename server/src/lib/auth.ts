@@ -18,6 +18,18 @@ export const auth = betterAuth({
   database: pool,
   emailAndPassword: { enabled: true },
   plugins: [username()],
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user) => {
+          // 访客注册（@visitor.user 后缀）默认 role=visitor
+          if (user.email?.includes("@visitor.user")) {
+            return { data: { ...user, role: "visitor" } }
+          }
+        },
+      },
+    },
+  },
   advanced: {
     disableCSRFCheck: true,
   },
