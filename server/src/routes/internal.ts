@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express"
 import { createClient } from "@supabase/supabase-js"
 import { Pool } from "pg"
 import { createUserQueries } from "../lib/user-queries.js"
+import { createPageAccess } from "../lib/page-access.js"
 
 const router = Router()
 
@@ -10,6 +11,7 @@ const userPool = new Pool({
   ssl: { rejectUnauthorized: false },
 })
 const { listUsers, updateRole } = createUserQueries(userPool)
+const { grant: grantAccess, listGrants } = createPageAccess(userPool)
 
 const supabase = createClient(
   process.env.SUPABASE_URL || "",
@@ -190,6 +192,36 @@ router.put("/users/role", async (req, res) => {
       return
     }
     res.json({ ok: true, data: updated })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: (e as Error).message })
+  }
+})
+
+// ─────────── 访客放行管理 ───────────
+
+router.post("/page-access", async (req, res) => {
+  const { userId, pagePath, expiresInHours } = (req.body || {}) as Record<string, unknown>
+  if (!userId || !pagePath || !expiresInHours) {
+    res.status(400).json({ ok: false, error: "缺少参数" })
+    return
+  }
+  try {
+    const result = await grantAccess({
+      userId: String(userId),
+      pagePath: String(pagePath),
+      grantedBy: (req as any).user?.email || "admin",
+      expiresInHours: Number(expiresInHours),
+    })
+    res.json({ ok: true, data: result })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: (e as Error).message })
+  }
+})
+
+router.get("/page-access", async (_req, res) => {
+  try {
+    const grants = await listGrants()
+    res.json({ ok: true, data: grants })
   } catch (e) {
     res.status(500).json({ ok: false, error: (e as Error).message })
   }

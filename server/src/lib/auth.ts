@@ -62,6 +62,23 @@ async function migrateAndSeed() {
     console.warn("[auth] 迁移失败:", (e as Error).message)
   }
 
+  // 创建 page_access 表（如果不存在）
+  if (pool) {
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS page_access (
+          id SERIAL PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          page_path TEXT NOT NULL,
+          expires_at TIMESTAMPTZ NOT NULL,
+          token TEXT NOT NULL UNIQUE,
+          granted_by TEXT NOT NULL,
+          granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `)
+    } catch { /* 忽略 */ }
+  }
+
   const adminEmail = process.env.ADMIN_EMAIL || "admin@leverage.works"
   const adminPassword = process.env.ADMIN_PASSWORD
   if (!adminPassword) {
