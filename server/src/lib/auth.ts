@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth"
 import { getMigrations } from "better-auth/db/migration"
 import { username } from "better-auth/plugins"
 import { Pool } from "pg"
+import { seedArticles } from "./seed-articles.js"
 
 const baseURL = process.env.AUTH_BASE_URL || "http://localhost:8765"
 
@@ -79,24 +80,12 @@ async function migrateAndSeed() {
     } catch { /* 忽略 */ }
   }
 
-  // 创建 articles 表
+  // 创建 articles 表 + 种子数据
   if (pool) {
     try {
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS articles (
-          id SERIAL PRIMARY KEY,
-          slug TEXT UNIQUE NOT NULL,
-          title TEXT NOT NULL,
-          summary TEXT NOT NULL DEFAULT '',
-          content TEXT NOT NULL DEFAULT '',
-          cover_image TEXT,
-          author TEXT NOT NULL DEFAULT '',
-          tags TEXT[] NOT NULL DEFAULT '{}',
-          status TEXT NOT NULL DEFAULT 'draft',
-          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-      `)
+      await pool.query(`CREATE TABLE IF NOT EXISTS articles (id SERIAL PRIMARY KEY, slug TEXT UNIQUE NOT NULL, title TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '', content TEXT NOT NULL DEFAULT '', cover_image TEXT, author TEXT NOT NULL DEFAULT '', tags TEXT[] NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'draft', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`)
+      const seeded = await seedArticles(pool)
+      if (seeded > 0) console.log(`[auth] 文章种子: ${seeded} 篇`)
     } catch { /* 忽略 */ }
   }
 
