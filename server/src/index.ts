@@ -14,6 +14,7 @@ import { requireAuth, requireAdmin } from "./lib/auth-middleware.js"
 import downloadRouter from "./routes/download.js"
 import quickFormRouter from "./routes/quick-form.js"
 import feishuAuthRouter from "./routes/feishu-auth.js"
+import articlesRouter from "./routes/articles.js"
 
 const PORT = parseInt(process.env.PORT || "8765", 10)
 
@@ -57,6 +58,7 @@ app.use("/api/chat", requireAuth, chatRouter)
 app.use("/api/requirement/generate", requireAuth, generateRouter)
 app.use("/api/requirement", quickFormRouter)
 app.use("/api/feishu", approvalRouter)
+app.use("/api/articles", articlesRouter)
 
 // === 受保护路由（需要认证） ===
 app.use("/api/requirements", requireAuth, requirementsRouter)

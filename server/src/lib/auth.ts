@@ -79,6 +79,27 @@ async function migrateAndSeed() {
     } catch { /* 忽略 */ }
   }
 
+  // 创建 articles 表
+  if (pool) {
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS articles (
+          id SERIAL PRIMARY KEY,
+          slug TEXT UNIQUE NOT NULL,
+          title TEXT NOT NULL,
+          summary TEXT NOT NULL DEFAULT '',
+          content TEXT NOT NULL DEFAULT '',
+          cover_image TEXT,
+          author TEXT NOT NULL DEFAULT '',
+          tags TEXT[] NOT NULL DEFAULT '{}',
+          status TEXT NOT NULL DEFAULT 'draft',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `)
+    } catch { /* 忽略 */ }
+  }
+
   const adminEmail = process.env.ADMIN_EMAIL || "admin@leverage.works"
   const adminPassword = process.env.ADMIN_PASSWORD
   if (!adminPassword) {

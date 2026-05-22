@@ -12,6 +12,7 @@ import ReturnWorkflowPage from "@/pages/ReturnWorkflowPage"
 import DashboardPage from "@/pages/DashboardPage"
 import InternalAdminPage from "@/pages/InternalAdminPage"
 import PermissionsPage from "@/pages/PermissionsPage"
+import ArticleManagePage from "@/pages/ArticleManagePage"
 import ChangelogPage from "@/pages/ChangelogPage"
 import PptPage from "@/pages/PptPage"
 import AboutPage from "@/pages/AboutPage"
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="review" element={<ReviewPage />} />
         <Route path="admin" element={<InternalAdminPage />} />
         <Route path="permission" element={<PermissionsPage />} />
+        <Route path="articles" element={<ArticleManagePage />} />
       </Route>
 
       <Route path="future" element={<FuturePage />} />

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import { Pool } from "pg"
 import { createUserQueries } from "../lib/user-queries.js"
 import { createPageAccess } from "../lib/page-access.js"
+import { createArticleQueries } from "../lib/article-queries.js"
 
 const router = Router()
 
@@ -12,6 +13,7 @@ const userPool = new Pool({
 })
 const { listUsers, updateRole } = createUserQueries(userPool)
 const { grant: grantAccess, listGrants } = createPageAccess(userPool)
+const { create: createArticle, getBySlug, list: listArticles, listAll, update: updateArticle, remove: removeArticle } = createArticleQueries(userPool)
 
 const supabase = createClient(
   process.env.SUPABASE_URL || "",
@@ -227,4 +229,65 @@ router.get("/page-access", async (_req, res) => {
   }
 })
 
+// ─────────── 文章管理 ───────────
+
+router.get("/articles", async (req, res) => {
+  try {
+    const all = req.query.all === "1"
+    const data = all ? await listAll() : await listArticles()
+    res.json({ ok: true, data })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: (e as Error).message })
+  }
+})
+
+router.get("/articles/:slug", async (req, res) => {
+  try {
+    const article = await getBySlug(req.params.slug)
+    if (!article) { res.status(404).json({ ok: false, error: "文章不存在" }); return }
+    res.json({ ok: true, data: article })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: (e as Error).message })
+  }
+})
+
+router.post("/articles", async (req, res) => {
+  try {
+    const { slug, title, summary, content, cover_image, author, tags, status } = (req.body || {}) as Record<string, unknown>
+    if (!slug || !title) { res.status(400).json({ ok: false, error: "缺少 slug 或 title" }); return }
+    const article = await createArticle({
+      slug: String(slug), title: String(title),
+      summary: String(summary || ""), content: String(content || ""),
+      cover_image: cover_image ? String(cover_image) : undefined,
+      author: String(author || ""), tags: tags as string[] || [],
+      status: String(status || "draft"),
+    })
+    res.json({ ok: true, data: article })
+  } catch (e) {
+    const msg = (e as Error).message
+    res.status(msg.includes("duplicate") ? 409 : 500).json({ ok: false, error: msg })
+  }
+})
+
+router.put("/articles/:slug", async (req, res) => {
+  try {
+    const updated = await updateArticle(req.params.slug, req.body || {})
+    if (!updated) { res.status(404).json({ ok: false, error: "文章不存在" }); return }
+    res.json({ ok: true, data: updated })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: (e as Error).message })
+  }
+})
+
+router.delete("/articles/:slug", async (req, res) => {
+  try {
+    const ok = await removeArticle(req.params.slug)
+    if (!ok) { res.status(404).json({ ok: false, error: "文章不存在" }); return }
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: (e as Error).message })
+  }
+})
+
 export default router
+

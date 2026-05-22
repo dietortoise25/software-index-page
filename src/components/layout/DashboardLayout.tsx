@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router"
-import { BarChart3, Users, Shield, ArrowLeftRight, ClipboardCheck, Home } from "lucide-react"
+import { BarChart3, Users, Shield, ArrowLeftRight, ClipboardCheck, Home, FileText } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 
 const SIDEBAR_ITEMS = [
@@ -7,6 +7,7 @@ const SIDEBAR_ITEMS = [
   { to: "/dashboard/review", label: "需求审查", icon: ClipboardCheck, admin: true },
   { to: "/dashboard/admin", label: "分组管理", icon: Users, admin: true },
   { to: "/dashboard/permission", label: "权限管理", icon: Shield, admin: true },
+  { to: "/dashboard/articles", label: "文章管理", icon: FileText, admin: true },
   { to: "/return-workflow", label: "审批流程", icon: ArrowLeftRight, external: true },
 ]
 
