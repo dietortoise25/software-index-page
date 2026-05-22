@@ -3,6 +3,7 @@ import { X, Bot, RotateCcw, Maximize2, Minimize2 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
+import { useAuth } from "@/lib/auth-context"
 import type { Requirement, ScheduleProposal } from "./types"
 import MessageBubble from "./MessageBubble"
 import TypingIndicator from "./TypingIndicator"
@@ -52,6 +53,7 @@ function extractModelName(messages: Array<{ parts: Array<{ type: string; data?: 
 }
 
 export default function ChatDialog({ open, onClose }: Props) {
+  const { user } = useAuth()
   const [state, setState] = useState<ChatState>({ phase: "chat" })
   const [input, setInput] = useState("")
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -292,7 +294,7 @@ export default function ChatDialog({ open, onClose }: Props) {
 
           {messages.map((m) => {
             const text = m.parts.filter((p) => p.type === "text").map((p) => p.text || "").join("")
-            return <MessageBubble key={m.id} role={m.role as "user" | "assistant"} content={text} />
+            return <MessageBubble key={m.id} role={m.role as "user" | "assistant"} content={text} userImage={(user as any)?.image} userName={user?.name} />
           })}
 
           {isLoading && <TypingIndicator />}

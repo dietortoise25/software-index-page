@@ -1,28 +1,32 @@
-import { Bot, User } from "lucide-react"
+import { Bot } from "lucide-react"
 import { marked } from "marked"
 
 interface Props {
   role: "user" | "assistant"
   content: string
+  userImage?: string | null
+  userName?: string
 }
 
-/** 轻量 markdown 渲染：仅 inline 格式 + 段落，不引入完整 prose */
 function renderMd(text: string): string {
-  const html = marked.parse(text, { async: false }) as string
-  // 去掉 marked 默认包裹的 <p> 如果内容就是单段落
-  return html
+  return marked.parse(text, { async: false }) as string
 }
 
-export default function MessageBubble({ role, content }: Props) {
+export default function MessageBubble({ role, content, userImage, userName }: Props) {
   if (role === "user") {
+    const initial = (userName || "U").charAt(0).toUpperCase()
     return (
       <div className="flex justify-end gap-2 px-4 py-1.5">
         <div className="max-w-[80%] rounded-2xl rounded-tr-md bg-primary px-4 py-2.5 text-primary-foreground text-sm leading-relaxed whitespace-pre-wrap">
           {content}
         </div>
-        <span className="mt-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10">
-          <User className="size-3.5 text-primary" />
-        </span>
+        {userImage ? (
+          <img src={userImage} alt="" className="mt-1 size-7 shrink-0 rounded-full object-cover" />
+        ) : (
+          <span className="mt-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-medium">
+            {initial}
+          </span>
+        )}
       </div>
     )
   }
