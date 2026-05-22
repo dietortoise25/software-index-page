@@ -8,12 +8,12 @@ import { useAuth } from "@/lib/auth-context"
 import UserMenu from "@/components/layout/UserMenu"
 
 const NAV_ITEMS = [
-  { to: "/", label: "首页", match: (p: string) => p === "/" },
+  { to: "/", label: "主页", match: (p: string) => p === "/" },
   { to: "/articles", label: "文章", match: (p: string) => p.startsWith("/articles") },
   { to: "/catalog", label: "工具库", match: (p: string) => p.startsWith("/catalog") || p.startsWith("/software") },
-  { to: "/changelog", label: "更新日志", match: (p: string) => p === "/changelog" },
   { to: "/about", label: "关于", match: (p: string) => p === "/about" },
-  { to: "/dashboard", label: "看板", match: (p: string) => p === "/dashboard" },
+  { to: "/dashboard", label: "控制台", match: (p: string) => p.startsWith("/dashboard"), requireAuth: true },
+  { to: "/changelog", label: "更新日志", match: (p: string) => p === "/changelog" },
 ]
 
 export default function Header() {
@@ -43,7 +43,7 @@ export default function Header() {
           </Link>
           {/* 桌面导航 */}
           <nav className="hidden sm:flex items-center gap-1">
-            {NAV_ITEMS.map((item) => (
+            {NAV_ITEMS.filter(i => !i.requireAuth || loggedIn).map((item) => (
               <Link key={item.to} to={item.to} className={linkClass(item.match(pathname))}>
                 {item.label}
               </Link>
@@ -86,7 +86,7 @@ export default function Header() {
       {menuOpen && (
         <nav className="sm:hidden border-t bg-background/95 backdrop-blur-xl animate-[fadeInUp_0.2s_ease-out]">
           <div className="container mx-auto px-4 py-2 flex flex-col gap-0.5">
-            {NAV_ITEMS.map((item) => (
+            {NAV_ITEMS.filter(i => !i.requireAuth || loggedIn).map((item) => (
               <Link
                 key={item.to}
                 to={item.to}
@@ -94,7 +94,7 @@ export default function Header() {
                 className={`rounded-lg px-3 py-2.5 text-sm transition-colors ${item.match(pathname)
                   ? "bg-accent/80 font-medium"
                   : "text-muted-foreground hover:bg-accent/40"
-                  }`}
+                }`}
               >
                 {item.label}
               </Link>
