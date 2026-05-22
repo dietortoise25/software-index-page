@@ -29,7 +29,6 @@ export default function App() {
         <Route path="software/:id" element={<SoftwareDetailPage />} />
         <Route path="articles" element={<ArticleListPage />} />
         <Route path="articles/:id" element={<ArticleDetailPage />} />
-        <Route path="review" element={<ReviewPage />} />
         <Route path="changelog" element={<ChangelogPage />} />
         <Route path="return-workflow" element={<ReturnWorkflowPage />} />
         <Route path="ppt/:id" element={<PptPage />} />
@@ -42,6 +41,7 @@ export default function App() {
       {/* Dashboard — 侧边栏布局 */}
       <Route path="dashboard" element={<DashboardLayout />}>
         <Route index element={<DashboardPage />} />
+        <Route path="review" element={<ReviewPage />} />
         <Route path="admin" element={<InternalAdminPage />} />
         <Route path="permission" element={<PermissionsPage />} />
       </Route>

@@ -1,9 +1,10 @@
 import { Outlet, Link, useLocation } from "react-router"
-import { BarChart3, Users, Shield, ArrowLeftRight } from "lucide-react"
+import { BarChart3, Users, Shield, ArrowLeftRight, ClipboardCheck, Home } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 
 const SIDEBAR_ITEMS = [
   { to: "/dashboard", label: "运营看板", icon: BarChart3, end: true },
+  { to: "/dashboard/review", label: "需求审查", icon: ClipboardCheck, admin: true },
   { to: "/dashboard/admin", label: "分组管理", icon: Users, admin: true },
   { to: "/dashboard/permission", label: "权限管理", icon: Shield, admin: true },
   { to: "/return-workflow", label: "审批流程", icon: ArrowLeftRight, external: true },
@@ -38,6 +39,12 @@ export default function DashboardLayout() {
             )
           })}
         </nav>
+        <div className="mt-auto pt-3 border-t">
+          <Link to="/" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
+            <Home className="size-4" />
+            返回首页
+          </Link>
+        </div>
       </aside>
 
       {/* 移动端底部 tab bar */}
