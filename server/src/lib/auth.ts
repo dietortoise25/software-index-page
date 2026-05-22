@@ -20,6 +20,28 @@ export const auth = betterAuth({
   advanced: {
     disableCSRFCheck: true,
   },
+  session: {
+    additionalFields: {
+      role: {
+        type: "string" as const,
+        required: false,
+        defaultValue: "user",
+      },
+    },
+  },
+  user: {
+    additionalFields: {
+      role: {
+        type: "string" as const,
+        required: false,
+        defaultValue: "user",
+      },
+      username: {
+        type: "string" as const,
+        required: false,
+      },
+    },
+  },
 })
 
 async function migrateAndSeed() {
