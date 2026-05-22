@@ -13,6 +13,7 @@ import DashboardPage from "@/pages/DashboardPage"
 import InternalAdminPage from "@/pages/InternalAdminPage"
 import PermissionsPage from "@/pages/PermissionsPage"
 import ArticleManagePage from "@/pages/ArticleManagePage"
+import RegisterPage from "@/pages/RegisterPage"
 import ChangelogPage from "@/pages/ChangelogPage"
 import PptPage from "@/pages/PptPage"
 import AboutPage from "@/pages/AboutPage"
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="about" element={<AboutPage />} />
         <Route path="tiktok-shop-test" element={<TikTokShopTestPage />} />
         <Route path="login" element={<LoginPage />} />
+        <Route path="register" element={<RegisterPage />} />
       </Route>
 
       {/* Dashboard — 侧边栏布局 */}

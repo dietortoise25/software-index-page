@@ -109,8 +109,12 @@ export default function LoginPage() {
             href="/api/auth/feishu/login"
             className="flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium hover:bg-accent transition-colors"
           >
-            飞书账号登录
+            飞书账号登录<span className="ml-1 text-xs text-muted-foreground">(仅内部)</span>
           </a>
+
+          <p className="text-center text-xs text-muted-foreground pt-2">
+            没有账号？<a href="/register" className="text-primary underline">访客注册</a>
+          </p>
         </form>
       </div>
     </div>
