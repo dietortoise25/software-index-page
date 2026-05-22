@@ -3,19 +3,19 @@ import type { Software } from "@/types/software"
 export const softwareList: Software[] = [
   {
     id: "douyin-tool",
-    name: "抖音工具",
-    description: "抖音运营辅助工具",
+    name: "达人私信助手",
+    description: "抖音达人私信自动化工具，批量触达 + 智能回复",
     iconName: "Video",
     category: "效率工具",
     requirePin: true,
     versions: [
       {
         version: "1.0.0",
-        releaseDate: "2026-05-21",
+        releaseDate: "2026-05-22",
         isLatest: true,
-        changelog: ["首个发布版本"],
+        changelog: ["首个发布版本", "支持批量私信触达", "智能回复模板"],
         downloads: {
-          windows: "http://42.193.170.109/downloads/douyin_tool.exe",
+          windows: "http://42.193.170.109/downloads/douyin_tool.zip",
         },
       },
     ],
