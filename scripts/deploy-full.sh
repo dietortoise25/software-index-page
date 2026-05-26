@@ -51,13 +51,15 @@ SSH_KEY_PATH="$(env_val SSH_KEY_PATH)"
 DEPLOY_FRONTEND=false
 DEPLOY_SERVER=false
 DEPLOY_RW=false
+DEPLOY_SHOPEE=false
 
 case "${1:-}" in
     --frontend) DEPLOY_FRONTEND=true ;;
     --server)   DEPLOY_SERVER=true ;;
     --rw)       DEPLOY_RW=true ;;
-    ""|--all)   DEPLOY_FRONTEND=true; DEPLOY_SERVER=true; DEPLOY_RW=true ;;
-    *)          err "未知参数: $1，可用: --frontend | --server | --rw | --all" ;;
+    --shopee)   DEPLOY_SHOPEE=true ;;
+    ""|--all)   DEPLOY_FRONTEND=true; DEPLOY_SERVER=true; DEPLOY_RW=true; DEPLOY_SHOPEE=true ;;
+    *)          err "未知参数: $1，可用: --frontend | --server | --rw | --shopee | --all" ;;
 esac
 
 # ── 连接检查 ──
@@ -112,6 +114,18 @@ if $DEPLOY_RW; then
         tools/return-workflow/pnpm-lock.yaml \
         tools/return-workflow/tsconfig.json \
         tools/return-workflow/data_example
+fi
+
+if $DEPLOY_SHOPEE; then
+    pack_files "shopee" \
+        backend/python/shopee-analyzer/main.py \
+        backend/python/shopee-analyzer/analyzer.py \
+        backend/python/shopee-analyzer/diagnose.py \
+        backend/python/shopee-analyzer/simulate.py \
+        backend/python/shopee-analyzer/requirements.txt \
+        backend/python/shopee-analyzer/extractors \
+        backend/python/shopee-analyzer/metrics \
+        backend/python/shopee-analyzer/config
 fi
 
 # ── 上传 ──
@@ -205,6 +219,26 @@ ENVEOF
     sudo systemctl restart return-workflow
 fi
 
+# ── Shopee 数据分析器（Python FastAPI）──
+if [ -f "$REMOTE_BUILD/shopee.tar.gz" ]; then
+    echo "━━━ 构建 shopee-analyzer ━━━"
+    SHOPEE_DIR="/var/www/shopee-analyzer"
+    mkdir -p "$SHOPEE_DIR"
+    cd "$REMOTE_BUILD"
+    rm -rf shopee-src
+    mkdir shopee-src
+    tar xzf shopee.tar.gz -C shopee-src
+    rsync -a shopee-src/backend/python/shopee-analyzer/ "$SHOPEE_DIR/" --exclude='.venv' --exclude='__pycache__'
+    sudo chown -R ubuntu:ubuntu "$SHOPEE_DIR"
+    cd "$SHOPEE_DIR"
+    if [ ! -d ".venv" ]; then
+      python3 -m venv .venv
+    fi
+    .venv/bin/pip install -q -r requirements.txt
+    echo "shopee-analyzer 构建完成"
+    sudo systemctl restart shopee-analyzer
+fi
+
 echo ""
 echo "清理构建临时文件..."
 rm -rf "$REMOTE_BUILD"
@@ -244,6 +278,10 @@ fi
 
 if $DEPLOY_RW; then
     check_url "http://${SERVER_IP}/api/return-workflow/health" "退货工作流 API"
+fi
+
+if $DEPLOY_SHOPEE; then
+    check_url "http://${SERVER_IP}/api/shopee/health" "Shopee 分析器 API"
 fi
 
 echo ""

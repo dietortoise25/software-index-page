@@ -1,3 +1,4 @@
+// return-workflow.service — 退货退款处理服务 (port 3002)
 import { parseXls, parseByKeyword, parseAll, type ParsedSheet } from './parser.js';
 import { normalizeRows, getSchema, type Platform, type UnifiedRow } from './normalize.js';
 import fs from 'node:fs';

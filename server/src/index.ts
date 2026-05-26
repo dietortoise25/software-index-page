@@ -1,5 +1,6 @@
 /**
  * 软件发布站后端服务
+ * relay.service — Express API (port 8765)
  */
 import express from "express"
 import cors from "cors"
@@ -15,6 +16,8 @@ import downloadRouter from "./routes/download.js"
 import quickFormRouter from "./routes/quick-form.js"
 import feishuAuthRouter from "./routes/feishu-auth.js"
 import articlesRouter from "./routes/articles.js"
+import calendarRouter from "./routes/calendar.js"
+import shopeeRouter from "./routes/shopee.js"
 
 const PORT = parseInt(process.env.PORT || "8765", 10)
 
@@ -44,6 +47,8 @@ app.use("/api/articles", articlesRouter)
 
 // === 受保护路由（需要认证） ===
 app.use("/api/requirements", requireAuth, requirementsRouter)
+app.use("/api/calendar", requireAuth, calendarRouter)
+app.use("/api/shopee", shopeeRouter)
 app.use("/api/internal", requireAuth, requireAdmin, internalRouter)
 app.use("/api/internal", requireAuth, requireAdmin, approvalRouter)
 

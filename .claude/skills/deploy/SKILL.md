@@ -40,6 +40,11 @@ metadata:
         ├── dist/
         ├── data_example/
         └── node_modules/
+
+/var/www/shopee-analyzer/   # Shopee 数据分析 (shopee-analyzer.service · 端口 8000)
+├── main.py                 # Python FastAPI 入口
+├── .venv/                  # Python 虚拟环境
+└── requirements.txt
 ```
 
 ## Systemd 服务
@@ -49,6 +54,7 @@ metadata:
 | `relay` | node server/dist/index.js | 127.0.0.1:8765 | 审查 API + AI 对话 + 内部管理接口 |
 | `qianyi-scheduler` | node platform/dist/sync/scheduler.js | — | 千易ERP 数据同步（订单5分钟/商品30分钟）|
 | `return-workflow` | node dist/index.js | 127.0.0.1:3002 | 退货工作流 |
+| `shopee-analyzer` | uvicorn main:app | 127.0.0.1:8000 | Shopee 数据分析 (Python FastAPI) |
 
 ## Nginx 路由
 

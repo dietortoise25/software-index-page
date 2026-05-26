@@ -1,3 +1,4 @@
+// qianyi-scheduler.service — 千易ERP 数据定时同步
 import dotenv from "dotenv"
 import { fileURLToPath } from "url"
 import { dirname, resolve } from "path"
