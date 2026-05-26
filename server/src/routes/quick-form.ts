@@ -3,6 +3,8 @@
  * 写入审查面板 JSON + 发送飞书纯文本通知
  */
 import { Router } from "express"
+
+const SITE_BASE_URL = `http://${process.env.SERVER_IP || "42.193.170.109"}`
 import { getTenantToken, getUserOpenId, sendFeishuMessage, formatFeishuMessage } from "../lib/feishu.js"
 import { addRequirement } from "../lib/storage.js"
 
@@ -48,7 +50,7 @@ router.post("/", async (req, res) => {
       return
     }
 
-    const text = formatFeishuMessage(form) + "\n🔗 前往审查：http://42.193.170.109/review"
+    const text = formatFeishuMessage(form) + "\n🔗 前往审查：${SITE_BASE_URL}/dashboard/review"
     const result = await sendFeishuMessage(token, openId, text)
 
     console.log(`[${new Date().toISOString()}] 飞书返回:`, JSON.stringify(result).slice(0, 200))

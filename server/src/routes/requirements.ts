@@ -2,13 +2,15 @@
  * 需求管理 API — CRUD + 审批 + 日历事件创建
  */
 import { Router } from "express"
-import { createDeepSeek } from "@ai-sdk/deepseek"
 import { generateObject } from "ai"
+
+const SITE_BASE_URL = `http://${process.env.SERVER_IP || "42.193.170.109"}`
 import { getTenantToken, getUserOpenId, sendFeishuMessage, sendFeishuCard } from "../lib/feishu.js"
 import { buildRequirementsCard } from "../lib/feishu-card.js"
 import { createCalendarEvent } from "../lib/feishu-calendar.js"
 import { scheduleProposalSchema, SCHEDULE_SYSTEM_PROMPT } from "../lib/schedule-prompt.js"
 import { fetchMyAvailability } from "../lib/feishu-calendar.js"
+import { deepseek, DEEPSEEK_MODEL } from "../lib/ai-config.js"
 import {
   addRequirementAsync,
   readRequirements,
@@ -20,11 +22,6 @@ import {
 import type { StoredRequirement } from "../lib/storage.js"
 
 const router = Router()
-
-const deepseek = createDeepSeek({
-  apiKey: process.env.DEEPSEEK_API_KEY || "",
-  baseURL: process.env.DEEPSEEK_API_URL_OpenAI || "https://api.deepseek.com",
-})
 
 /** 提交新需求（公开） */
 router.post("/", async (req, res) => {
@@ -60,7 +57,7 @@ router.post("/", async (req, res) => {
         await sendFeishuMessage(
           token,
           openId,
-          `📋 新需求待审查\n${submitter || "匿名"} 提交了需求：「${record.requirement.title}」\n优先级：${record.requirement.priority} | 类型：${record.requirement.type}\n🔗 前往审查：http://42.193.170.109/review`,
+          `📋 新需求待审查\n${submitter || "匿名"} 提交了需求：「${record.requirement.title}」\n优先级：${record.requirement.priority} | 类型：${record.requirement.type}\n🔗 前往审查：${SITE_BASE_URL}/dashboard/review`,
         )
       }
     } catch (e) {
@@ -135,7 +132,7 @@ router.post("/:id/approve", async (req, res) => {
 
     // 3. 发送飞书卡片
     if (openId) {
-      const card = buildRequirementsCard(record.requirement, record.schedule || undefined)
+      const card = buildRequirementsCard(record.requirement, record.schedule || undefined, { name: record.submitter })
       const feishuResult = await sendFeishuCard(token, openId, card)
       if (feishuResult.code !== 0) {
         errors.push(`飞书卡片发送失败: ${feishuResult.msg}`)
@@ -181,7 +178,7 @@ router.post("/:id/reject", async (req, res) => {
       await sendFeishuMessage(
         token,
         openId,
-        `↩️ 需求已驳回\n「${record.requirement.title}」已被驳回${note ? `，原因：${note}` : ""}\n提交人：${record.submitter}\n🔗 审查面板：http://42.193.170.109/review`,
+        `↩️ 需求已驳回\n「${record.requirement.title}」已被驳回${note ? `，原因：${note}` : ""}\n提交人：${record.submitter}\n🔗 审查面板：${SITE_BASE_URL}/review`,
       )
     }
   } catch (e) {
@@ -213,7 +210,7 @@ router.post("/:id/reschedule", async (req, res) => {
       .join("\n")
 
     const result = await generateObject({
-      model: deepseek("deepseek-chat"),
+      model: deepseek(DEEPSEEK_MODEL),
       system: SCHEDULE_SYSTEM_PROMPT,
       prompt: `请为以下需求生成开发排期：\n\n## 需求\n${JSON.stringify(record.requirement, null, 2)}\n\n## 日历可用时段\n${availSummary || "暂无可用的空闲时段"}`,
       schema: scheduleProposalSchema,
@@ -280,7 +277,7 @@ router.post("/:id/send-card", async (req, res) => {
       res.status(500).json({ ok: false, error: "消息发送通道暂不可用" })
       return
     }
-    const card = buildRequirementsCard(record.requirement, record.schedule || undefined)
+    const card = buildRequirementsCard(record.requirement, record.schedule || undefined, { name: record.submitter })
     const result = await sendFeishuCard(token, openId, card)
     if (result.code === 0) {
       console.log(`[send-card] ${record.id} 卡片已发送`)
