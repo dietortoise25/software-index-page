@@ -2,10 +2,8 @@
  * 飞书 API 工具 — token 管理、用户查找、消息发送
  */
 
-const APP_ID = "cli_a9646f769479dbd4"
+const APP_ID = process.env.FEISHU_APP_ID || "cli_a9646f769479dbd4"
 const APP_SECRET = process.env.FEISHU_APP_SECRET || ""
-const TARGET_USER = "Alan"
-
 interface TokenCache {
   token: string
   expire: number
@@ -41,18 +39,9 @@ export async function getTenantToken(): Promise<string> {
   return refreshPromise
 }
 
-export async function getUserOpenId(token: string): Promise<string | null> {
-  const resp = await fetch(
-    `https://open.feishu.cn/open-apis/contact/v3/users?page_size=5&name=${TARGET_USER}`,
-    { headers: { Authorization: `Bearer ${token}` } },
-  )
-  const data = (await resp.json()) as {
-    data?: { items?: Array<{ name?: string; open_id: string }> }
-  }
-  const users = data.data?.items || []
-  for (const u of users) {
-    if (u.name === TARGET_USER || u.name == null) return u.open_id
-  }
+export async function getUserOpenId(_token: string): Promise<string | null> {
+  const adminOpenId = process.env.FEISHU_ADMIN_OPEN_ID
+  if (adminOpenId) return adminOpenId
   return null
 }
 

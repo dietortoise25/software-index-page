@@ -9,7 +9,7 @@ import crypto from "crypto"
 const router = Router()
 const sb = createClient(process.env.SUPABASE_URL || "", process.env.SUPABASE_ANON_KEY || "")
 
-const APPROVAL_CODE = "9959B9BB-78C5-4DBC-9116-0BF3264CB5C6"
+const APPROVAL_CODE = process.env.FEISHU_APPROVAL_CODE || "9959B9BB-78C5-4DBC-9116-0BF3264CB5C6"
 const FEISHU_API = "https://open.feishu.cn/open-apis"
 
 // ========== 提交审批 — 飞书原生审批 API ==========
@@ -46,10 +46,10 @@ router.post("/approval/submit", async (req, res) => {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         approval_code: APPROVAL_CODE,
-        open_id: "ou_2b39164fdeba062e42f5eeee83bedc26",
+        open_id: process.env.FEISHU_APPROVER_OPEN_ID || "ou_2b39164fdeba062e42f5eeee83bedc26",
         form: JSON.stringify(formValues),
         node_approver_open_id_list: [
-          { key: "242b9f0dd6d5451a3f91c2b9958f6511", value: ["ou_2b39164fdeba062e42f5eeee83bedc26"] },
+          { key: process.env.FEISHU_APPROVAL_NODE_KEY || "242b9f0dd6d5451a3f91c2b9958f6511", value: [process.env.FEISHU_APPROVER_OPEN_ID || "ou_2b39164fdeba062e42f5eeee83bedc26"] },
         ],
       }),
     })
@@ -61,7 +61,7 @@ router.post("/approval/submit", async (req, res) => {
       await sb.schema("internal").from("shop_operator_changes").insert({
         shop_id: Number(shop_id), operator_id: Number(operator_id),
         change_type: change_type || "transfer", effective_from, reason: reason.trim(),
-        status: "pending", instance_code: instanceCode, submitted_by: "Alan",
+        status: "pending", instance_code: instanceCode, submitted_by: process.env.ADMIN_NAME || "Alan",
       })
       console.log(`[审批] 原生实例已创建: ${instanceCode}`)
       res.json({ ok: true, instance_code: instanceCode, message: "审批已提交至飞书" })
