@@ -58,45 +58,49 @@ metadata:
 | `/api/` | `127.0.0.1:8765` | 审查/内部管理 API |
 | `/*` | 静态文件 | SPA fallback 到 index.html |
 
-## 一键部署
+## 部署方式（3 种，按场景选用）
+
+### 1. Git 推送 → CI/CD（前端日常更新）★ 推荐
 
 ```bash
-# 项目根目录
-./deploy.sh
+git add . && git commit -m "..." && git push origin main
 ```
 
-脚本自动完成：三个项目并行构建 → 打包 tar.gz → scp 上传 → 服务器解压部署 → pnpm install → 重启 systemd → curl 验证 HTTP 200
+GitHub Actions (`.github/workflows/deploy.yml`) 自动：`pnpm build` → `rsync dist/` 到服务器 → `nginx reload`。
 
-### 前置条件
+适用：修改了 `src/` 下任何前端代码（包括 `software.ts`、`changelog.ts`）。
 
-```bash
-# Windows 必须先启动 SSH 代理
-eval $(ssh-agent)
-ssh-add ~/.ssh/alan_pc.pem
-```
-
-### 部署流程（脚本内部步骤）
-
-| 步骤 | 操作 | 说明 |
-|------|------|------|
-| 1. 构建 | `pnpm build` ×3 | platform (tsc)、server (tsc)、前端 (vite) |
-| 2. 打包 | `tar czf` | 将 dist/ + server/dist/ + platform/dist/ + package.json + lockfile 打成单一压缩包 |
-| 3. 上传 | `scp` | 上传到服务器 /tmp/ |
-| 4. 部署 | 远程 bash | 解压 → 复制文件 → pnpm install --prod |
-| 5. 重启 | `systemctl restart` | relay + qianyi-scheduler |
-| 6. 验证 | `curl` | HTTP 200 + 同步日志 |
-
-### 仅上传软件安装包
+### 2. ZIP 上传（发布插件/工具安装包）
 
 ```bash
+eval $(ssh-agent) && ssh-add ~/.ssh/alan_pc.pem
 bash scripts/deploy.sh publish/文件名.zip
 ```
 
-## 发布新版本完整流程
+仅上传文件到 `/var/www/software-index/downloads/`，不触发代码更新。
 
-1. 更新 `src/data/changelog.ts` — 添加版本记录
-2. （可选）更新 `src/data/articles.ts` — 添加发布公告
-3. 运行 `./deploy.sh` 一键部署
+### 3. 完整服务器端构建（后端 + 退货工作流）
+
+```bash
+eval $(ssh-agent) && ssh-add ~/.ssh/alan_pc.pem
+bash scripts/deploy-full.sh           # 全部
+bash scripts/deploy-full.sh --server   # 仅后端 API
+bash scripts/deploy-full.sh --rw       # 仅退货工作流
+```
+
+适用：修改了 `server/`、`platform/`、`tools/return-workflow/`。
+
+## 发布新插件/工具版本完整流程
+
+```
+1. 更新 src/data/software.ts  — 添加新版本记录（isLatest: true，旧版改 false）
+2. 更新 src/data/changelog.ts — 添加更新日志条目
+3. bash scripts/deploy.sh publish/xxx.zip  — 上传安装包到服务器
+4. git add . && git commit -m "release: xxx vX.Y.Z" && git push origin main
+   → GitHub Actions 自动部署前端
+```
+
+> **注意**：步骤 3 和 4 无先后依赖，可并行执行。
 
 ## 环境变量
 
@@ -132,14 +136,23 @@ cd /target && some_command    # 当前目录永久切换
 
 这是 shell 脚本的经典陷阱，不是架构问题。
 
-### 2. SSH heredoc 变量展开
+### 2. `.env` 含空格变量名导致 `source` 失败
 
-**现象**：用 `ssh host "sudo bash -s" << 'ENDSCRIPT'` 传递脚本时，部分变量或特殊字符可能丢失。
+**现象**: `bash scripts/deploy.sh` 报 `Encrypt: command not found`
 
-**修复**：改为先 scp 上传独立脚本文件，再 ssh 执行：
+**原因**: `.env` 中 `Encrypt Key=601814` 含空格，`source .env` 时 bash 将其解析为执行命令 `Encrypt` 带参数 `Key=601814`。
+
+**修复**: 用 `grep` 逐变量提取替代 `source`：
 ```bash
-scp server-deploy.sh user@host:/tmp/
-ssh user@host "sudo bash /tmp/server-deploy.sh"
+env_val() {
+    local key="$1"
+    local default="$2"
+    local val
+    val=$(grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
+    val=$(echo "$val" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+    echo "${val:-$default}"
+}
+SERVER_USER="$(env_val SERVER_USER)"
 ```
 
 ### 3. Node.js v20 没有原生 WebSocket

@@ -32,9 +32,20 @@ if [ ! -f "$ENV_FILE" ]; then
     err "找不到 .env 文件，请先创建: cp .env.example .env"
 fi
 
-set -a
-source "$ENV_FILE"
-set +a
+# 安全解析：逐变量 grep，避免 source 时含空格行导致 bash 报错
+env_val() {
+    local key="$1"
+    local default="${2:-}"
+    local val
+    val=$(grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
+    val=$(echo "$val" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+    echo "${val:-$default}"
+}
+
+SERVER_USER="$(env_val SERVER_USER)"
+SERVER_IP="$(env_val SERVER_IP)"
+SERVER_PORT="$(env_val SERVER_PORT 22)"
+SSH_KEY_PATH="$(env_val SSH_KEY_PATH)"
 
 # ── 参数 ──
 DEPLOY_FRONTEND=false
@@ -51,7 +62,7 @@ esac
 
 # ── 连接检查 ──
 SSH_TARGET="${SERVER_USER}@${SERVER_IP}"
-SSH_PORT="${SERVER_PORT:-22}"
+SSH_PORT="${SERVER_PORT}"
 REMOTE_BUILD="/tmp/software-index-build"
 
 log "检查连接 $SSH_TARGET..."

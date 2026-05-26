@@ -7,6 +7,37 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "v2.5.0",
+    date: "2026-05-26",
+    title: "TF客服值守 v3.6.0 发布",
+    items: [
+      { type: "new", text: "TF客服值守 v3.6.0：AI上下文精简（token消耗降80%）、人工待处理点击跳转+消息预览、输入框placeholder匹配、重试机制优化、物流卡片防护" },
+    ],
+  },
+  {
+    version: "v2.4.0",
+    date: "2026-05-25",
+    title: "Shopee 数据分析工具接入主站",
+    items: [
+      { type: "new", text: "新增 Shopee 巴西店铺数据分析工具：上传 Excel/CSV → ETL → 指标计算 → 诊断报告" },
+      { type: "new", text: "Python FastAPI 后端独立部署（127.0.0.1:8000），Express /api/shopee/* 代理转发" },
+      { type: "new", text: "ROI 诊断首页：多文件上传 + 8 维度健康评分卡 + 可执行问题清单 + 预算模拟" },
+      { type: "new", text: "明细查阅页：4 Tab（销售日趋势 / 流量漏斗 / 商品帕累托 / 用户资产）" },
+      { type: "new", text: "诊断规则可配置：8 条规则的阈值/开关/严重等级前端面板实时调整" },
+      { type: "change", text: "项目结构：新增 backend/python/shopee-analyzer/，为后续 Python 分析工具铺路" },
+    ],
+  },
+  {
+    version: "v2.3.0",
+    date: "2026-05-25",
+    title: "电商定价计算器 v1.0.0 发布",
+    items: [
+      { type: "new", text: "电商定价计算器 Chrome 扩展首发：新规企业定价、达人佣金定价、折扣计算三种模式" },
+      { type: "new", text: "Chrome 扩展形式：弹窗（popup）+ 浮动窗口（floating window）双界面" },
+      { type: "new", text: "支持 storage + activeTab 权限，数据本地存储安全" },
+    ],
+  },
+  {
     version: "v2.2.0",
     date: "2026-05-19",
     title: "TF客服值守 v3.5.0 发布 + AI经营Copilot前端Mock",

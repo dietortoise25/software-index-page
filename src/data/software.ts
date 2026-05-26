@@ -28,9 +28,24 @@ export const softwareList: Software[] = [
     category: "效率工具",
     versions: [
       {
+        version: "3.6.0",
+        releaseDate: "2026-05-26",
+        isLatest: true,
+        changelog: [
+          "AI上下文精简：删除客户列表注入，用户消息减少约80%，token消耗大幅降低",
+          "人工待处理升级：点击条目直接跳转到对应对话 + 显示客户最后一条消息文本摘要",
+          "输入框适配：改用placeholder属性匹配，不再依赖不稳定的hash类名",
+          "重试机制修复：AI不用工具时提醒追加到user message末尾，工具调用遵循率更高",
+          "物流卡片防护：无订单客户不尝试发送 + 物流卡片失败后自动拦截虚假回复并升级人工",
+        ],
+        downloads: {
+          windows: "http://42.193.170.109/downloads/TF客服值守v3.6.0.zip",
+        },
+      },
+      {
         version: "3.5.0",
         releaseDate: "2026-05-19",
-        isLatest: true,
+        isLatest: false,
         changelog: [
           "AI回复质量：程序接管回复决策权，AI只管生成文字；AI忘用工具时自动重试；客户只发产品卡片也能识别",
           "人工待处理面板：侧边栏新增红色升级列表，AI判断需人工介入时显示客户名/原因/时间，支持一键解除",
@@ -108,8 +123,79 @@ export const softwareList: Software[] = [
     ],
   },
   {
+    id: "ecommerce-pricing-calc",
+    name: "电商定价计算器",
+    description: "电商平台定价计算 Chrome 扩展，支持新规企业定价、达人佣金定价、折扣计算等场景",
+    iconName: "Calculator",
+    category: "浏览器扩展",
+    versions: [
+      {
+        version: "1.0.0",
+        releaseDate: "2026-05-25",
+        isLatest: true,
+        changelog: [
+          "首个发布版本",
+          "新规企业定价：根据平台新规自动计算企业定价",
+          "达人佣金定价：支持达人合作佣金测算",
+          "折扣计算：多种折扣方案快速计算对比",
+          "Chrome 扩展形式，弹窗 + 浮动窗口双界面",
+        ],
+        downloads: {
+          windows: "http://42.193.170.109/downloads/电商定价计算器 1.0.0.zip",
+        },
+      },
+    ],
+  },
+  {
+    id: "ai-requirement",
+    name: "AI 需求助手",
+    description: "AI 驱动的需求收集与排期助手，4 阶段引导式对话 + 飞书日历智能排期 + 审查面板流转",
+    iconName: "MessageSquare",
+    category: "Web 工具",
+    versions: [
+      {
+        version: "2.0.0",
+        releaseDate: "2026-05-12",
+        isLatest: true,
+        changelog: [
+          "AI 流式对话：接入 DeepSeek 大模型，实时打字机效果",
+          "4 阶段引导式需求收集：背景 → 目标 → 细节 → 排期",
+          "飞书日历智能排期：自动读取空闲时段，生成开发日程",
+          "用户上下文注入：根据角色（访客/内部用户/管理员）差异化回复",
+          "需求提交 → 审查面板流转：提交后进入审批流程，通过后飞书通知",
+          "浮动按钮入口：全站右下角一键唤起对话框",
+          "未登录引导：访客点击后跳转登录页，不再直接报错",
+        ],
+      },
+    ],
+  },
+  {
+    id: "ai-copilot",
+    name: "AI 经营 Copilot",
+    description: "Mock · AI 驱动的电商经营智能助手仪表盘，事件流监控 + ChatBI 问答 + 经营日报 + 可配置分析 Skills",
+    iconName: "Brain",
+    category: "Web 工具",
+    versions: [
+      {
+        version: "0.1.0-mock",
+        releaseDate: "2026-05-19",
+        isLatest: true,
+        changelog: [
+          "前端 Mock 演示版本",
+          "事件流面板：业务异常实时监控（ROI/销量/库存/广告/利润），AI 归因分析 + 行动建议",
+          "ChatBI 面板：自然语言问答，支持 GMV/利润/库存等多维度查询",
+          "经营日报面板：每日 9:00 自动生成，GMV 概览 + Top SKU 利润贡献表",
+          "Skills 面板：固化分析能力，支持启用/停用、新增自定义 Skill",
+          "设置面板：异常阈值配置 + 推送渠道管理（飞书/邮件）",
+          "左侧导航栏：事件流 / ChatBI / 日报 / Skills / 设置五视图切换",
+        ],
+        workbenchUrl: "/future",
+      },
+    ],
+  },
+  {
     id: "a-shity-helper",
-    name: "A Shity Helper",
+    name: "淘宝/天猫商品数据采集器",
     description: "淘宝/天猫商品数据采集 Chrome 扩展，支持单品、批量采集与智能反风控",
     iconName: "BarChart3",
     category: "浏览器扩展",
@@ -130,6 +216,30 @@ export const softwareList: Software[] = [
         downloads: {
           windows: "http://42.193.170.109/downloads/a-shity-helper-0.1.3.zip",
         },
+      },
+    ],
+  },
+  {
+    id: "shopee-analyzer",
+    name: "Shopee 数据分析",
+    description: "Shopee 巴西店铺数据 ETL + ROI 诊断工具，上传 Excel/CSV → 指标计算 → 健康评分 → 预算模拟",
+    iconName: "Network",
+    category: "Web 工具",
+    versions: [
+      {
+        version: "2.1.0",
+        releaseDate: "2026-05-25",
+        isLatest: true,
+        changelog: [
+          "多文件诊断：上传店铺统计 Excel + 广告 CSV + 订单明细，一次获取完整报告",
+          "8 维度健康评分卡：预算效率/取消率/复购率/店铺转化/商品集中度/新客依赖/广告浪费/广告CTR",
+          "可执行问题清单：逐条标注严重等级 + 影响金额 + 操作建议",
+          "预算模拟：零转化预算重分配模拟，对比 baseline vs optimized ROAS",
+          "诊断规则可配：阈值/开关/严重等级实时调整，即时生效",
+          "4 维度明细查阅：销售日趋势/流量漏斗/商品帕累托/用户资产",
+          "数据补位策略：订单明细为可信数据源，自动补位聚合行缺失",
+        ],
+        workbenchUrl: "/shopee",
       },
     ],
   },

@@ -30,9 +30,23 @@ if [ ! -f "$ENV_FILE" ]; then
     err "找不到 .env 文件，请先创建: cp .env.example .env"
 fi
 
-set -a
-source "$ENV_FILE"
-set +a
+# 安全解析：逐变量 grep，避免 source 时含空格行（如 "Encrypt Key=xxx"）导致 bash 报错
+env_val() {
+    local key="$1"
+    local default="${2:-}"
+    local val
+    val=$(grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
+    # 去除首尾空白和引号
+    val=$(echo "$val" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+    echo "${val:-$default}"
+}
+
+SERVER_USER="$(env_val SERVER_USER)"
+SERVER_IP="$(env_val SERVER_IP)"
+SERVER_PORT="$(env_val SERVER_PORT 22)"
+SSH_KEY_PATH="$(env_val SSH_KEY_PATH)"
+DOWNLOADS_PATH="$(env_val DOWNLOADS_PATH /var/www/software-index/downloads)"
+DOWNLOADS_BASE_URL="$(env_val DOWNLOADS_BASE_URL "http://${SERVER_IP}/downloads")"
 
 # ── 参数 ──
 ZIP_FILE="${1:-}"
@@ -52,7 +66,7 @@ fi
 
 # ── 连接检查 ──
 SSH_TARGET="${SERVER_USER}@${SERVER_IP}"
-SSH_PORT="${SERVER_PORT:-22}"
+SSH_PORT="${SERVER_PORT}"
 
 log "检查连接 $SSH_TARGET..."
 if ! ssh -o ConnectTimeout=5 -o BatchMode=yes -p "$SSH_PORT" "$SSH_TARGET" "echo OK" &>/dev/null; then
@@ -94,7 +108,9 @@ if [ "$CODE_UPDATE" = false ]; then
     log "跳过代码更新"
 else
     echo ""
-    warn "请手动更新以下文件以发布新版本："
-    warn "  src/data/software.ts — 添加新版本记录"
-    warn "  src/data/articles.ts — 添加发布文章"
+    warn "请完成以下步骤以完成发布："
+    warn "  1. 更新 src/data/software.ts — 添加新版本记录"
+    warn "  2. 更新 src/data/changelog.ts — 添加更新日志"
+    warn "  3. git commit && git push origin main"
+    warn "     → GitHub Actions 自动构建并部署前端到服务器"
 fi
