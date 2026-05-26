@@ -1,6 +1,7 @@
 /**
  * 软件发布站后端服务
  * relay.service — Express API (port 8765)
+ * 部署: git push deploy main → post-receive hook
  */
 import express from "express"
 import cors from "cors"
