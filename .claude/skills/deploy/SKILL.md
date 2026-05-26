@@ -64,37 +64,26 @@ metadata:
 | `/api/` | `127.0.0.1:8765` | 审查/内部管理 API |
 | `/*` | 静态文件 | SPA fallback 到 index.html |
 
-## 部署方式（3 种，按场景选用）
+## 部署方式（只有 2 种）
 
-### 1. Git 推送 → CI/CD（前端日常更新）★ 推荐
+### 1. 代码部署：`git push deploy main` ★ 唯一方式
 
 ```bash
-git add . && git commit -m "..." && git push origin main
+git add . && git commit -m "..." && git push deploy main
 ```
 
-GitHub Actions (`.github/workflows/deploy.yml`) 自动：`pnpm build` → `rsync dist/` 到服务器 → `nginx reload`。
+服务器 `post-receive` hook 自动：检出 → 构建 4 后端 + 前端 → 部署 → 重启全部 systemd 服务 → 验证。
 
-适用：修改了 `src/` 下任何前端代码（包括 `software.ts`、`changelog.ts`）。
+适用：任何代码改动（前端/后端/Python）。
 
-### 2. ZIP 上传（发布插件/工具安装包）
+### 2. 二进制上传：`bash scripts/deploy.sh`
 
 ```bash
 eval $(ssh-agent) && ssh-add ~/.ssh/alan_pc.pem
 bash scripts/deploy.sh publish/文件名.zip
 ```
 
-仅上传文件到 `/var/www/software-index/downloads/`，不触发代码更新。
-
-### 3. 完整服务器端构建（后端 + 退货工作流）
-
-```bash
-eval $(ssh-agent) && ssh-add ~/.ssh/alan_pc.pem
-bash scripts/deploy-full.sh           # 全部
-bash scripts/deploy-full.sh --server   # 仅后端 API
-bash scripts/deploy-full.sh --rw       # 仅退货工作流
-```
-
-适用：修改了 `server/`、`platform/`、`tools/return-workflow/`。
+仅上传文件到 `/var/www/software-index/downloads/`，不触发代码构建。
 
 ## 发布新插件/工具版本完整流程
 
