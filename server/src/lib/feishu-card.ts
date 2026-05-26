@@ -13,7 +13,17 @@ const priLabel: Record<string, string> = {
   urgent: "紧急", high: "高", medium: "中", low: "低",
 }
 
-export function buildRequirementsCard(req: Requirement, schedule?: ScheduleProposal) {
+/** 从邮箱中提取飞书 open_id（仅 feishu.user 邮箱适用） */
+function extractOpenId(email?: string): string | null {
+  if (!email || !email.endsWith("@feishu.user")) return null
+  return email.replace("@feishu.user", "")
+}
+
+export function buildRequirementsCard(
+  req: Requirement,
+  schedule?: ScheduleProposal,
+  submitter?: { name?: string; email?: string },
+) {
   const fields: Array<object> = [
     { tag: "hr" },
     { tag: "div", text: { tag: "lark_md", content: `**问题痛点**\n${req.problem}` } },
@@ -42,6 +52,17 @@ export function buildRequirementsCard(req: Requirement, schedule?: SchedulePropo
       template: "blue",
     },
     elements: [
+      ...(submitter?.name ? [{
+        tag: "div" as const,
+        text: {
+          tag: "lark_md" as const,
+          content: (() => {
+            const openId = extractOpenId(submitter.email)
+            const at = openId ? `<at id=${openId}>${submitter.name}</at>` : submitter.name
+            return `提交人：${at}`
+          })(),
+        },
+      }, { tag: "hr" as const }] : []),
       {
         tag: "column_set",
         flex_mode: "none",
