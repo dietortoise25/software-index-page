@@ -11,6 +11,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **前端**: React 19 + Vite 8 + TypeScript 6 + Tailwind CSS v4 + shadcn/ui v4 + react-router v7
 - **后端**: Express + TypeScript（端口 8765，systemd 服务名 `relay`）
 - **数据中台**: 千易ERP SDK + 定时同步调度器（systemd 服务名 `qianyi-scheduler`）
+- **退货工作流**: Express + TypeScript（端口 3002，systemd 服务名 `return-workflow`）
+- **Shopee 分析器**: Python FastAPI（端口 8000，systemd 服务名 `shopee-analyzer`）
 - **数据库**: Supabase（前端直连 + 后端服务端使用）
 - **AI**: DeepSeek API（通过 `@ai-sdk/deepseek`）
 - **外部集成**: 飞书 API（消息推送、日历日程、审批回调）
@@ -25,7 +27,7 @@ cd platform && pnpm dev     # 数据中台同步调度器（tsx watch）
 # 不执行 pnpm build / pnpm tsc -b 等构建命令
 ```
 
-Vite 代理配置：`/api/*` → `localhost:3001`（实际后端端口 8765，需确认），`/api/return-workflow` → `localhost:3002`。
+Vite 代理配置：`/api/*` → `localhost:8765`，`/api/return-workflow` → `localhost:3002`。
 
 ## 项目结构
 
@@ -50,7 +52,7 @@ src/                         # 前端 SPA
 ├── lib/                     # supabase客户端 / markdown渲染 / 工具函数
 └── types/                   # TypeScript 类型定义
 
-server/src/                  # Express 后端
+server/src/                  # Express 后端（relay）
 ├── index.ts                 # 服务入口：路由挂载 + PIN验证 + 快速表单提交
 ├── routes/                  # 按功能拆分路由
 │   ├── chat.ts              # AI 对话（DeepSeek）
@@ -58,12 +60,16 @@ server/src/                  # Express 后端
 │   ├── calendar.ts          # 飞书日历排期查询
 │   ├── requirements.ts      # 需求 CRUD（JSON文件存储 + 互斥锁）
 │   ├── internal.ts          # 运营管理 CRUD
-│   └── approval.ts          # 审批流程 + 飞书审批Webhook回调
+│   ├── approval.ts          # 审批流程 + 飞书审批Webhook回调
+│   └── shopee.ts            # Shopee API 代理转发
 └── lib/                     # feishu SDK / rate-limit / storage / AI prompts
 
-platform/src/                # 千易ERP数据中台
+platform/src/                # 千易ERP数据中台（qianyi-scheduler）
 ├── sdk/                     # 千易ERP API 的 TypeScript SDK
 └── sync/                    # 定时同步 → Supabase（scheduler / full_sync）
+
+backend/python/shopee-analyzer/  # Shopee 数据分析（Python FastAPI）
+tools/return-workflow/           # 退货工作流（return-workflow）
 ```
 
 ## 关键设计决策
@@ -71,8 +77,8 @@ platform/src/                # 千易ERP数据中台
 - **数据存储**: 需求审查数据使用服务器端 JSON 文件（`server/src/lib/storage.ts`），无数据库依赖；运营数据使用 Supabase
 - **路径别名**: `@/` 映射到 `./src/`（前端）；`@/` 可跨项目复用
 - **飞书集成**: 消息用 tenant token → open_id 私聊推送；日历日程创建在机器人主日历；审批回调通过 Webhook
-- **部署**: `git push deploy main` 触发服务器 post-receive hook 自动构建部署全部 4 后端+前端。插件 ZIP 用 `bash scripts/deploy.sh` 上传。前端 Nginx 托管，后端 systemd 守护
-- **环境变量**: `.env` 文件包含所有密钥配置，`.gitignore` 已排除 `.env`；`.env.example` 为模板
+- **部署**: `git push deploy main` 触发服务器 post-receive hook 自动构建部署全部 4 后端+前端。插件 ZIP 用 `bash scripts/deploy.sh` 上传。`.env` 变更用 `bash scripts/sync-env.sh` 同步到服务器
+- **环境变量**: `.env` 包含所有密钥配置，`.gitignore` 已排除。`.env.example` 为模板。禁止在代码中硬编码 IP、open_id、APP_ID 等；必须从 `process.env` 读取并保留 fallback 默认值
 - **PIN保护**: 审查面板通过 PIN 码认证，带 IP 限流（60秒5次），dev 模式自动跳过
 - **Tailwind v4**: 使用 `@theme inline` 设计令牌，自定义颜色通过 CSS 变量，禁止硬编码
 - **图标**: 使用 lucide-react，不自行创建 SVG
@@ -96,6 +102,37 @@ cd server && npx tsc --noEmit    # 后端类型检查
 pnpm tsc -b                       # 前端类型检查
 node tests/e2e.mjs                # E2E 测试
 ```
+
+## 部署规范（git push deploy 前强制执行）
+
+> 2026-05-27 Agent 部署时，Shopee 页面本地存在但未 git add，导致服务器 tsc -b 失败。根本原因是「本地 dev 能跑 ≠ 服务器能构建」——dev server 读工作区，bare repo 只读已提交文件。
+
+### 部署前检查（3 步，不可跳过）
+
+```bash
+# 1. 工作区清洁检查
+git status                    # 确保无未提交的源码文件
+
+# 2. 前端类型检查（= 服务器构建流程）
+pnpm tsc -b                   # 失败 = 服务器也会失败
+
+# 3. 后端类型检查
+cd server && npx tsc --noEmit
+```
+
+### 提交纪律
+
+| 规则 | 说明 |
+|------|------|
+| **关联文件同 commit 提交** | 页面 + 组件 + 类型 + 工具函数，所有被 import 的新文件必须同时 git add |
+| **禁止只提交入口文件** | App.tsx 引用了新页面 → 页面文件 + 页面依赖的组件/类型全部提交 |
+| **提交前自查** | `git status` 确认 `??` 列表中没有源码文件被遗漏 |
+
+### 工作区清洁
+
+- 部署前 `git status` 应只有少量临时文件（docs/、publish/、ppt/ 等）
+- 源码目录（`src/`、`server/src/`、`platform/src/`、`backend/`）不应有 `??` 未追踪文件
+- 临时放弃的改动用 `git stash`，不要留在工作区
 
 ## Skills 使用指南
 
