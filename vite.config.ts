@@ -13,6 +13,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api/return-workflow": "http://localhost:3002",
+      "/api/agent": "http://localhost:8001",
       "/api": "http://localhost:3001",
     },
   },
