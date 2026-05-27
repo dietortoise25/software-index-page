@@ -1,6 +1,6 @@
-# AGENTS.md
+# CLAUDE.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 项目概述
 
@@ -11,6 +11,8 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 - **前端**: React 19 + Vite 8 + TypeScript 6 + Tailwind CSS v4 + shadcn/ui v4 + react-router v7
 - **后端**: Express + TypeScript（端口 8765，systemd 服务名 `relay`）
 - **数据中台**: 千易ERP SDK + 定时同步调度器（systemd 服务名 `qianyi-scheduler`）
+- **退货工作流**: Express + TypeScript（端口 3002，systemd 服务名 `return-workflow`）
+- **Shopee 分析器**: Python FastAPI（端口 8000，systemd 服务名 `shopee-analyzer`）
 - **数据库**: Supabase（前端直连 + 后端服务端使用）
 - **AI**: DeepSeek API（通过 `@ai-sdk/deepseek`）
 - **外部集成**: 飞书 API（消息推送、日历日程、审批回调）
@@ -25,7 +27,7 @@ cd platform && pnpm dev     # 数据中台同步调度器（tsx watch）
 # 不执行 pnpm build / pnpm tsc -b 等构建命令
 ```
 
-Vite 代理配置：`/api/*` → `localhost:3001`（实际后端端口 8765，需确认），`/api/return-workflow` → `localhost:3002`。
+Vite 代理配置：`/api/*` → `localhost:8765`，`/api/return-workflow` → `localhost:3002`。
 
 ## 项目结构
 
@@ -50,7 +52,7 @@ src/                         # 前端 SPA
 ├── lib/                     # supabase客户端 / markdown渲染 / 工具函数
 └── types/                   # TypeScript 类型定义
 
-server/src/                  # Express 后端
+server/src/                  # Express 后端（relay）
 ├── index.ts                 # 服务入口：路由挂载 + PIN验证 + 快速表单提交
 ├── routes/                  # 按功能拆分路由
 │   ├── chat.ts              # AI 对话（DeepSeek）
@@ -58,12 +60,16 @@ server/src/                  # Express 后端
 │   ├── calendar.ts          # 飞书日历排期查询
 │   ├── requirements.ts      # 需求 CRUD（JSON文件存储 + 互斥锁）
 │   ├── internal.ts          # 运营管理 CRUD
-│   └── approval.ts          # 审批流程 + 飞书审批Webhook回调
+│   ├── approval.ts          # 审批流程 + 飞书审批Webhook回调
+│   └── shopee.ts            # Shopee API 代理转发
 └── lib/                     # feishu SDK / rate-limit / storage / AI prompts
 
-platform/src/                # 千易ERP数据中台
+platform/src/                # 千易ERP数据中台（qianyi-scheduler）
 ├── sdk/                     # 千易ERP API 的 TypeScript SDK
 └── sync/                    # 定时同步 → Supabase（scheduler / full_sync）
+
+backend/python/shopee-analyzer/  # Shopee 数据分析（Python FastAPI）
+tools/return-workflow/           # 退货工作流（return-workflow）
 ```
 
 ## 关键设计决策
@@ -71,8 +77,8 @@ platform/src/                # 千易ERP数据中台
 - **数据存储**: 需求审查数据使用服务器端 JSON 文件（`server/src/lib/storage.ts`），无数据库依赖；运营数据使用 Supabase
 - **路径别名**: `@/` 映射到 `./src/`（前端）；`@/` 可跨项目复用
 - **飞书集成**: 消息用 tenant token → open_id 私聊推送；日历日程创建在机器人主日历；审批回调通过 Webhook
-- **部署**: `git push deploy main` 触发服务器 post-receive hook 自动构建部署全部 4 后端+前端。插件 ZIP 用 `bash scripts/deploy.sh` 上传。前端 Nginx 托管，后端 systemd 守护
-- **环境变量**: `.env` 文件包含所有密钥配置，`.gitignore` 已排除 `.env`；`.env.example` 为模板
+- **部署**: `git push deploy main` 触发服务器 post-receive hook 自动构建部署全部 4 后端+前端。插件 ZIP 用 `bash scripts/deploy.sh` 上传。`.env` 变更用 `bash scripts/sync-env.sh` 同步到服务器
+- **环境变量**: `.env` 包含所有密钥配置，`.gitignore` 已排除。`.env.example` 为模板。禁止在代码中硬编码 IP、open_id、APP_ID 等；必须从 `process.env` 读取并保留 fallback 默认值
 - **PIN保护**: 审查面板通过 PIN 码认证，带 IP 限流（60秒5次），dev 模式自动跳过
 - **Tailwind v4**: 使用 `@theme inline` 设计令牌，自定义颜色通过 CSS 变量，禁止硬编码
 - **图标**: 使用 lucide-react，不自行创建 SVG
@@ -97,9 +103,11 @@ pnpm tsc -b                       # 前端类型检查
 node tests/e2e.mjs                # E2E 测试
 ```
 
-## Superpowers Skills 使用指南
+## Skills 使用指南
 
-本项目安装了 Superpowers 技能包，在以下场景通过 `Skill` 工具调用：
+所有 Skills 通过 `Skill` 工具按需调用，覆盖开发全流程。
+
+### 开发流程（Superpowers）
 
 | Skill | 触发场景 |
 |-------|---------|
@@ -114,4 +122,52 @@ node tests/e2e.mjs                # E2E 测试
 | `superpowers:dispatching-parallel-agents` | 2+ 个独立任务可并行执行时 |
 | `superpowers:subagent-driven-development` | 当前会话中执行独立步骤的实现计划 |
 | `superpowers:using-git-worktrees` | 需要隔离当前工作区的功能开发 |
+
+### 技术栈
+
+| Skill | 适用场景 |
+|-------|---------|
+| `supabase` | 数据库 Schema/认证/RLS/迁移、supabase-js 使用问题 |
+| `shadcn-ui` | 添加/定制 shadcn/ui 组件、查找组件示例 |
+| `tailwindcss` | Tailwind v4 样式、响应式设计、设计令牌配置 |
+| `ui-ux-pro-max` | UI/UX 设计（看板/卡片/表单）、配色/字体/动效方案 |
+| `deploy` | 一键部署（构建 → 上传 → 服务器安装） |
+
+### 业务领域
+
+| Skill | 适用场景 |
+|-------|---------|
+| `analytics-metrics` | 运营看板数据可视化、KPI 图表、指标仪表盘 |
+| `business-metrics-calculator` | 电商指标计算（MRR/CLV/CAC）、行业基准对比 |
+| `e-commerce-domain-knowledge` | 电商业务模型、B2C/B2B 需求模式参考 |
+| `e-commerce-manager` | 店铺运营优化、转化分析、零售策略 |
+
+### 飞书集成
+
+| Skill | 适用场景 |
+|-------|---------|
+| `lark-im` | 消息收发、群聊管理 |
+| `lark-calendar` | 日程/会议管理、忙闲查询 |
+| `lark-approval` | 审批流程（与 server 审批路由配合） |
+| `lark-base` | 多维表格操作 |
+| `lark-doc` | 云文档创建/编辑 |
+| `lark-contact` | 通讯录查询 |
+| `lark-whiteboard` | 架构图/流程图（含 DSL 编辑） |
+
+### 质量保障
+
+| Skill | 适用场景 |
+|-------|---------|
+| `review` | PR 代码审查 |
+| `security-review` | 上线前安全审计 |
+| `simplify` | 代码重构、质量优化、复用改进 |
+| `user-story-audit` | 管理员+普通用户双视角，审查完整交互流程 |
+
+### 项目管理
+
+| Skill | 适用场景 |
+|-------|---------|
+| `pm-workflow` | 新功能/新模块 4 阶段门控（PRD→用户故事→计划→验收） |
+| `grill-with-docs` | 方案审查、需求与领域模型对齐 |
+| `guizang-ppt-skill` | 生成网页 PPT（杂志风/瑞士风） |
 
