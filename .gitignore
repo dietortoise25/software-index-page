@@ -14,3 +14,8 @@ tools/*/node_modules/
 *.tmp.json
 .tmp_images/
 output/
+
+# 发布二进制和临时文件
+publish/
+ppt/
+public/ppt/

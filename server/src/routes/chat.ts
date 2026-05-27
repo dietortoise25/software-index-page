@@ -2,18 +2,11 @@
  * POST /api/chat — AI 流式对话
  */
 import { Router } from "express"
-import { createDeepSeek } from "@ai-sdk/deepseek"
 import { streamText, createUIMessageStream, pipeUIMessageStreamToResponse } from "ai"
 import { INTERVIEW_SYSTEM_PROMPT } from "../lib/interview-prompt.js"
+import { deepseek, DEEPSEEK_MODEL } from "../lib/ai-config.js"
 
 const router = Router()
-
-const MODEL_NAME = "deepseek-v4-pro"
-
-const deepseek = createDeepSeek({
-  apiKey: process.env.DEEPSEEK_API_KEY || "",
-  baseURL: process.env.DEEPSEEK_API_URL_OpenAI || "https://api.deepseek.com",
-})
 
 function buildSystemPrompt(user: { name?: string; email?: string; role?: string }) {
   let context = ""
@@ -52,11 +45,11 @@ router.post("/", async (req, res) => {
           writer.write({ type: "start" })
           writer.write({
             type: "data-custom",
-            data: { model: MODEL_NAME },
+            data: { model: DEEPSEEK_MODEL },
           })
 
           const result = streamText({
-            model: deepseek(MODEL_NAME),
+            model: deepseek(DEEPSEEK_MODEL),
             system: systemPrompt,
             messages,
             maxOutputTokens: 4096,

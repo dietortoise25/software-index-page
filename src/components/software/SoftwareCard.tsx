@@ -1,7 +1,10 @@
 import { Link } from "react-router"
 import {
   BarChart3,
+  Brain,
+  Calculator,
   FileText,
+  MessageSquare,
   Terminal,
   Settings2,
   Network,
@@ -13,7 +16,10 @@ import type { Software } from "@/types/software"
 
 const iconMap: Record<string, LucideIcon> = {
   BarChart3,
+  Brain,
+  Calculator,
   FileText,
+  MessageSquare,
   Terminal,
   Settings2,
   Network,

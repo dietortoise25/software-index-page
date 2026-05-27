@@ -3,19 +3,12 @@
  * POST /api/calendar/availability    — 查询空闲时段（不含 AI）
  */
 import { Router } from "express"
-import { createDeepSeek } from "@ai-sdk/deepseek"
 import { generateObject } from "ai"
 import { fetchMyAvailability } from "../lib/feishu-calendar.js"
 import { scheduleProposalSchema, SCHEDULE_SYSTEM_PROMPT } from "../lib/schedule-prompt.js"
+import { deepseek, DEEPSEEK_MODEL } from "../lib/ai-config.js"
 
 const router = Router()
-
-const deepseek = createDeepSeek({
-  apiKey: process.env.DEEPSEEK_API_KEY || "",
-  baseURL: process.env.DEEPSEEK_API_URL_OpenAI || "https://api.deepseek.com",
-})
-
-const MODEL_NAME = "deepseek-chat"
 
 /** AI 排期生成 */
 router.post("/propose-schedule", async (req, res) => {
@@ -58,7 +51,7 @@ ${requirementJson}
 ${availSummary || "暂无可用的空闲时段"}`
 
     const result = await generateObject({
-      model: deepseek(MODEL_NAME),
+      model: deepseek(DEEPSEEK_MODEL),
       system: SCHEDULE_SYSTEM_PROMPT,
       prompt,
       schema: scheduleProposalSchema,

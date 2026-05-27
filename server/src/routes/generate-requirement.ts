@@ -2,20 +2,15 @@
  * POST /api/requirement/generate — 从对话提取结构化需求 + 发送飞书卡片
  */
 import { Router } from "express"
-import { createDeepSeek } from "@ai-sdk/deepseek"
 import { generateObject } from "ai"
 import { requirementSchema } from "../schemas/requirement.js"
 import { EXTRACTION_PROMPT } from "../lib/interview-prompt.js"
 import { getTenantToken, getUserOpenId, sendFeishuCard } from "../lib/feishu.js"
 import { buildRequirementsCard } from "../lib/feishu-card.js"
 import type { ScheduleProposal } from "../lib/schedule-prompt.js"
+import { deepseek, DEEPSEEK_MODEL } from "../lib/ai-config.js"
 
 const router = Router()
-
-const deepseek = createDeepSeek({
-  apiKey: process.env.DEEPSEEK_API_KEY || "",
-  baseURL: process.env.DEEPSEEK_API_URL_OpenAI || "https://api.deepseek.com",
-})
 
 router.post("/", async (req, res) => {
   try {
@@ -33,7 +28,7 @@ router.post("/", async (req, res) => {
     } else if (messages) {
       // 从对话中提取
       const result = await generateObject({
-        model: deepseek("deepseek-v4-pro"),
+        model: deepseek(DEEPSEEK_MODEL),
         system: EXTRACTION_PROMPT,
         messages: messages.slice(-20).map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
         schema: requirementSchema,
@@ -54,7 +49,12 @@ router.post("/", async (req, res) => {
       return
     }
 
-    const card = buildRequirementsCard(structured as Parameters<typeof buildRequirementsCard>[0], schedule)
+    const user = (req as any).user
+    const card = buildRequirementsCard(
+      structured as Parameters<typeof buildRequirementsCard>[0],
+      schedule,
+      { name: user?.name, email: user?.email },
+    )
     const feishuResult = await sendFeishuCard(token, openId, card)
 
     console.log(`[generate] 飞书结果: code=${feishuResult.code}`)

@@ -2,7 +2,10 @@ import { useParams, Link } from "react-router"
 import { ArrowLeft } from "lucide-react"
 import {
   BarChart3,
+  Brain,
+  Calculator,
   FileText,
+  MessageSquare,
   Terminal,
   Settings2,
   Network,
@@ -18,7 +21,10 @@ import EmptyState from "@/components/common/EmptyState"
 
 const iconMap: Record<string, LucideIcon> = {
   BarChart3,
+  Brain,
+  Calculator,
   FileText,
+  MessageSquare,
   Terminal,
   Settings2,
   Network,
