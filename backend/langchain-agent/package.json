@@ -32,5 +32,10 @@
     "eslint": "^10.4.0",
     "tsx": "^4.19.0",
     "typescript": "^5.8.0"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "@langchain/openai@1.4.7": "patches/@langchain__openai@1.4.7.patch"
+    }
   }
 }
