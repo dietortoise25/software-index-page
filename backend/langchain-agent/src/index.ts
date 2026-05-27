@@ -1,5 +1,6 @@
 import "dotenv/config"
 import express from "express"
+import cors from "cors"
 import { healthRouter } from "./routes/health.js"
 import { chatRouter } from "./routes/chat.js"
 import { conversationsRouter } from "./routes/conversations.js"
@@ -10,6 +11,10 @@ import "./tools/built-in/get-current-time.js"
 const app = express()
 const PORT = parseInt(process.env.AGENT_PORT || "8001", 10)
 
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+  credentials: true,
+}))
 app.use(express.json())
 
 // Routes
