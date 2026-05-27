@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@langchain/openai@1.4.7':
+    hash: 14584f3818cf2934b84f6f0e1bd465c5a3d6d16dc569ef7fd0f97850453f8a1b
+    path: patches/@langchain__openai@1.4.7.patch
+
 importers:
 
   .:
@@ -13,7 +18,7 @@ importers:
         version: 1.1.48(openai@6.39.0(zod@4.4.3))
       '@langchain/openai':
         specifier: ^1.4.7
-        version: 1.4.7(@langchain/core@1.1.48(openai@6.39.0(zod@4.4.3)))
+        version: 1.4.7(patch_hash=14584f3818cf2934b84f6f0e1bd465c5a3d6d16dc569ef7fd0f97850453f8a1b)(@langchain/core@1.1.48(openai@6.39.0(zod@4.4.3)))
       '@supabase/supabase-js':
         specifier: ^2.105.4
         version: 2.106.2
@@ -1573,7 +1578,7 @@ snapshots:
       - svelte
       - vue
 
-  '@langchain/openai@1.4.7(@langchain/core@1.1.48(openai@6.39.0(zod@4.4.3)))':
+  '@langchain/openai@1.4.7(patch_hash=14584f3818cf2934b84f6f0e1bd465c5a3d6d16dc569ef7fd0f97850453f8a1b)(@langchain/core@1.1.48(openai@6.39.0(zod@4.4.3)))':
     dependencies:
       '@langchain/core': 1.1.48(openai@6.39.0(zod@4.4.3))
       js-tiktoken: 1.0.21

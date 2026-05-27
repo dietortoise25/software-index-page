@@ -54,13 +54,11 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
     const { messages } = parsed.data
     let lcMessages = toLangChainMessages(messages)
 
-    // 工具调用预检 — 显式关闭 thinking 模式以避免 reasoning_content 跨轮丢失
+    // 工具调用预检
     const tools = listTools()
     if (tools.length > 0) {
       const langChainTools = tools.map(toLangChainTool)
-      const modelWithTools = getModel({
-        modelKwargs: { thinking: { type: "disabled" } },
-      })
+      const modelWithTools = getModel()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const bound = (modelWithTools as any).bindTools(langChainTools)
 
@@ -95,10 +93,7 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
     res.setHeader("X-Accel-Buffering", "no")
 
     const logHandler = new AgentLogHandler()
-    // 流式阶段也用关 thinking 的模型，避免 reasoning_content 污染
-    const streamModel = getModel({
-      modelKwargs: { thinking: { type: "disabled" } },
-    })
+    const streamModel = getModel()
     const stream = await streamModel
       .pipe(new StringOutputParser())
       .stream(lcMessages, { callbacks: [logHandler] })
