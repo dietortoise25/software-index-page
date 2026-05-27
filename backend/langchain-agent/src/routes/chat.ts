@@ -102,6 +102,9 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
     res.setHeader("Connection", "keep-alive")
     res.setHeader("X-Accel-Buffering", "no")
 
+    // 立即推送 thinking 状态
+    res.write(`data: ${JSON.stringify({ status: "thinking" })}\n\n`)
+
     const logHandler = new AgentLogHandler()
     const streamModel = getModel()
     const stream = await streamModel

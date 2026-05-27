@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react"
 interface Message {
   role: "user" | "assistant"
   content: string
+  thinking?: boolean
   meta?: {
     toolCalls: string[]
     tokens: { prompt: number; completion: number; total: number }
@@ -146,8 +147,9 @@ export default function AgentTestPage() {
       const decoder = new TextDecoder()
       let assistantContent = ""
       let meta: Message["meta"]
+      let thinking = true
 
-      setMessages((prev) => [...prev, { role: "assistant", content: "" }])
+      setMessages((prev) => [...prev, { role: "assistant", content: "", thinking: true }])
 
       while (true) {
         const { done, value } = await reader.read()
@@ -158,11 +160,14 @@ export default function AgentTestPage() {
           if (!line.startsWith("data: ")) continue
           try {
             const data = JSON.parse(line.slice(6))
-            if (data.content) {
+            if (data.status === "thinking") {
+              // 保持 thinking 状态，不做额外处理
+            } else if (data.content) {
+              if (thinking) { thinking = false }
               assistantContent += data.content
               setMessages((prev) => {
                 const updated = [...prev]
-                updated[updated.length - 1] = { role: "assistant", content: assistantContent }
+                updated[updated.length - 1] = { role: "assistant", content: assistantContent, thinking: false }
                 return updated
               })
             }
@@ -176,7 +181,7 @@ export default function AgentTestPage() {
       if (meta) {
         setMessages((prev) => {
           const updated = [...prev]
-          updated[updated.length - 1] = { ...updated[updated.length - 1], meta }
+          updated[updated.length - 1] = { ...updated[updated.length - 1], meta, thinking: false }
           return updated
         })
       }
@@ -233,10 +238,19 @@ export default function AgentTestPage() {
                         ? "bg-primary text-primary-foreground"
                         : "bg-card border"
                     }`}>
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                        {m.content || (streaming && i === messages.length - 1 ? "..." : "")}
-                      </p>
-                      {m.role === "assistant" && <MetaRow meta={m.meta} />}
+                      {m.thinking ? (
+                        <div className="flex items-center gap-1.5 text-muted-foreground py-0.5">
+                          <span className="text-xs">Thinking</span>
+                          <span className="flex gap-0.5">
+                            <span className="w-1 h-1 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                            <span className="w-1 h-1 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                            <span className="w-1 h-1 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.content}</p>
+                      )}
+                      {!m.thinking && m.role === "assistant" && <MetaRow meta={m.meta} />}
                     </div>
                   </div>
                 ))
