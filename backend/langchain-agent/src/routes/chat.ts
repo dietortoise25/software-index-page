@@ -7,6 +7,8 @@ import { getModel } from "../config/model.js"
 import { optionalAuth } from "../auth/middleware.js"
 import { AgentLogHandler } from "../lib/callbacks.js"
 import { listTools, type RegisteredTool } from "../tools/registry.js"
+import { createConversation, addMessage, updateConversationTimestamp } from "../db/queries/conversations.js"
+import { upsertUserMemory } from "../db/queries/user-memory.js"
 
 export const chatRouter = Router()
 
@@ -98,11 +100,45 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
       .pipe(new StringOutputParser())
       .stream(lcMessages, { callbacks: [logHandler] })
 
+    let fullResponse = ""
     for await (const chunk of stream) {
+      fullResponse += chunk
       res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`)
     }
 
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`)
+    // 持久化：保存用户消息 + AI 回复
+    if (req.user) {
+      const userId = req.user.id
+      const convId = parsed.data.conversationId || (await createConversation(userId, messages[0]?.content?.slice(0, 30) || "新对话")).id
+      await addMessage(convId, "user", messages[messages.length - 1]!.content)
+      await addMessage(convId, "assistant", fullResponse)
+      await updateConversationTimestamp(convId)
+
+      // 用户记忆：从对话中提取并写入
+      try {
+        const extractModel = getModel({ temperature: 0.3 })
+        const memoryCheck = await extractModel.invoke([
+          new SystemMessage("从用户消息中提取值得记住的信息（角色、偏好、习惯等），输出 JSON：{ \"key\": \"value\" }。如果没什么值得记的，输出 {}。只输出JSON，不要其他文字。"),
+          new HumanMessage(messages[messages.length - 1]!.content),
+        ])
+        const text = (memoryCheck as AIMessage).content as string
+        const jsonMatch = text.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          const extracted = JSON.parse(jsonMatch[0])
+          for (const [key, value] of Object.entries(extracted)) {
+            if (typeof value === "string" && value.length > 0 && value.length < 500) {
+              await upsertUserMemory(userId, key, { value })
+            }
+          }
+        }
+      } catch {
+        // 记忆提取失败不影响对话
+      }
+
+      res.write(`data: ${JSON.stringify({ done: true, conversationId: convId })}\n\n`)
+    } else {
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`)
+    }
     res.end()
   } catch (error) {
     console.error("[agent] chat error:", error instanceof Error ? error.message : error)
