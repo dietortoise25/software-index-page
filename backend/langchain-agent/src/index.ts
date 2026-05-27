@@ -3,6 +3,9 @@ import { healthRouter } from "./routes/health.js"
 import { chatRouter } from "./routes/chat.js"
 import { conversationsRouter } from "./routes/conversations.js"
 
+// 注册内置工具（side-effect import）
+import "./tools/built-in/get-current-time.js"
+
 const app = express()
 const PORT = parseInt(process.env.AGENT_PORT || "8001", 10)
 
