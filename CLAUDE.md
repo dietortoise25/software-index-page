@@ -103,6 +103,27 @@ pnpm tsc -b                       # 前端类型检查
 node tests/e2e.mjs                # E2E 测试
 ```
 
+## 调试规范
+
+> 2026-05-27 pnpm patch 调试 DeepSeek reasoning_content 丢失问题时总结的教训。
+
+### 规则 1：追踪完整数据流再动手
+
+框架层的 bug 往往不在你第一个补丁的位置。数据会经过多个转换节点，每个节点都可能丢字段。
+
+```
+API 响应 → converter → 中间重建步骤 → Messages → converter → HTTP 请求
+             ↑ 补了这里                ↑ 这里丢了              ↑ 和这里
+```
+
+**要求**：动手前画数据流图，标注每个转换节点的输入/输出。补完一个节点后验证全链路。
+
+### 规则 2：先查已知问题再看源码
+
+框架行为异常时，先搜索对应仓库的 Issue/PR/论坛。`reasoning_content` 跨轮丢失是 DeepSeek + LangChain 的已知 Bug（[Python Issue #34166](https://github.com/langchain-ai/langchain/issues/34166) + [PR #34516](https://github.com/langchain-ai/langchain/pull/34516)），JS 版未修复但根因相同。在白板上试了 6 次才发现是已知问题。
+
+**要求**：遇到框架异常 → 先搜 `site:github.com/<org>/<repo> <关键词>` → 再看源码。
+
 ## 部署规范（git push deploy 前强制执行）
 
 > 2026-05-27 Agent 部署时，Shopee 页面本地存在但未 git add，导致服务器 tsc -b 失败。根本原因是「本地 dev 能跑 ≠ 服务器能构建」——dev server 读工作区，bare repo 只读已提交文件。
