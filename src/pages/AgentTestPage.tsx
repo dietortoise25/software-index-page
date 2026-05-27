@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react"
 interface Message {
   role: "user" | "assistant"
   content: string
-  status?: string  // "thinking" | "tool_call:name" | "tool_done" | "generating"
+  status?: string
   meta?: {
     toolCalls: string[]
     tokens: { prompt: number; completion: number; total: number }
@@ -24,20 +24,13 @@ function StatusLabel({ status }: { status?: string }) {
     const name = status.slice(10)
     return <div className="flex items-center gap-1.5 text-muted-foreground py-0.5"><span className="text-xs">Calling {name}</span>{dots}</div>
   }
-  const labels: Record<string, string> = {
-    thinking: "Thinking",
-    tool_done: "Processing",
-    generating: "Generating",
-  }
+  const labels: Record<string, string> = { thinking: "Thinking", tool_done: "Processing", generating: "Generating" }
   const label = labels[status] || status
   return <div className="flex items-center gap-1.5 text-muted-foreground py-0.5"><span className="text-xs">{label}</span>{dots}</div>
 }
 
 interface Conversation {
-  id: string
-  title: string
-  agent_type: string
-  created_at: string
+  id: string; title: string; agent_type: string; created_at: string
 }
 
 const TABS = [
@@ -63,11 +56,7 @@ function MetaRow({ meta }: { meta: Message["meta"] }) {
   if (meta.tokens.total > 0) parts.push(`${meta.tokens.total} tokens`)
   if (meta.thinkingEnabled) parts.push("thinking \u2713")
   if (parts.length === 0) return null
-  return (
-    <div className="text-[10px] text-muted-foreground/60 mt-0.5 px-1 select-none">
-      {parts.join(" · ")}
-    </div>
-  )
+  return <div className="text-[10px] text-muted-foreground/60 mt-0.5 px-1 select-none">{parts.join(" · ")}</div>
 }
 
 function EmptyState() {
@@ -98,9 +87,7 @@ function ComingSoon({ tab }: { tab: typeof TABS[number] }) {
   return (
     <div className="flex items-center justify-center h-full">
       <div className="bg-card border rounded-xl p-8 max-w-sm text-center space-y-3">
-        <span className="inline-block bg-amber-100 text-amber-700 text-[10px] font-medium px-2 py-0.5 rounded-full">
-          开发中
-        </span>
+        <span className="inline-block bg-amber-100 text-amber-700 text-[10px] font-medium px-2 py-0.5 rounded-full">开发中</span>
         <h3 className="font-semibold">{tab.label}</h3>
         <p className="text-sm text-muted-foreground">{tab.desc}</p>
         <div className="flex flex-wrap gap-1.5 justify-center">
@@ -119,6 +106,7 @@ export default function AgentTestPage() {
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)
   const [conversations, setConversations] = useState<Conversation[]>([])
+  const [convId, setConvId] = useState<string | undefined>()
   const [error, setError] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -128,23 +116,31 @@ export default function AgentTestPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  async function devLogin() {
-    try {
-      const res = await fetch("/api/agent/dev/login", { method: "POST" })
-      const json = await res.json()
-      if (json.ok) {
-        setDevAuthed(true)
-        loadConversations()
-      }
-    } catch { /* ignore */ }
-  }
-
   async function loadConversations() {
     try {
       const res = await fetch("/api/agent/conversations")
       const json = await res.json()
       if (json.ok) setConversations(json.data)
     } catch { /* 未登录 */ }
+  }
+
+  async function loadConversation(c: Conversation) {
+    setConvId(c.id)
+    try {
+      const res = await fetch(`/api/agent/conversations/${c.id}`)
+      const json = await res.json()
+      if (json.ok && json.data.messages) {
+        setMessages(json.data.messages.map((m: { role: string; content: string }) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        })))
+      }
+    } catch { /* ignore */ }
+  }
+
+  function newChat() {
+    setMessages([])
+    setConvId(undefined)
   }
 
   async function sendMessage() {
@@ -161,10 +157,13 @@ export default function AgentTestPage() {
     }))
 
     try {
+      const body: Record<string, unknown> = { messages: allMessages }
+      if (convId) body.conversationId = convId
+
       const res = await fetch("/api/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: allMessages }),
+        body: JSON.stringify(body),
       })
 
       if (!res.ok) {
@@ -207,13 +206,15 @@ export default function AgentTestPage() {
                 return updated
               })
             }
-            if (data.done && data.meta) meta = data.meta
+            if (data.done) {
+              if (data.meta) meta = data.meta
+              if (data.conversationId && !convId) setConvId(data.conversationId)
+            }
             if (data.error) setError(data.error)
           } catch { /* skip */ }
         }
       }
 
-      // 补元数据到消息
       if (meta) {
         setMessages((prev) => {
           const updated = [...prev]
@@ -236,49 +237,30 @@ export default function AgentTestPage() {
     <div className="max-w-5xl mx-auto p-6 space-y-4">
       <h1 className="text-xl font-bold">Agent 平台探索</h1>
 
-      {/* Tab Bar */}
       <div className="flex gap-1 border-b pb-0">
         {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => { setActiveTab(tab.id); setMessages([]); setError("") }}
+          <button key={tab.id} onClick={() => { setActiveTab(tab.id); setMessages([]); setError("") }}
             className={`px-4 py-2 text-xs font-medium rounded-t-lg transition-colors -mb-[1px] border border-b-0 ${
-              activeTab === tab.id
-                ? "bg-background text-foreground border-border"
-                : "text-muted-foreground hover:text-foreground border-transparent"
+              activeTab === tab.id ? "bg-background text-foreground border-border" : "text-muted-foreground hover:text-foreground border-transparent"
             }`}
           >
             {tab.label}
-            {tab.status === "coming" && (
-              <span className="ml-1.5 text-[9px] bg-muted px-1 py-0.5 rounded">Soon</span>
-            )}
+            {tab.status === "coming" && <span className="ml-1.5 text-[9px] bg-muted px-1 py-0.5 rounded">Soon</span>}
           </button>
         ))}
       </div>
 
-      {/* Tab Content */}
       {currentTab.status === "coming" ? (
         <ComingSoon tab={currentTab} />
       ) : (
         <div className="flex gap-6">
-          {/* Chat Area */}
           <div className="flex-1 space-y-4 min-w-0">
             <div className="border rounded-lg h-[28rem] overflow-y-auto p-4 space-y-3 bg-muted/20">
-              {messages.length === 0 ? (
-                <EmptyState />
-              ) : (
+              {messages.length === 0 ? <EmptyState /> : (
                 messages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[85%] rounded-lg px-4 py-2 ${
-                      m.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-card border"
-                    }`}>
-                      {m.status ? (
-                        <StatusLabel status={m.status} />
-                      ) : (
-                        <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.content}</p>
-                      )}
+                    <div className={`max-w-[85%] rounded-lg px-4 py-2 ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-card border"}`}>
+                      {m.status ? <StatusLabel status={m.status} /> : <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.content}</p>}
                       {!m.status && m.role === "assistant" && <MetaRow meta={m.meta} />}
                     </div>
                   </div>
@@ -287,38 +269,32 @@ export default function AgentTestPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            {error && (
-              <div className="bg-destructive/10 text-destructive px-4 py-2 rounded text-xs">{error}</div>
-            )}
+            {error && <div className="bg-destructive/10 text-destructive px-4 py-2 rounded text-xs">{error}</div>}
 
             <div className="flex gap-2">
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
+              <input value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                placeholder="输入消息..."
-                disabled={streaming}
+                placeholder="输入消息..." disabled={streaming}
                 className="flex-1 border rounded-lg px-4 py-2 text-sm bg-background"
               />
-              <button
-                onClick={sendMessage}
-                disabled={streaming || !input.trim()}
+              <button onClick={sendMessage} disabled={streaming || !input.trim()}
                 className="bg-primary text-primary-foreground px-6 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
-              >
-                {streaming ? "..." : "发送"}
-              </button>
+              >{streaming ? "..." : "发送"}</button>
             </div>
           </div>
 
-          {/* Sidebar */}
           <div className="w-56 shrink-0 space-y-2">
-            <h2 className="font-semibold text-xs text-muted-foreground">历史会话</h2>
-            {conversations.length === 0 && (
-              <p className="text-[11px] text-muted-foreground">暂无会话（登录后可见）</p>
-            )}
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-xs text-muted-foreground">历史会话</h2>
+              <button onClick={newChat} className="text-[10px] text-primary hover:underline">新对话</button>
+            </div>
+            {conversations.length === 0 && <p className="text-[11px] text-muted-foreground">暂无会话（登录后可见）</p>}
             <div className="space-y-1">
               {conversations.map((c) => (
-                <div key={c.id} className="border rounded-lg p-2 text-[11px] space-y-0.5 cursor-pointer hover:bg-muted/50">
+                <div key={c.id}
+                  onClick={() => loadConversation(c)}
+                  className={`border rounded-lg p-2 text-[11px] space-y-0.5 cursor-pointer hover:bg-muted/50 transition-colors ${convId === c.id ? "bg-muted border-primary/50" : ""}`}
+                >
                   <p className="font-medium truncate">{c.title}</p>
                   <p className="text-muted-foreground">{c.agent_type}</p>
                 </div>
