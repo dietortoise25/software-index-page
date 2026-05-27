@@ -3,12 +3,34 @@ import { useState, useRef, useEffect } from "react"
 interface Message {
   role: "user" | "assistant"
   content: string
-  thinking?: boolean
+  status?: string  // "thinking" | "tool_call:name" | "tool_done" | "generating"
   meta?: {
     toolCalls: string[]
     tokens: { prompt: number; completion: number; total: number }
     thinkingEnabled: boolean
   }
+}
+
+function StatusLabel({ status }: { status?: string }) {
+  if (!status) return null
+  const dots = (
+    <span className="flex gap-0.5 ml-1">
+      <span className="w-1 h-1 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+      <span className="w-1 h-1 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+      <span className="w-1 h-1 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+    </span>
+  )
+  if (status.startsWith("tool_call:")) {
+    const name = status.slice(10)
+    return <div className="flex items-center gap-1.5 text-muted-foreground py-0.5"><span className="text-xs">Calling {name}</span>{dots}</div>
+  }
+  const labels: Record<string, string> = {
+    thinking: "Thinking",
+    tool_done: "Processing",
+    generating: "Generating",
+  }
+  const label = labels[status] || status
+  return <div className="flex items-center gap-1.5 text-muted-foreground py-0.5"><span className="text-xs">{label}</span>{dots}</div>
 }
 
 interface Conversation {
@@ -147,9 +169,8 @@ export default function AgentTestPage() {
       const decoder = new TextDecoder()
       let assistantContent = ""
       let meta: Message["meta"]
-      let thinking = true
 
-      setMessages((prev) => [...prev, { role: "assistant", content: "", thinking: true }])
+      setMessages((prev) => [...prev, { role: "assistant", content: "", status: "connecting" }])
 
       while (true) {
         const { done, value } = await reader.read()
@@ -160,14 +181,18 @@ export default function AgentTestPage() {
           if (!line.startsWith("data: ")) continue
           try {
             const data = JSON.parse(line.slice(6))
-            if (data.status === "thinking") {
-              // 保持 thinking 状态，不做额外处理
-            } else if (data.content) {
-              if (thinking) { thinking = false }
+            if (data.status) {
+              setMessages((prev) => {
+                const updated = [...prev]
+                updated[updated.length - 1] = { ...updated[updated.length - 1], status: data.status }
+                return updated
+              })
+            }
+            if (data.content) {
               assistantContent += data.content
               setMessages((prev) => {
                 const updated = [...prev]
-                updated[updated.length - 1] = { role: "assistant", content: assistantContent, thinking: false }
+                updated[updated.length - 1] = { role: "assistant", content: assistantContent }
                 return updated
               })
             }
@@ -181,7 +206,7 @@ export default function AgentTestPage() {
       if (meta) {
         setMessages((prev) => {
           const updated = [...prev]
-          updated[updated.length - 1] = { ...updated[updated.length - 1], meta, thinking: false }
+          updated[updated.length - 1] = { ...updated[updated.length - 1], meta, status: undefined }
           return updated
         })
       }
@@ -238,19 +263,12 @@ export default function AgentTestPage() {
                         ? "bg-primary text-primary-foreground"
                         : "bg-card border"
                     }`}>
-                      {m.thinking ? (
-                        <div className="flex items-center gap-1.5 text-muted-foreground py-0.5">
-                          <span className="text-xs">Thinking</span>
-                          <span className="flex gap-0.5">
-                            <span className="w-1 h-1 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                            <span className="w-1 h-1 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                            <span className="w-1 h-1 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                          </span>
-                        </div>
+                      {m.status ? (
+                        <StatusLabel status={m.status} />
                       ) : (
                         <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.content}</p>
                       )}
-                      {!m.thinking && m.role === "assistant" && <MetaRow meta={m.meta} />}
+                      {!m.status && m.role === "assistant" && <MetaRow meta={m.meta} />}
                     </div>
                   </div>
                 ))

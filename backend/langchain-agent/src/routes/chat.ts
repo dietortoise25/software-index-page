@@ -41,6 +41,10 @@ function toLangChainTool(t: RegisteredTool) {
   })
 }
 
+function sse(res: import("express").Response, data: Record<string, unknown>) {
+  res.write(`data: ${JSON.stringify(data)}\n\n`)
+}
+
 chatRouter.post("/chat", optionalAuth, async (req, res) => {
   const parsed = chatRequestSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -52,18 +56,25 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
     return
   }
 
+  // SSE headers 提前设置，后续所有状态都通过 SSE 推送
+  res.setHeader("Content-Type", "text/event-stream")
+  res.setHeader("Cache-Control", "no-cache")
+  res.setHeader("Connection", "keep-alive")
+  res.setHeader("X-Accel-Buffering", "no")
+
   try {
     const { messages } = parsed.data
     let lcMessages = toLangChainMessages(messages)
 
-    // 元数据收集
     const meta = {
       toolCalls: [] as string[],
       tokens: { prompt: 0, completion: 0, total: 0 },
       thinkingEnabled: true,
     }
 
-    // 工具调用预检
+    // Step 1: 模型思考 + 可能调用工具
+    sse(res, { status: "thinking" })
+
     const tools = listTools()
     if (tools.length > 0) {
       const langChainTools = tools.map(toLangChainTool)
@@ -78,6 +89,8 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
       const toolCalls = (toolCheck as AIMessage).tool_calls
       if (toolCalls && toolCalls.length > 0) {
         meta.toolCalls = toolCalls.map(tc => tc.name)
+        sse(res, { status: "tool_call", tools: meta.toolCalls })
+
         lcMessages.push(toolCheck)
         for (const tc of toolCalls) {
           const tool = tools.find(t => t.name === tc.name)
@@ -93,17 +106,12 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
             }
           }
         }
+        sse(res, { status: "tool_done" })
       }
     }
 
-    // SSE headers
-    res.setHeader("Content-Type", "text/event-stream")
-    res.setHeader("Cache-Control", "no-cache")
-    res.setHeader("Connection", "keep-alive")
-    res.setHeader("X-Accel-Buffering", "no")
-
-    // 立即推送 thinking 状态
-    res.write(`data: ${JSON.stringify({ status: "thinking" })}\n\n`)
+    // Step 2: 流式生成
+    sse(res, { status: "generating" })
 
     const logHandler = new AgentLogHandler()
     const streamModel = getModel()
@@ -114,7 +122,7 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
     let fullResponse = ""
     for await (const chunk of stream) {
       fullResponse += chunk
-      res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`)
+      sse(res, { content: chunk })
     }
 
     // 持久化 + 元数据
@@ -125,7 +133,6 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
       await addMessage(convId, "assistant", fullResponse)
       await updateConversationTimestamp(convId)
 
-      // 用户记忆提取
       try {
         const extractModel = getModel({ temperature: 0.3 })
         const memoryCheck = await extractModel.invoke([
@@ -144,9 +151,9 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
         }
       } catch { /* 记忆提取失败不影响对话 */ }
 
-      res.write(`data: ${JSON.stringify({ done: true, conversationId: convId, meta })}\n\n`)
+      sse(res, { done: true, conversationId: convId, meta })
     } else {
-      res.write(`data: ${JSON.stringify({ done: true, meta })}\n\n`)
+      sse(res, { done: true, meta })
     }
     res.end()
   } catch (error) {
@@ -156,7 +163,7 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
       ? "AI 服务暂时不可用"
       : message
     if (res.headersSent) {
-      res.write(`data: ${JSON.stringify({ error: safeMessage })}\n\n`)
+      sse(res, { error: safeMessage })
       res.end()
     } else {
       res.status(500).json({ ok: false, error: safeMessage, code: "INTERNAL_ERROR" })
