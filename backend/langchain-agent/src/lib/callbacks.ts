@@ -3,6 +3,7 @@ import type { Serialized } from "@langchain/core/load/serializable"
 
 export class AgentLogHandler extends BaseCallbackHandler {
   name = "AgentLogHandler"
+  lastTokenUsage: { promptTokens?: number; completionTokens?: number; totalTokens?: number } = {}
 
   async handleLLMStart(_llm: Serialized, prompts: string[], _runId: string) {
     const totalLen = prompts.reduce((sum, p) => sum + p.length, 0)
@@ -10,8 +11,13 @@ export class AgentLogHandler extends BaseCallbackHandler {
   }
 
   async handleLLMEnd(output: { llmOutput?: { tokenUsage?: Record<string, unknown> } }, _runId: string) {
-    const usage = output.llmOutput?.tokenUsage
+    const usage = output.llmOutput?.tokenUsage as Record<string, number> | undefined
     if (usage) {
+      this.lastTokenUsage = {
+        promptTokens: usage.promptTokens as number,
+        completionTokens: usage.completionTokens as number,
+        totalTokens: usage.totalTokens as number,
+      }
       console.log(`[LLM] ← 完成，tokens:`, usage)
     } else {
       console.log(`[LLM] ← 完成`)

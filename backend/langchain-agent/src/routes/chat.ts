@@ -125,6 +125,15 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
       sse(res, { content: chunk })
     }
 
+    // 提取 token 用量
+    if (logHandler.lastTokenUsage.totalTokens) {
+      meta.tokens = {
+        prompt: logHandler.lastTokenUsage.promptTokens || 0,
+        completion: logHandler.lastTokenUsage.completionTokens || 0,
+        total: logHandler.lastTokenUsage.totalTokens || 0,
+      }
+    }
+
     // 持久化 + 元数据
     if (req.user) {
       const userId = req.user.id
