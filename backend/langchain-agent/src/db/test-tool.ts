@@ -1,5 +1,5 @@
 import "dotenv/config"
-import { ChatDeepSeek } from "@langchain/deepseek"
+import { ChatOpenAI } from "@langchain/openai"
 import { HumanMessage, ToolMessage } from "@langchain/core/messages"
 import { DynamicStructuredTool } from "@langchain/core/tools"
 import "../tools/built-in/get-current-time.js"
@@ -18,7 +18,7 @@ async function test() {
   const tools = listTools()
   console.log("已注册工具:", tools.map(t => t.name).join(", "))
 
-  const model = new ChatDeepSeek({
+  const model = new ChatOpenAI({
     apiKey: process.env.LLM_API_KEY,
     model: process.env.LLM_MODEL || "deepseek-chat",
     temperature: 0.7,

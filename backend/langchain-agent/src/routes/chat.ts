@@ -1,10 +1,12 @@
 import { Router } from "express"
 import { z } from "zod"
-import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages"
+import { HumanMessage, AIMessage, SystemMessage, ToolMessage } from "@langchain/core/messages"
 import { StringOutputParser } from "@langchain/core/output_parsers"
+import { DynamicStructuredTool } from "@langchain/core/tools"
 import { getModel } from "../config/model.js"
 import { optionalAuth } from "../auth/middleware.js"
 import { AgentLogHandler } from "../lib/callbacks.js"
+import { listTools, type RegisteredTool } from "../tools/registry.js"
 
 export const chatRouter = Router()
 
@@ -22,8 +24,18 @@ function toLangChainMessages(messages: z.infer<typeof chatRequestSchema>["messag
       case "user":   return new HumanMessage(m.content)
       case "assistant": return new AIMessage(m.content)
       case "system": return new SystemMessage(m.content)
+      case "tool":   return new ToolMessage(m.content, "")
       default:       return new HumanMessage(m.content)
     }
+  })
+}
+
+function toLangChainTool(t: RegisteredTool) {
+  return new DynamicStructuredTool({
+    name: t.name,
+    description: t.description,
+    schema: t.schema,
+    func: t.func,
   })
 }
 
@@ -40,14 +52,41 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
 
   try {
     const { messages } = parsed.data
-    const model = getModel()
     let lcMessages = toLangChainMessages(messages)
 
-    // TODO: 工具调用预检 — 本地 deepseek-chat 验证通过，但生产 deepseek-v4-flash
-    // 启用 thinking 模式导致 reasoning_content 需要跨轮传递。待调研方案：
-    // 1. 关闭生产模型 thinking 模式
-    // 2. 或使用单次 stream + tool_calls 解析代替 pre-flight invoke
-    // 工具注册、绑定、get_current_time 均已就绪，仅 chat 路由暂不激活
+    // 工具调用预检 — 显式关闭 thinking 模式以避免 reasoning_content 跨轮丢失
+    const tools = listTools()
+    if (tools.length > 0) {
+      const langChainTools = tools.map(toLangChainTool)
+      const modelWithTools = getModel({
+        modelKwargs: { thinking: { type: "disabled" } },
+      })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const bound = (modelWithTools as any).bindTools(langChainTools)
+
+      const toolCheck = await bound.invoke(lcMessages, {
+        callbacks: [new AgentLogHandler()],
+      })
+
+      const toolCalls = (toolCheck as AIMessage).tool_calls
+      if (toolCalls && toolCalls.length > 0) {
+        lcMessages.push(toolCheck)
+        for (const tc of toolCalls) {
+          const tool = tools.find(t => t.name === tc.name)
+          if (tool) {
+            try {
+              const result = await tool.func(tc.args)
+              lcMessages.push(new ToolMessage(result, tc.id!))
+            } catch (e) {
+              lcMessages.push(new ToolMessage(
+                `工具执行错误: ${e instanceof Error ? e.message : String(e)}`,
+                tc.id!
+              ))
+            }
+          }
+        }
+      }
+    }
 
     // SSE headers
     res.setHeader("Content-Type", "text/event-stream")
@@ -56,7 +95,11 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
     res.setHeader("X-Accel-Buffering", "no")
 
     const logHandler = new AgentLogHandler()
-    const stream = await model
+    // 流式阶段也用关 thinking 的模型，避免 reasoning_content 污染
+    const streamModel = getModel({
+      modelKwargs: { thinking: { type: "disabled" } },
+    })
+    const stream = await streamModel
       .pipe(new StringOutputParser())
       .stream(lcMessages, { callbacks: [logHandler] })
 
