@@ -4,6 +4,7 @@ import cors from "cors"
 import { healthRouter } from "./routes/health.js"
 import { chatRouter } from "./routes/chat.js"
 import { conversationsRouter } from "./routes/conversations.js"
+import { devAuthRouter } from "./routes/dev-auth.js"
 
 // 注册内置工具（side-effect import）
 import "./tools/built-in/get-current-time.js"
@@ -21,6 +22,7 @@ app.use(express.json())
 app.use("/api/agent", healthRouter)
 app.use("/api/agent", chatRouter)
 app.use("/api/agent", conversationsRouter)
+app.use("/api/agent", devAuthRouter)
 
 app.listen(PORT, () => {
   console.log(`[agent] Agent 运行时平台已启动 → http://localhost:${PORT}`)
