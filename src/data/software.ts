@@ -28,9 +28,18 @@ export const softwareList: Software[] = [
     category: "效率工具",
     versions: [
       {
+        version: "3.6.1",
+        releaseDate: "2026-05-27",
+        isLatest: true,
+        changelog: ["v3.6.0 小 bug 修复"],
+        downloads: {
+          windows: "http://42.193.170.109/downloads/TF客服值守v3.6.1.zip",
+        },
+      },
+      {
         version: "3.6.0",
         releaseDate: "2026-05-26",
-        isLatest: true,
+        isLatest: false,
         changelog: [
           "AI上下文精简：删除客户列表注入，用户消息减少约80%，token消耗大幅降低",
           "人工待处理升级：点击条目直接跳转到对应对话 + 显示客户最后一条消息文本摘要",

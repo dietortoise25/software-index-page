@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "v2.5.1",
+    date: "2026-05-27",
+    title: "TF客服值守 v3.6.1 发布",
+    items: [
+      { type: "fix", text: "TF客服值守 v3.6.1：小 bug 修复版本" },
+    ],
+  },
+  {
     version: "v2.5.0",
     date: "2026-05-26",
     title: "TF客服值守 v3.6.0 发布",
