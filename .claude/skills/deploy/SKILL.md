@@ -188,6 +188,8 @@ SERVER_USER="$(env_val SERVER_USER)"
 | 3 | **分离变量** | 基础设施 + 代码同时推生产 | 先修基础设施 → 验证所有服务 → 再推代码 |
 | 4 | **故障回滚** | 备份放在不明确的位置 | 备份文件名含日期，明确回滚命令 |
 | 5 | **敏感文件走 scp** | sed 注入 nginx config | 本地写好完整文件 → scp 上传 → `nginx -t` → reload |
+| 6 | **追踪完整数据流** | 修了 converter 就以为全链路通了，漏了中间重建步骤 | 画数据流图 → 标注每个转换节点 → 逐节点验证 |
+| 7 | **先查已知问题** | `reasoning_content` 是已知 Bug（Python Issue #34166），却试了6次才查文档 | 框架异常 → 先搜 Issue/PR/论坛 → 再看源码 |
 
 ### 操作顺序
 
@@ -214,6 +216,44 @@ SERVER_USER="$(env_val SERVER_USER)"
 2. **sed 注入 nginx** — 往 `/etc/nginx/sites-enabled/` 里 sed 插入多行，转义复杂易出错
 3. **合并+推送同步** — 服务器基础设施（hook/nginx/systemd）和代码合并+推送在同一会话完成，出问题无法隔离归因
 4. **没有备份意识** — 事后才补的 nginx 备份
+
+### 2026-05-27 pnpm patch 调试失误 ★
+
+> 为修复 DeepSeek thinking 模式下 `reasoning_content` 跨轮丢失导致工具调用 400 的问题，在服务器上反复调试了 6 次才找到正确位置。三个根源：
+
+**1. 不追踪完整数据流就动手**
+
+```
+API 响应 → converter(补丁1) → AIMessage → Object.entries重建 → Messages → converter(补丁1) → HTTP
+                                       ↑
+                                   这里丢了
+```
+
+补丁 1 修了 outbound converter，但 inbound 响应在 `chat_models/completions.js:129` 经过 `Object.entries/fromEntries` 重建 AIMessage 时，`additional_kwargs` 中的 `reasoning_content` 被静默丢弃。两端用同一个函数，中间一步才是沉默杀手。只修一头不够。
+
+**教训**：打补丁前画完整数据流图，标注每个转换节点的输入输出。不要假设"修了 converter 就全链路通了"。
+
+**2. 不看已知问题先动手**
+
+`reasoning_content` 跨轮丢失是 DeepSeek + LangChain 的已知 Bug。Python 版 [Issue #34166](https://github.com/langchain-ai/langchain/issues/34166) + [PR #34516](https://github.com/langchain-ai/langchain/pull/34516) 讨论了数月。JS 版无人报告但根因相同。应该先查文档再动手，而不是在服务器上试了 6 次 sed。
+
+**教训**：遇到框架行为异常，先查对应仓库的 Issue/PR/论坛。已知问题通常有修复方案或 workaround 记录。
+
+**3. 明知故犯：用 sed 调试生产代码**
+
+刚在 deploy skill 里写下"不要 sed 生产配置"，转背就用 sed 往 `node_modules` 的 `completions.js`、`completions.js` 注入补丁。sed 转义错误导致服务崩溃（`Cannot read properties of undefined`），每次都要备份恢复。
+
+**教训**：守则是用来遵守的，不只是用来写的。调试生产问题时，本地先复现 → 本地修复 → scp 上传 → 验证。sed 只用于一次性紧急热修复（且必须备份）。
+
+### 补丁管理正确姿势
+
+| 步骤 | 做法 |
+|------|------|
+| 1. 本地复现 | 写 test script，模拟生产数据流 |
+| 2. 本地修复 | 改 `node_modules` + 验证 |
+| 3. pnpm patch | `pnpm patch` + 应用改动 + `pnpm patch-commit` |
+| 4. 登记依赖 | 确认 `pnpm.patchedDependencies` 在 `package.json` 中 |
+| 5. 部署验证 | 确保 hook 复制 `patches/` 目录 + `pnpm install` 自动应用 |
 
 ### 服务器服务全景
 
