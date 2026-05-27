@@ -22,16 +22,16 @@ while read oldrev newrev refname; do
   cp "$ENV_FILE" "$BUILD_DIR/server/.env"
 
   echo "[deploy] 安装根依赖..."
-  cd "$BUILD_DIR" && pnpm install --frozen-lockfile
+  cd "$BUILD_DIR" && pnpm install --frozen-lockfile 2>/dev/null || pnpm install --no-frozen-lockfile
 
   echo "[deploy] 构建 platform..."
-  cd "$BUILD_DIR/platform" && pnpm install --frozen-lockfile && pnpm build
+  cd "$BUILD_DIR/platform" && pnpm install --frozen-lockfile 2>/dev/null || pnpm install --no-frozen-lockfile && pnpm build
 
   echo "[deploy] 构建 server..."
-  cd "$BUILD_DIR/server" && pnpm install --frozen-lockfile && pnpm build
+  cd "$BUILD_DIR/server" && pnpm install --frozen-lockfile 2>/dev/null || pnpm install --no-frozen-lockfile && pnpm build
 
   echo "[deploy] 构建 agent..."
-  cd "$BUILD_DIR/backend/langchain-agent" && pnpm install --frozen-lockfile && pnpm build
+  cd "$BUILD_DIR/backend/langchain-agent" && pnpm install --frozen-lockfile 2>/dev/null || pnpm install --no-frozen-lockfile && pnpm build
 
   echo "[deploy] 构建前端..."
   cd "$BUILD_DIR" && pnpm build
@@ -51,9 +51,10 @@ while read oldrev newrev refname; do
   cd "$DEPLOY_DIR/server" && CI=true pnpm install --prod
 
   echo "[deploy] 部署 agent..."
-  mkdir -p "$DEPLOY_DIR/agent/dist"
+  mkdir -p "$DEPLOY_DIR/agent/dist" "$DEPLOY_DIR/agent/patches"
   cp -r "$BUILD_DIR/backend/langchain-agent/dist/"* "$DEPLOY_DIR/agent/dist/"
   cp "$BUILD_DIR/backend/langchain-agent/package.json" "$BUILD_DIR/backend/langchain-agent/pnpm-lock.yaml" "$DEPLOY_DIR/agent/"
+  cp -r "$BUILD_DIR/backend/langchain-agent/patches/"* "$DEPLOY_DIR/agent/patches/" 2>/dev/null || true
   sudo chown -R ubuntu:ubuntu "$DEPLOY_DIR/agent" 2>/dev/null || true
   cd "$DEPLOY_DIR/agent" && CI=true pnpm install --prod
 

@@ -1,3 +1,17 @@
+diff --git a/dist/chat_models/completions.js b/dist/chat_models/completions.js
+index 57d3e6a4e2e0046f6d1bb10c320414224443b1b3..a1cda408fc3aa2f9db77edfa6ff2df002ecc58e1 100644
+--- a/dist/chat_models/completions.js
++++ b/dist/chat_models/completions.js
+@@ -126,7 +126,9 @@ var ChatOpenAICompletions = class extends BaseChatOpenAI {
+ 					...part.logprobs ? { logprobs: part.logprobs } : {}
+ 				};
+ 				if (isAIMessage(generation.message)) generation.message.usage_metadata = usageMetadata;
++				const _origMsg = generation.message;
+ 				generation.message = new AIMessage(Object.fromEntries(Object.entries(generation.message).filter(([key]) => !key.startsWith("lc_"))));
++				if (_origMsg.additional_kwargs?.reasoning_content) { generation.message.additional_kwargs.reasoning_content = _origMsg.additional_kwargs.reasoning_content; }
+ 				generations.push(generation);
+ 			}
+ 			return {
 diff --git a/dist/converters/completions.js b/dist/converters/completions.js
 index 530c77309dc7359addc0e6e6e0c1269486af3fae..3f344da42198d95839c03ae84b001f8823ea454d 100644
 --- a/dist/converters/completions.js
