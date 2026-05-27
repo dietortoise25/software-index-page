@@ -20,6 +20,9 @@ import AboutPage from "@/pages/AboutPage"
 import FuturePage from "@/pages/FuturePage"
 import TikTokShopTestPage from "@/pages/TikTokShopTestPage"
 import LoginPage from "@/pages/LoginPage"
+import ShopeeAnalyzePage from "@/pages/ShopeeAnalyzePage"
+import ShopeeDashboardPage from "@/pages/ShopeeDashboardPage"
+import AgentTestPage from "@/pages/AgentTestPage"
 
 export default function App() {
   return (
@@ -39,6 +42,9 @@ export default function App() {
         <Route path="tiktok-shop-test" element={<TikTokShopTestPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
+        <Route path="shopee" element={<ShopeeAnalyzePage />} />
+        <Route path="shopee/dashboard" element={<ShopeeDashboardPage />} />
+        <Route path="agent-test" element={<AgentTestPage />} />
       </Route>
 
       {/* Dashboard — 侧边栏布局 */}
