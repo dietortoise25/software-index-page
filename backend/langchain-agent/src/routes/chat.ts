@@ -56,6 +56,13 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
     const { messages } = parsed.data
     let lcMessages = toLangChainMessages(messages)
 
+    // 元数据收集
+    const meta = {
+      toolCalls: [] as string[],
+      tokens: { prompt: 0, completion: 0, total: 0 },
+      thinkingEnabled: true,
+    }
+
     // 工具调用预检
     const tools = listTools()
     if (tools.length > 0) {
@@ -70,6 +77,7 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
 
       const toolCalls = (toolCheck as AIMessage).tool_calls
       if (toolCalls && toolCalls.length > 0) {
+        meta.toolCalls = toolCalls.map(tc => tc.name)
         lcMessages.push(toolCheck)
         for (const tc of toolCalls) {
           const tool = tools.find(t => t.name === tc.name)
@@ -106,7 +114,7 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
       res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`)
     }
 
-    // 持久化：保存用户消息 + AI 回复
+    // 持久化 + 元数据
     if (req.user) {
       const userId = req.user.id
       const convId = parsed.data.conversationId || (await createConversation(userId, messages[0]?.content?.slice(0, 30) || "新对话")).id
@@ -114,7 +122,7 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
       await addMessage(convId, "assistant", fullResponse)
       await updateConversationTimestamp(convId)
 
-      // 用户记忆：从对话中提取并写入
+      // 用户记忆提取
       try {
         const extractModel = getModel({ temperature: 0.3 })
         const memoryCheck = await extractModel.invoke([
@@ -131,13 +139,11 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
             }
           }
         }
-      } catch {
-        // 记忆提取失败不影响对话
-      }
+      } catch { /* 记忆提取失败不影响对话 */ }
 
-      res.write(`data: ${JSON.stringify({ done: true, conversationId: convId })}\n\n`)
+      res.write(`data: ${JSON.stringify({ done: true, conversationId: convId, meta })}\n\n`)
     } else {
-      res.write(`data: ${JSON.stringify({ done: true })}\n\n`)
+      res.write(`data: ${JSON.stringify({ done: true, meta })}\n\n`)
     }
     res.end()
   } catch (error) {
