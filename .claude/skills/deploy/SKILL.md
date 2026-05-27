@@ -76,6 +76,14 @@ git add . && git commit -m "..." && git push deploy main
 
 适用：任何代码改动（前端/后端/Python）。
 
+### 环境变量：`bash scripts/sync-env.sh`
+
+```bash
+bash scripts/sync-env.sh
+```
+
+将本地 `.env` 推送到服务器 `/home/ubuntu/.env`。改完 .env 后执行，然后 `git push deploy main` 使变更生效。
+
 ### 2. 二进制上传：`bash scripts/deploy.sh`
 
 ```bash
@@ -166,3 +174,53 @@ SERVER_USER="$(env_val SERVER_USER)"
 - 前端用 `sessionStorage.getItem("dash_pin")` 保持登录态
 - 每次 API 调用在 body 中携带 `pin` 字段
 - 后端 `/api/internal/*` 路由验证 PIN 与 `REVIEW_PIN` 是否一致
+
+## 生产操作守则 ★（2026-05-27 Agent 部署反思）
+
+> 以下守则源于一次高危操作：在无备份的情况下直接覆盖 post-receive hook + sed 注入 nginx，同时合并分支推生产。虽然最终没出事故，但违反了多项安全原则。
+
+### 铁律
+
+| # | 原则 | 错误示例 | 正确做法 |
+|---|------|---------|---------|
+| 1 | **先备份** | 直接覆盖配置文件 | `cp orig backup` → 改动 → 验证 → 保留备份 |
+| 2 | **小步验证** | hook 一次改几十行，nginx 用 sed 注入 | diff 式小改 → 语法检查 → 手动触发一次 |
+| 3 | **分离变量** | 基础设施 + 代码同时推生产 | 先修基础设施 → 验证所有服务 → 再推代码 |
+| 4 | **故障回滚** | 备份放在不明确的位置 | 备份文件名含日期，明确回滚命令 |
+| 5 | **敏感文件走 scp** | sed 注入 nginx config | 本地写好完整文件 → scp 上传 → `nginx -t` → reload |
+
+### 操作顺序
+
+```
+备份配置文件
+  → 单点改动（hook / nginx / systemd 每次只改一个）
+    → 语法检查（bash -n / nginx -t）
+      → 手动触发验证
+        → 确认无误后改动下一个
+          → 全部完成后推代码
+```
+
+### 关键配置文件路径
+
+| 文件 | 路径 | 备份 |
+|------|------|------|
+| post-receive hook | `/var/git/software-index.git/hooks/post-receive` | `.bak` |
+| nginx site config | `/etc/nginx/sites-enabled/software-index` | `.bak.YYYYMMDD` |
+| systemd service | `/etc/systemd/system/langchain-agent.service` | hook 自动安装 |
+
+### 2026-05-27 部署 Agent 时的失误
+
+1. **直接替换 hook** — scp 上传本地写的全新 hook，覆盖 `/var/git/...`。如果语法有误，5 个后端服务全部部署瘫痪
+2. **sed 注入 nginx** — 往 `/etc/nginx/sites-enabled/` 里 sed 插入多行，转义复杂易出错
+3. **合并+推送同步** — 服务器基础设施（hook/nginx/systemd）和代码合并+推送在同一会话完成，出问题无法隔离归因
+4. **没有备份意识** — 事后才补的 nginx 备份
+
+### 服务器服务全景
+
+| 服务 | 端口 | systemd |
+|------|------|---------|
+| relay (Express) | 127.0.0.1:8765 | `relay` |
+| return-workflow | 127.0.0.1:3002 | `return-workflow` |
+| shopee-analyzer (Python) | 127.0.0.1:8000 | `shopee-analyzer` |
+| langchain-agent ★ | 127.0.0.1:8001 | `langchain-agent` |
+| qianyi-scheduler | — | `qianyi-scheduler` |
