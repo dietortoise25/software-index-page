@@ -60,7 +60,7 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
     const tools = listTools()
     if (tools.length > 0) {
       const langChainTools = tools.map(toLangChainTool)
-      const modelWithTools = getModel()
+      const modelWithTools = getModel({ modelKwargs: { thinking: { type: "disabled" } } })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const bound = (modelWithTools as any).bindTools(langChainTools)
 
@@ -95,7 +95,7 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
     res.setHeader("X-Accel-Buffering", "no")
 
     const logHandler = new AgentLogHandler()
-    const streamModel = getModel()
+    const streamModel = getModel({ modelKwargs: { thinking: { type: "disabled" } } })
     const stream = await streamModel
       .pipe(new StringOutputParser())
       .stream(lcMessages, { callbacks: [logHandler] })
