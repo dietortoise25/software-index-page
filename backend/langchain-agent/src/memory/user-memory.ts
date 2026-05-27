@@ -1,5 +1,5 @@
 import { BaseMemory } from "@langchain/core/memory"
-import { getInputValue, getOutputValue, type InputValues, type OutputValues } from "@langchain/core/memory"
+import { type InputValues, type OutputValues } from "@langchain/core/memory"
 import { getUserMemories } from "../db/queries/user-memory.js"
 
 export class PostgresUserMemory extends BaseMemory {
@@ -44,7 +44,7 @@ export class PostgresUserMemory extends BaseMemory {
     }
   }
 
-  async saveContext(inputValues: InputValues, outputValues: OutputValues): Promise<void> {
+  async saveContext(_inputValues: InputValues, _outputValues: OutputValues): Promise<void> {
     // 记忆的写入由 Agent 工具显式调用 upsertUserMemory
     // 此处不自动保存对话内容到用户记忆
   }
