@@ -22,7 +22,6 @@ function toLangChainMessages(messages: z.infer<typeof chatRequestSchema>["messag
       case "user":   return new HumanMessage(m.content)
       case "assistant": return new AIMessage(m.content)
       case "system": return new SystemMessage(m.content)
-      case "tool":   return new ToolMessage(m.content, "")
       default:       return new HumanMessage(m.content)
     }
   })
