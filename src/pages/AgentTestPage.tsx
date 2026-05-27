@@ -119,14 +119,27 @@ export default function AgentTestPage() {
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)
   const [conversations, setConversations] = useState<Conversation[]>([])
+  const [devAuthed, setDevAuthed] = useState(false)
   const [error, setError] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const isLocalhost = window.location.hostname === "localhost"
 
   useEffect(() => { loadConversations() }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
+
+  async function devLogin() {
+    try {
+      const res = await fetch("/api/agent/dev/login", { method: "POST" })
+      const json = await res.json()
+      if (json.ok) {
+        setDevAuthed(true)
+        loadConversations()
+      }
+    } catch { /* ignore */ }
+  }
 
   async function loadConversations() {
     try {
@@ -301,6 +314,11 @@ export default function AgentTestPage() {
 
           {/* Sidebar */}
           <div className="w-56 shrink-0 space-y-2">
+            {isLocalhost && !devAuthed && (
+              <button onClick={devLogin} className="w-full text-xs bg-amber-100 text-amber-800 px-3 py-1.5 rounded-lg hover:bg-amber-200 transition-colors">
+                Dev 登录
+              </button>
+            )}
             <h2 className="font-semibold text-xs text-muted-foreground">历史会话</h2>
             {conversations.length === 0 && (
               <p className="text-[11px] text-muted-foreground">暂无会话（登录后可见）</p>
