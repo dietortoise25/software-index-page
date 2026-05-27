@@ -59,7 +59,8 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
     const tools = listTools()
     if (tools.length > 0) {
       const langChainTools = tools.map(toLangChainTool)
-      const modelWithTools = model.bindTools(langChainTools)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const modelWithTools = (model as any).bindTools(langChainTools)
 
       const toolCheck = await modelWithTools.invoke(lcMessages, {
         callbacks: [new AgentLogHandler()],
