@@ -1,10 +1,12 @@
 import { Router } from "express"
 import { z } from "zod"
-import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages"
+import { HumanMessage, AIMessage, SystemMessage, ToolMessage } from "@langchain/core/messages"
 import { StringOutputParser } from "@langchain/core/output_parsers"
+import { DynamicStructuredTool } from "@langchain/core/tools"
 import { getModel } from "../config/model.js"
 import { optionalAuth } from "../auth/middleware.js"
 import { AgentLogHandler } from "../lib/callbacks.js"
+import { listTools, type RegisteredTool } from "../tools/registry.js"
 
 export const chatRouter = Router()
 
@@ -22,13 +24,22 @@ function toLangChainMessages(messages: z.infer<typeof chatRequestSchema>["messag
       case "user":   return new HumanMessage(m.content)
       case "assistant": return new AIMessage(m.content)
       case "system": return new SystemMessage(m.content)
+      case "tool":   return new ToolMessage(m.content, "")
       default:       return new HumanMessage(m.content)
     }
   })
 }
 
+function toLangChainTool(t: RegisteredTool) {
+  return new DynamicStructuredTool({
+    name: t.name,
+    description: t.description,
+    schema: t.schema,
+    func: t.func,
+  })
+}
+
 chatRouter.post("/chat", optionalAuth, async (req, res) => {
-  // 输入校验
   const parsed = chatRequestSchema.safeParse(req.body)
   if (!parsed.success) {
     res.status(400).json({
@@ -42,7 +53,39 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
   try {
     const { messages } = parsed.data
     const model = getModel()
-    const lcMessages = toLangChainMessages(messages)
+    let lcMessages = toLangChainMessages(messages)
+
+    // 工具调用预检
+    const tools = listTools()
+    if (tools.length > 0) {
+      const langChainTools = tools.map(toLangChainTool)
+      const modelWithTools = model.bindTools(langChainTools)
+
+      const toolCheck = await modelWithTools.invoke(lcMessages, {
+        callbacks: [new AgentLogHandler()],
+      })
+
+      const toolCalls = (toolCheck as AIMessage).tool_calls
+      if (toolCalls && toolCalls.length > 0) {
+        // 追加 AIMessage（含 tool_calls）和 ToolMessages
+        lcMessages.push(toolCheck)
+
+        for (const tc of toolCalls) {
+          const tool = tools.find(t => t.name === tc.name)
+          if (tool) {
+            try {
+              const result = await tool.func(tc.args)
+              lcMessages.push(new ToolMessage(result, tc.id!))
+            } catch (e) {
+              lcMessages.push(new ToolMessage(
+                `工具执行错误: ${e instanceof Error ? e.message : String(e)}`,
+                tc.id!
+              ))
+            }
+          }
+        }
+      }
+    }
 
     // SSE headers
     res.setHeader("Content-Type", "text/event-stream")
@@ -50,7 +93,6 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
     res.setHeader("Connection", "keep-alive")
     res.setHeader("X-Accel-Buffering", "no")
 
-    // 挂载可观测性回调
     const logHandler = new AgentLogHandler()
     const stream = await model
       .pipe(new StringOutputParser())
@@ -65,7 +107,6 @@ chatRouter.post("/chat", optionalAuth, async (req, res) => {
   } catch (error) {
     console.error("[agent] chat error:", error instanceof Error ? error.message : error)
     const message = error instanceof Error ? error.message : "AI 服务暂时不可用"
-    // 对外暴露脱敏后的错误信息
     const safeMessage = message.includes("API key") || message.includes("Connection")
       ? "AI 服务暂时不可用"
       : message
