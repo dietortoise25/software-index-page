@@ -33,7 +33,9 @@ export function AdCostSection({ dimension, platform, operatorId }: { dimension: 
 
       const rateArr: { month: string; rate: number }[] = []
       for (const m of mergedArr) {
-        const { data: gmvRows } = await supabase.from("orders").select("total_amount").gte("pay_time", `${m.month}-01T00:00:00+08:00`).lte("pay_time", `${m.month}-31T23:59:59+08:00`)
+        const [y, mo] = m.month.split('-').map(Number)
+        const lastDay = new Date(y, mo, 0).getDate()
+        const { data: gmvRows } = await supabase.from("orders").select("total_amount").gte("pay_time", `${m.month}-01T00:00:00+08:00`).lte("pay_time", `${m.month}-${String(lastDay).padStart(2, '0')}T23:59:59+08:00`)
         const gmv = (gmvRows || []).reduce((s, r) => s + parseFloat(String(r.total_amount || 0)), 0)
         rateArr.push({ month: m.month, rate: gmv > 0 ? (m.total / gmv) * 100 : 0 })
       }
