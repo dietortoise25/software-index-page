@@ -1,0 +1,1835 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>构建内部数据智能体平台：从ERP数仓到全员AI协作</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+SC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #1a1c2e;
+        --bg-rgb: 26, 28, 46;
+        --fg: #d4d8dd;
+        --fg-rgb: 212, 216, 221;
+        --green: #3cb878;
+        --green-rgb: 60, 184, 120;
+        --card: #252840;
+        --card-rgb: 37, 40, 64;
+        --muted: rgba(212, 216, 221, 0.55);
+        --red: #e04a3c;
+        --red-rgb: 224, 74, 60;
+        --gold: #d4a853;
+        --gold-rgb: 212, 168, 83;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: "Inter", "Noto Sans SC", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        font-size: 16px;
+      }
+      #deck {
+        position: fixed;
+        inset: 0;
+        width: 10000vw;
+        height: 100vh;
+        display: flex;
+        flex-wrap: nowrap;
+        transition: transform 0.85s cubic-bezier(0.77, 0, 0.175, 1);
+        z-index: 10;
+      }
+      .slide {
+        width: 100vw;
+        height: 100vh;
+        flex: 0 0 100vw;
+        position: relative;
+        padding: 7vh 7vw 10vh 7vw;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+      }
+      .mono {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 11px;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        opacity: 0.5;
+      }
+      .kicker {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 0.25em;
+        text-transform: uppercase;
+        opacity: 0.4;
+        margin-bottom: 2vh;
+      }
+      .h1 {
+        font-weight: 800;
+        font-size: 5vw;
+        line-height: 1.06;
+        letter-spacing: -0.02em;
+        margin-bottom: 2.5vh;
+      }
+      .h2 {
+        font-weight: 700;
+        font-size: 2.6vw;
+        line-height: 1.2;
+        margin-bottom: 2vh;
+        color: var(--green);
+      }
+      .h3 {
+        font-weight: 600;
+        font-size: 1.6vw;
+        line-height: 1.3;
+        margin-bottom: 1.5vh;
+      }
+      .hook {
+        font-size: 1.25vw;
+        line-height: 1.7;
+        opacity: 0.85;
+        margin-bottom: 1.5vh;
+        padding-left: 1.5vw;
+        border-left: 3px solid var(--green);
+        font-weight: 300;
+      }
+      .meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 0.2em;
+        opacity: 0.45;
+        margin-bottom: 5vh;
+      }
+      .foot {
+        margin-top: auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 10px;
+        opacity: 0.35;
+      }
+      .dots {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 7px;
+        z-index: 100;
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+      .dot.active {
+        background: var(--green);
+        width: 22px;
+        border-radius: 4px;
+      }
+      .tag {
+        display: inline-block;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 0.2em;
+        padding: 5px 14px;
+        border: 1px solid var(--green);
+        color: var(--green);
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2vh 3vw;
+      }
+      .grid3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 1.8vh 2vw;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 8px;
+        padding: 2.5vh 2vw;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .num {
+        font-weight: 900;
+        font-size: 4vw;
+        color: var(--green);
+        line-height: 1;
+        margin-bottom: 0.5vh;
+      }
+      .small {
+        font-size: 0.85vw;
+        opacity: 0.65;
+        line-height: 1.6;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9vw;
+        margin: 2vh 0;
+      }
+      th,
+      td {
+        padding: 1.2vh 1.5vw;
+        text-align: left;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      th {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 9px;
+        letter-spacing: 0.15em;
+        opacity: 0.4;
+      }
+      .highlight {
+        color: var(--green);
+        font-weight: 600;
+      }
+      .flow {
+        text-align: center;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.85vw;
+        line-height: 2.6;
+        opacity: 0.85;
+        margin: 2vh 0;
+      }
+      blockquote {
+        font-size: 1.6vw;
+        line-height: 1.5;
+        opacity: 0.9;
+        padding: 2vh 0;
+        text-align: center;
+        font-weight: 300;
+        border-left: none;
+      }
+
+      @media (max-width: 768px) {
+        .slide {
+          padding: 5vh 5vw 12vh 5vw;
+        }
+        .h1 {
+          font-size: 8vw;
+        }
+        .h2 {
+          font-size: 5.5vw;
+        }
+        .h3 {
+          font-size: 3.8vw;
+        }
+        .hook {
+          font-size: 3.4vw;
+          padding-left: 3vw;
+        }
+        .num {
+          font-size: 8vw;
+        }
+        .small {
+          font-size: 3vw;
+        }
+        blockquote {
+          font-size: 3.8vw;
+        }
+        .flow {
+          font-size: 2.5vw;
+        }
+        table {
+          font-size: 2.5vw;
+          display: block;
+          overflow-x: auto;
+        }
+        th,
+        td {
+          padding: 1vh 2vw;
+          white-space: nowrap;
+        }
+        th {
+          font-size: 8px;
+        }
+        .grid2,
+        .grid3 {
+          grid-template-columns: 1fr;
+          gap: 2vh;
+        }
+        .card {
+          padding: 2vh 3vw;
+        }
+        .dots {
+          bottom: 14px;
+          gap: 5px;
+        }
+        .dot {
+          width: 5px;
+          height: 5px;
+        }
+        .dot.active {
+          width: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="deck">
+      <!-- 0. Cover -->
+      <div class="slide">
+        <div class="meta">
+          <span>内部报告 · 2026.05.13</span><span>数据/技术团队</span>
+        </div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <div class="kicker">数据基础设施提案</div>
+          <div class="h1">
+            构建内部<span style="color: var(--green)">数据智能体</span>平台
+          </div>
+          <div
+            style="
+              font-size: 1.6vw;
+              font-weight: 300;
+              opacity: 0.7;
+              margin: 2vh 0 6vh 0;
+              max-width: 75%;
+              line-height: 1.5;
+            "
+          >
+            从ERP数仓出发，打通全业务系统，用AI智能体赋能100人团队的数据驱动决策
+          </div>
+          <div style="display: flex; gap: 3vw; opacity: 0.5">
+            <div>
+              <span
+                style="color: var(--green); font-weight: 700; font-size: 2vw"
+                >6+</span
+              ><br /><span style="font-size: 0.8vw">业务系统打通</span>
+            </div>
+            <div>
+              <span
+                style="color: var(--green); font-weight: 700; font-size: 2vw"
+                >6类</span
+              ><br /><span style="font-size: 0.8vw">智能体应用</span>
+            </div>
+            <div>
+              <span
+                style="color: var(--green); font-weight: 700; font-size: 2vw"
+                >¥500</span
+              ><br /><span style="font-size: 0.8vw">月均成本</span>
+            </div>
+          </div>
+        </div>
+        <div class="foot"><span>CONFIDENTIAL</span><span>1 / 18</span></div>
+        <!-- F11 提示气泡 -->
+        <div
+          id="f11-tip"
+          style="
+            position: absolute;
+            bottom: 16vh;
+            right: 4vw;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--green);
+            color: var(--bg);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            opacity: 0;
+            transform: translateY(8px);
+            transition: all 0.6s ease;
+            pointer-events: none;
+            z-index: 50;
+            white-space: nowrap;
+          "
+        >
+          按 F11 沉浸式演示
+        </div>
+        <script>
+          setTimeout(() => {
+            const t = document.getElementById("f11-tip");
+            if (t) {
+              t.style.opacity = "1";
+              t.style.transform = "translateY(0)";
+              setTimeout(() => {
+                t.style.opacity = "0";
+                t.style.transform = "translateY(-8px)";
+                setTimeout(() => t.remove(), 600);
+              }, 5000);
+            }
+          }, 800);
+        </script>
+      </div>
+
+      <!-- 1. Hook -->
+      <div class="slide">
+        <div class="meta"><span>问题</span><span>不是假设，是现状</span></div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 3vh;
+          "
+        >
+          <blockquote>
+            "上个月某爆款SKU断货损失近<span style="color: var(--red)">40万</span
+            >——系统在断货前3天就有预警信号，只是没人看得见。"
+          </blockquote>
+          <blockquote>
+            "客服每天花<span style="color: var(--red)">3小时</span
+            >人工查询'订单为什么没发货'，其中70%可以用智能体<span
+              style="color: var(--green)"
+              >3秒</span
+            >回答。"
+          </blockquote>
+          <blockquote>
+            "运营每天早上从ERP导出5张报表、手工拼Excel到<span
+              style="color: var(--red)"
+              >10点</span
+            >才能给出昨日战报。"
+          </blockquote>
+        </div>
+        <div class="foot"><span>01 — HOOK</span><span>2 / 18</span></div>
+      </div>
+
+      <!-- 2. Problem & Vision -->
+      <div class="slide">
+        <div class="meta"><span>愿景</span><span>数据驱动 × AI赋能</span></div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <div class="h2">不只是解决三个痛点，而是建设一套体系</div>
+          <div style="display: flex; gap: 3vw; margin: 4vh 0">
+            <div style="flex: 1">
+              <div
+                class="kicker"
+                style="color: var(--red)"
+              >
+                现状
+              </div>
+              <div style="font-size: 1.1vw; line-height: 1.8; opacity: 0.75">
+                ERP数据沉睡 · 系统互不相通 · 报表靠手工 · 决策凭经验 ·
+                知识散落各处 · 新人培训成本高
+              </div>
+            </div>
+            <div style="font-size: 2vw; opacity: 0.3; align-self: center">
+              →
+            </div>
+            <div style="flex: 1">
+              <div
+                class="kicker"
+                style="color: var(--green)"
+              >
+                目标
+              </div>
+              <div style="font-size: 1.1vw; line-height: 1.8; opacity: 0.75">
+                数据主动找人 · 系统互联互通 · 报表自动推送 · AI辅助决策 ·
+                知识沉淀为智能体 · 新人即问即答
+              </div>
+            </div>
+          </div>
+          <div style="text-align: center; margin-top: 3vh">
+            <span class="tag">团队规模 ~100人</span
+            ><span
+              class="tag"
+              style="margin-left: 1vw"
+              >10人可开发智能体</span
+            ><span
+              class="tag"
+              style="margin-left: 1vw"
+              >90人纯使用者</span
+            >
+          </div>
+        </div>
+        <div class="foot"><span>02 — VISION</span><span>3 / 18</span></div>
+      </div>
+
+      <!-- 3. Data Sources -->
+      <div class="slide">
+        <div class="meta">
+          <span>数据底座</span><span>千易ERP开放接口</span>
+        </div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <div class="h3">
+            千易ERP API覆盖电商核心数据域，可直接作为数仓的<span
+              class="highlight"
+              >数据源头</span
+            >
+          </div>
+          <div
+            class="grid3"
+            style="margin-top: 3vh"
+          >
+            <div class="card">
+              <div
+                style="font-weight: 700; font-size: 1vw; margin-bottom: 0.5vh"
+              >
+                📦 订单模块
+              </div>
+              <div class="small">
+                salesOrder: 创建/查询/发货，含商品、金额、物流多维信息
+              </div>
+            </div>
+            <div class="card">
+              <div
+                style="font-weight: 700; font-size: 1vw; margin-bottom: 0.5vh"
+              >
+                🏷️ 商品模块
+              </div>
+              <div class="small">SKU主数据: 价格、属性、规格统一管理</div>
+            </div>
+            <div class="card">
+              <div
+                style="font-weight: 700; font-size: 1vw; margin-bottom: 0.5vh"
+              >
+                📊 库存模块
+              </div>
+              <div class="small">实时总量/可用量/占用量/在途量，高频变动</div>
+            </div>
+            <div class="card">
+              <div
+                style="font-weight: 700; font-size: 1vw; margin-bottom: 0.5vh"
+              >
+                🏪 店铺模块
+              </div>
+              <div class="small">多销售渠道配置数据</div>
+            </div>
+            <div class="card">
+              <div
+                style="font-weight: 700; font-size: 1vw; margin-bottom: 0.5vh"
+              >
+                🔄 售后&采购
+              </div>
+              <div class="small">退货退款记录 + 采购单/供应商</div>
+            </div>
+            <div class="card">
+              <div
+                style="font-weight: 700; font-size: 1vw; margin-bottom: 0.5vh"
+              >
+                📡 Webhook
+              </div>
+              <div class="small">订单变更、库存变动实时推送，准实时同步</div>
+            </div>
+          </div>
+          <div style="text-align: center; margin-top: 3vh">
+            <span class="tag">10+ 核心API模块</span
+            ><span
+              class="tag"
+              style="
+                margin-left: 1vw;
+                border-color: var(--gold);
+                color: var(--gold);
+              "
+              >Webhook实时推送</span
+            >
+          </div>
+        </div>
+        <div class="foot"><span>03 — ERP DATA</span><span>4 / 18</span></div>
+      </div>
+
+      <!-- 4. System Integration -->
+      <div class="slide">
+        <div class="meta"><span>数据底座</span><span>打通全业务系统</span></div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <div class="h2">数仓的真正威力：打破"信息孤岛"</div>
+          <div style="font-size: 0.95vw; opacity: 0.6; margin-bottom: 3vh">
+            千易ERP只是起点。各系统数据汇聚一处，才能让数据跨系统联动说话
+          </div>
+          <div
+            style="
+              display: flex;
+              gap: 1.5vw;
+              flex-wrap: wrap;
+              justify-content: center;
+            "
+          >
+            <div
+              class="card"
+              style="text-align: center; min-width: 130px"
+            >
+              <div style="font-size: 2vw; margin-bottom: 1vh">📦</div>
+              <div style="font-weight: 600; font-size: 0.95vw">千易ERP</div>
+              <div class="small">订单·商品·库存</div>
+            </div>
+            <div
+              class="card"
+              style="text-align: center; min-width: 130px"
+            >
+              <div style="font-size: 2vw; margin-bottom: 1vh">📋</div>
+              <div style="font-weight: 600; font-size: 0.95vw">OA系统</div>
+              <div class="small">考勤·审批·公告</div>
+            </div>
+            <div
+              class="card"
+              style="text-align: center; min-width: 130px"
+            >
+              <div style="font-size: 2vw; margin-bottom: 1vh">💬</div>
+              <div style="font-weight: 600; font-size: 0.95vw">飞书</div>
+              <div class="small">消息·文档·日程</div>
+            </div>
+            <div
+              class="card"
+              style="text-align: center; min-width: 130px"
+            >
+              <div style="font-size: 2vw; margin-bottom: 1vh">💰</div>
+              <div style="font-weight: 600; font-size: 0.95vw">财务系统</div>
+              <div class="small">应收·应付·利润</div>
+            </div>
+            <div
+              class="card"
+              style="text-align: center; min-width: 130px"
+            >
+              <div style="font-size: 2vw; margin-bottom: 1vh">🏭</div>
+              <div style="font-weight: 600; font-size: 0.95vw">WMS</div>
+              <div class="small">入库·出库·库位</div>
+            </div>
+            <div
+              class="card"
+              style="text-align: center; min-width: 130px"
+            >
+              <div style="font-size: 2vw; margin-bottom: 1vh">🌐</div>
+              <div style="font-weight: 600; font-size: 0.95vw">巴西TF</div>
+              <div class="small">海外ERP+WMS</div>
+            </div>
+          </div>
+        </div>
+        <div class="foot"><span>04 — INTEGRATION</span><span>5 / 18</span></div>
+      </div>
+
+      <!-- 5. Cross-system Analysis -->
+      <div class="slide">
+        <div class="meta"><span>数据底座</span><span>跨系统联动分析</span></div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <div
+            class="h3"
+            style="margin-bottom: 2.5vh"
+          >
+            数据打通后能回答的"老板级"问题
+          </div>
+          <div class="grid2">
+            <div class="card">
+              <div
+                style="
+                  font-weight: 600;
+                  font-size: 1vw;
+                  margin-bottom: 0.6vh;
+                  color: var(--green);
+                "
+              >
+                📊 人效与绩效
+              </div>
+              <div class="small">
+                订单量(ERP)÷工时(OA考勤)=人均效率。客服/运营/仓库绩效自动排名，告别手工统计
+              </div>
+            </div>
+            <div class="card">
+              <div
+                style="
+                  font-weight: 600;
+                  font-size: 1vw;
+                  margin-bottom: 0.6vh;
+                  color: var(--green);
+                "
+              >
+                📈 利润看板
+              </div>
+              <div class="small">
+                收入(ERP)−成本(WMS)−退款(财务)−运费(物流)=实时单品毛利，每天推送到管理群
+              </div>
+            </div>
+            <div class="card">
+              <div
+                style="
+                  font-weight: 600;
+                  font-size: 1vw;
+                  margin-bottom: 0.6vh;
+                  color: var(--green);
+                "
+              >
+                🚚 仓储效率
+              </div>
+              <div class="small">
+                出库时间(WMS) vs 期望时效(ERP)→出库延误预警+仓库人员效率排行
+              </div>
+            </div>
+            <div class="card">
+              <div
+                style="
+                  font-weight: 600;
+                  font-size: 1vw;
+                  margin-bottom: 0.6vh;
+                  color: var(--green);
+                "
+              >
+                🔄 采购联动
+              </div>
+              <div class="small">
+                销量趋势(ERP)×库存(WMS)×采购在途(财务)→智能补货量+资金占用预估
+              </div>
+            </div>
+            <div class="card">
+              <div
+                style="
+                  font-weight: 600;
+                  font-size: 1vw;
+                  margin-bottom: 0.6vh;
+                  color: var(--green);
+                "
+              >
+                🏪 店铺健康度
+              </div>
+              <div class="small">
+                GMV+退款率+客户满意度+发货时效→每家店铺综合健康分，问题店铺自动置顶
+              </div>
+            </div>
+            <div class="card">
+              <div
+                style="
+                  font-weight: 600;
+                  font-size: 1vw;
+                  margin-bottom: 0.6vh;
+                  color: var(--green);
+                "
+              >
+                💡 客户生命周期
+              </div>
+              <div class="small">
+                消费(ERP)+活跃度(飞书)+客诉(工单)→RFM分层，识别高价值客户和流失预警
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="foot">
+          <span>05 — CROSS ANALYSIS</span><span>6 / 18</span>
+        </div>
+      </div>
+
+      <!-- 6. Architecture Overview -->
+      <div class="slide">
+        <div class="meta"><span>架构</span><span>三层数据流转</span></div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <div
+            class="h2"
+            style="margin-bottom: 1.5vh"
+          >
+            批流一体的数据处理链路
+          </div>
+          <div
+            style="display: flex; flex-direction: column; gap: 0; width: 100%"
+          >
+            <!-- 数据源层 -->
+            <div
+              class="card"
+              style="
+                display: flex;
+                align-items: center;
+                gap: 2vw;
+                padding: 1.6vh 2.5vw;
+                border-left: 3px solid var(--green);
+              "
+            >
+              <div
+                style="
+                  font-family:
+                    JetBrains Mono,
+                    monospace;
+                  font-size: 14px;
+                  color: var(--green);
+                  font-weight: 600;
+                  min-width: 70px;
+                "
+              >
+                数据源层
+              </div>
+              <div style="font-size: 1.1vw; opacity: 0.75">
+                千易API(定时拉取) &nbsp;·&nbsp; Webhook(实时推送) &nbsp;·&nbsp;
+                巴西TF &nbsp;·&nbsp; OA &nbsp;·&nbsp; 财务 &nbsp;·&nbsp; WMS
+              </div>
+            </div>
+            <div
+              style="
+                text-align: center;
+                color: var(--green);
+                font-size: 1.1vw;
+                line-height: 1;
+                padding: 0.1vh 0;
+              "
+            >
+              ↓
+            </div>
+            <!-- 集成层 -->
+            <div
+              class="card"
+              style="
+                display: flex;
+                align-items: center;
+                gap: 2vw;
+                padding: 1.6vh 2.5vw;
+                border-left: 3px solid var(--green);
+              "
+            >
+              <div
+                style="
+                  font-family:
+                    JetBrains Mono,
+                    monospace;
+                  font-size: 14px;
+                  color: var(--green);
+                  font-weight: 600;
+                  min-width: 70px;
+                "
+              >
+                数据集成层
+              </div>
+              <div style="font-size: 1.1vw; opacity: 0.75">
+                Supabase Edge Functions &nbsp;·&nbsp; Airbyte/dbt &nbsp;·&nbsp;
+                指数退避重试机制
+              </div>
+            </div>
+            <div
+              style="
+                text-align: center;
+                color: var(--green);
+                font-size: 1.1vw;
+                line-height: 1;
+                padding: 0.1vh 0;
+              "
+            >
+              ↓
+            </div>
+            <!-- 存储层（重点） -->
+            <div
+              class="card"
+              style="
+                display: flex;
+                align-items: center;
+                gap: 2vw;
+                padding: 1.8vh 2.5vw;
+                border-left: 3px solid var(--green);
+                background: rgba(60, 184, 120, 0.06);
+              "
+            >
+              <div
+                style="
+                  font-family:
+                    JetBrains Mono,
+                    monospace;
+                  font-size: 14px;
+                  color: var(--green);
+                  font-weight: 600;
+                  min-width: 70px;
+                "
+              >
+                数据存储层
+              </div>
+              <div style="flex: 1">
+                <div
+                  style="
+                    font-size: 1.1vw;
+                    font-weight: 500;
+                    margin-bottom: 0.3vh;
+                  "
+                >
+                  Supabase PostgreSQL
+                </div>
+                <div style="font-size: 0.9vw; opacity: 0.7">
+                  ODS(贴源)
+                  <span style="color: var(--green)">→</span> DWD(清洗明细)
+                  <span style="color: var(--green)">→</span> DWS(聚合指标)
+                  <span style="color: var(--green)">→</span> ADS(应用视图)
+                </div>
+                <div style="font-size: 0.8vw; opacity: 0.45; margin-top: 0.2vh">
+                  pgvector · RLS行级安全 · Realtime事件推送 · JSONB灵活存储
+                </div>
+              </div>
+            </div>
+            <div
+              style="
+                text-align: center;
+                color: var(--green);
+                font-size: 1.1vw;
+                line-height: 1;
+                padding: 0.1vh 0;
+              "
+            >
+              ↓
+            </div>
+            <!-- 应用层 -->
+            <div
+              class="card"
+              style="
+                display: flex;
+                align-items: center;
+                gap: 2vw;
+                padding: 1.6vh 2.5vw;
+                border-left: 3px solid var(--green);
+              "
+            >
+              <div
+                style="
+                  font-family:
+                    JetBrains Mono,
+                    monospace;
+                  font-size: 14px;
+                  color: var(--green);
+                  font-weight: 600;
+                  min-width: 70px;
+                "
+              >
+                应用层
+              </div>
+              <div style="font-size: 1.1vw; opacity: 0.75">
+                智能体平台 &nbsp;·&nbsp; LiteLLM网关 &nbsp;·&nbsp; 飞书Bot
+                &nbsp;·&nbsp; BI看板 &nbsp;·&nbsp; 内部应用
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="foot">
+          <span>06 — ARCHITECTURE</span><span>7 / 18</span>
+        </div>
+      </div>
+
+      <!-- 7. Data Warehouse Layers -->
+      <div class="slide">
+        <div class="meta"><span>架构</span><span>数仓分层设计</span></div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <div class="h2">基于 Supabase PostgreSQL 的四层数仓</div>
+          <div
+            class="grid2"
+            style="margin-top: 3vh"
+          >
+            <div class="card">
+              <div
+                class="kicker"
+                style="color: var(--green)"
+              >
+                ODS 贴源层
+              </div>
+              <div class="small">
+                与千易API一一对应，用JSONB存储完整原始数据，避免信息丢失。表如
+                ods_sales_orders、ods_inventory
+              </div>
+            </div>
+            <div class="card">
+              <div
+                class="kicker"
+                style="color: var(--green)"
+              >
+                DWD 明细层
+              </div>
+              <div class="small">
+                ELT转换：JSON→结构化列，建立订单与商品、店铺维度关联，形成干净的明细事实表
+              </div>
+            </div>
+            <div class="card">
+              <div
+                class="kicker"
+                style="color: var(--green)"
+              >
+                DWS 汇总层
+              </div>
+              <div class="small">
+                面向智能体的高频分析：实时库存监控、畅销排行、每日销售聚合等预计算指标
+              </div>
+            </div>
+            <div class="card">
+              <div
+                class="kicker"
+                style="color: var(--green)"
+              >
+                ADS 应用层
+              </div>
+              <div class="small">
+                为特定智能体或报表定制专属数据视图，每个数据集精准服务一个业务场景
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="foot"><span>07 — DATA LAYERS</span><span>8 / 18</span></div>
+      </div>
+
+      <!-- 8. Tech Path -->
+      <div class="slide">
+        <div class="meta"><span>架构</span><span>三种技术路径</span></div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <div class="h3">
+            根据阶段和复杂度灵活选择，建议<span class="highlight"
+              >从方案一开始</span
+            >，平滑演进
+          </div>
+          <table style="margin-top: 2vh">
+            <tr>
+              <th>方案</th>
+              <th>适用场景</th>
+              <th>优点</th>
+              <th style="color: var(--red)">注意</th>
+            </tr>
+            <tr>
+              <td style="color: var(--green); font-weight: 600">
+                ① 原生生态<br /><span
+                  class="tag"
+                  style="font-size: 8px"
+                  >推荐起步</span
+                >
+              </td>
+              <td>早期快速验证<br />小团队 · 单项目</td>
+              <td>开发运维成本低<br />与Supabase无缝集成<br />快速迭代MVP</td>
+              <td>数据量超规模后<br />性能可能成为瓶颈</td>
+            </tr>
+            <tr>
+              <td style="color: var(--green); font-weight: 600">
+                ② 现代数据栈<br /><span
+                  class="tag"
+                  style="font-size: 8px"
+                  >推荐成长</span
+                >
+              </td>
+              <td>数据量大 · 链路复杂<br />有专职数据工程师</td>
+              <td>
+                专业可靠 · 可扩展<br />Airbyte+dbt标准工具链<br />适合企业级数据平台
+              </td>
+              <td>组件多<br />学习/集成成本</td>
+            </tr>
+            <tr>
+              <td style="color: var(--green); font-weight: 600">③ 混合架构</td>
+              <td>海量历史归档<br />极致查询性能要求</td>
+              <td>
+                平衡成本与性能<br />利用云原生数仓计算力<br />保留Supabase易用性
+              </td>
+              <td>架构最复杂<br />需管理多个系统</td>
+            </tr>
+          </table>
+        </div>
+        <div class="foot"><span>08 — TECH PATH</span><span>9 / 18</span></div>
+      </div>
+
+      <!-- 9. Agent Platform -->
+      <div class="slide">
+        <div class="meta">
+          <span>智能体平台</span><span>Runner + Registry</span>
+        </div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <div
+            class="h2"
+            style="margin-bottom: 1vh"
+          >
+            通用执行器 + 智能体注册表
+          </div>
+          <div
+            class="h3"
+            style="font-weight: 400; opacity: 0.7; margin-bottom: 2vh"
+          >
+            10人定义智能体 → 注册到Supabase → 90人通过飞书自然语言调用
+          </div>
+          <div
+            style="display: flex; flex-direction: column; gap: 0; width: 100%"
+          >
+            <!-- 生产者 -->
+            <div
+              class="card"
+              style="
+                display: flex;
+                align-items: flex-start;
+                gap: 2vw;
+                padding: 1.6vh 2.5vw;
+                border-left: 3px solid var(--green);
+              "
+            >
+              <div
+                style="
+                  font-family:
+                    JetBrains Mono,
+                    monospace;
+                  font-size: 14px;
+                  color: var(--green);
+                  font-weight: 600;
+                  min-width: 80px;
+                  white-space: nowrap;
+                "
+              >
+                生产者
+              </div>
+              <div style="flex: 1">
+                <div
+                  style="
+                    font-size: 1.1vw;
+                    font-weight: 500;
+                    margin-bottom: 0.2vh;
+                  "
+                >
+                  ≤10 人 · 技术团队
+                </div>
+                <div style="font-size: 0.95vw; opacity: 0.7">
+                  编写工具函数 → 封装智能体 → Git 同步 → 注册到 Supabase
+                </div>
+                <div style="font-size: 0.8vw; opacity: 0.45; margin-top: 0.2vh">
+                  OpenAI Agents SDK (TypeScript) · 灰度发布 · 监控 LiteLLM
+                  仪表盘
+                </div>
+              </div>
+            </div>
+            <div
+              style="
+                text-align: center;
+                color: var(--green);
+                font-size: 1.1vw;
+                line-height: 1;
+                padding: 0.1vh 0;
+              "
+            >
+              ↓ 注册
+            </div>
+            <!-- 注册表 -->
+            <div
+              class="card"
+              style="
+                display: flex;
+                align-items: flex-start;
+                gap: 2vw;
+                padding: 1.8vh 2.5vw;
+                border-left: 3px solid var(--green);
+                background: rgba(60, 184, 120, 0.06);
+              "
+            >
+              <div
+                style="
+                  font-family:
+                    JetBrains Mono,
+                    monospace;
+                  font-size: 14px;
+                  color: var(--green);
+                  font-weight: 600;
+                  min-width: 80px;
+                  white-space: nowrap;
+                "
+              >
+                注册表
+              </div>
+              <div style="flex: 1">
+                <div
+                  style="
+                    font-size: 1.1vw;
+                    font-weight: 500;
+                    margin-bottom: 0.2vh;
+                  "
+                >
+                  Supabase 智能体注册表
+                </div>
+                <div style="font-size: 0.95vw; opacity: 0.7">
+                  智能体名称 · 系统提示词 · 工具列表 · Token 预算 · 启用状态
+                </div>
+                <div style="font-size: 0.8vw; opacity: 0.45; margin-top: 0.2vh">
+                  一次注册，全局可用 · 版本管理 · 灰度切换
+                </div>
+              </div>
+            </div>
+            <div
+              style="
+                text-align: center;
+                color: var(--green);
+                font-size: 1.1vw;
+                line-height: 1;
+                padding: 0.1vh 0;
+              "
+            >
+              ↓ 调用
+            </div>
+            <!-- 消费者 -->
+            <div
+              class="card"
+              style="
+                display: flex;
+                align-items: flex-start;
+                gap: 2vw;
+                padding: 1.6vh 2.5vw;
+                border-left: 3px solid var(--green);
+              "
+            >
+              <div
+                style="
+                  font-family:
+                    JetBrains Mono,
+                    monospace;
+                  font-size: 14px;
+                  color: var(--green);
+                  font-weight: 600;
+                  min-width: 80px;
+                  white-space: nowrap;
+                "
+              >
+                消费者
+              </div>
+              <div style="flex: 1">
+                <div
+                  style="
+                    font-size: 1.1vw;
+                    font-weight: 500;
+                    margin-bottom: 0.2vh;
+                  "
+                >
+                  90 人 · 全公司
+                </div>
+                <div style="font-size: 0.95vw; opacity: 0.7">
+                  飞书 @AI助手 [智能体名] + 自然语言 → 执行器加载智能体 →
+                  返回结果
+                </div>
+                <div style="font-size: 0.8vw; opacity: 0.45; margin-top: 0.2vh">
+                  零代码 · 零培训 · 自然语言即界面
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="foot">
+          <span>09 — AGENT PLATFORM</span><span>10 / 18</span>
+        </div>
+      </div>
+
+      <!-- 10. AI Gateway -->
+      <div class="slide">
+        <div class="meta">
+          <span>智能体平台</span><span>AI网关 & 安全</span>
+        </div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <div class="h2">LiteLLM 统一网关 + RLS 权限兜底</div>
+          <div
+            class="grid2"
+            style="margin-top: 3vh"
+          >
+            <div class="card">
+              <div
+                style="
+                  font-weight: 600;
+                  font-size: 1vw;
+                  margin-bottom: 0.8vh;
+                  color: var(--green);
+                "
+              >
+                🚦 LiteLLM 网关
+              </div>
+              <div class="small">
+                统一模型API，不绑定任何厂商<br />按智能体设置月度Token预算<br />多模型路由
+                + 成本分摊<br />用量仪表盘 → 谁用得最多一目了然<br /><span
+                  style="color: var(--green)"
+                  >自托管 · 免费</span
+                >
+              </div>
+            </div>
+            <div class="card">
+              <div
+                style="
+                  font-weight: 600;
+                  font-size: 1vw;
+                  margin-bottom: 0.8vh;
+                  color: var(--green);
+                "
+              >
+                🔒 RLS 权限兜底
+              </div>
+              <div class="small">
+                Supabase行级安全：用户只能看自己数据<br />SQL安全校验器：只允许SELECT<br />禁止DROP/DELETE/UPDATE<br />限制返回行数(MAX
+                1000)<br /><span style="color: var(--green)"
+                  >智能体无法越权</span
+                >
+              </div>
+            </div>
+            <div class="card">
+              <div
+                style="
+                  font-weight: 600;
+                  font-size: 1vw;
+                  margin-bottom: 0.8vh;
+                  color: var(--green);
+                "
+              >
+                🌍 多语言 & 多地域
+              </div>
+              <div class="small">
+                自托管 LibreTranslate(免费) 中葡互译<br />巴西WMS通过Airbyte小时级同步回国<br />RLS分离地域视图<br />葡萄牙语问题
+                → 自动翻译 → 中文查询 → 翻译回葡语
+              </div>
+            </div>
+            <div class="card">
+              <div
+                style="
+                  font-weight: 600;
+                  font-size: 1vw;
+                  margin-bottom: 0.8vh;
+                  color: var(--green);
+                "
+              >
+                🛡️ 厂商中立
+              </div>
+              <div class="small">
+                不绑定任何云厂商<br />开源优先 · 可自部署<br />OpenAI Agents
+                SDK可通过LiteLLM<br />切换任意底层模型<br />数据完全自主可控
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="foot">
+          <span>10 — GATEWAY & SECURITY</span><span>11 / 18</span>
+        </div>
+      </div>
+
+      <!-- 11. Persona Stories -->
+      <div class="slide">
+        <div class="meta"><span>典型用户</span><span>四角色故事</span></div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <div class="h2">从生产者到消费者，每个人都有专属入口</div>
+          <div
+            class="grid2"
+            style="margin-top: 3vh"
+          >
+            <div class="card">
+              <div
+                style="font-weight: 600; font-size: 1vw; margin-bottom: 0.5vh"
+              >
+                👨‍💻 王工 · 后端/生产者
+              </div>
+              <div class="small">
+                编写工具函数，封装业务逻辑为智能体→注册到Supabase→灰度发布→监控LiteLLM仪表盘
+              </div>
+            </div>
+            <div class="card">
+              <div
+                style="font-weight: 600; font-size: 1vw; margin-bottom: 0.5vh"
+              >
+                👩‍💼 李姐 · 运营/消费者
+              </div>
+              <div class="small">
+                飞书用自然语言提问→获取退款分析、周报、异常预警→<span
+                  class="highlight"
+                  >无需代码</span
+                >
+              </div>
+            </div>
+            <div class="card">
+              <div
+                style="font-weight: 600; font-size: 1vw; margin-bottom: 0.5vh"
+              >
+                🌎 Pedro · 巴西主管
+              </div>
+              <div class="small">
+                葡萄牙语查询→自动翻译→RLS保证只能看本地数据→结果翻译回葡语
+              </div>
+            </div>
+            <div class="card">
+              <div
+                style="font-weight: 600; font-size: 1vw; margin-bottom: 0.5vh"
+              >
+                👔 赵总 · CTO/管理员
+              </div>
+              <div class="small">
+                LiteLLM设置预算→查看用量报表→审计权限事件→按智能体/部门分摊成本
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="foot"><span>11 — PERSONAS</span><span>12 / 18</span></div>
+      </div>
+
+      <!-- 12. Implementation Timeline -->
+      <div class="slide">
+        <div class="meta"><span>实施</span><span>分阶段落地</span></div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <div
+            class="h2"
+            style="margin-bottom: 3vh"
+          >
+            6-7周完成完整落地，首期3周可见效果
+          </div>
+          <table>
+            <tr>
+              <th>阶段</th>
+              <th>时间</th>
+              <th>工作内容</th>
+              <th>交付物</th>
+            </tr>
+            <tr>
+              <td>阶段0</td>
+              <td>1周</td>
+              <td>申请千易API密钥 · 开通Supabase Pro · 设计表结构</td>
+              <td>可运行的数据同步脚本</td>
+            </tr>
+            <tr>
+              <td>阶段1</td>
+              <td>1周</td>
+              <td>订单+商品数据全量增量同步 · Webhook实时接收</td>
+              <td>ODS层就绪 延迟&lt;10秒</td>
+            </tr>
+            <tr>
+              <td>阶段2</td>
+              <td>1周</td>
+              <td>DWD层构建 · 部署首个智能体：库存预警助手</td>
+              <td>飞书自动推送"即将断货"</td>
+            </tr>
+            <tr>
+              <td>阶段3</td>
+              <td>2周</td>
+              <td>智能体注册表 · 通用执行器 · LiteLLM网关 · 飞书Bot接入</td>
+              <td>10人可注册智能体 90人可调用</td>
+            </tr>
+            <tr>
+              <td>阶段4</td>
+              <td>2周</td>
+              <td>异常订单监控 · 战报机器人 · LibreTranslate · RLS策略</td>
+              <td>全链路智能体生态上线</td>
+            </tr>
+          </table>
+          <div style="text-align: center; margin-top: 3vh">
+            <span class="tag">总时长 ≈ 6-7周</span
+            ><span
+              class="tag"
+              style="
+                margin-left: 1vw;
+                border-color: var(--green);
+                color: var(--green);
+              "
+              >首期3周见效</span
+            >
+          </div>
+        </div>
+        <div class="foot"><span>12 — TIMELINE</span><span>13 / 18</span></div>
+      </div>
+
+      <!-- 13. Cost -->
+      <div class="slide">
+        <div class="meta"><span>成本</span><span>极低投入 · 极高ROI</span></div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <div class="h2">
+            月均成本约
+            <span
+              class="highlight"
+              style="font-size: 5vw"
+              >¥380-550</span
+            >
+          </div>
+          <div
+            class="grid2"
+            style="margin-top: 3vh; gap: 2.5vh"
+          >
+            <div class="card">
+              <div
+                class="num"
+                style="font-size: 2.5vw"
+              >
+                $25
+              </div>
+              <div>Supabase Pro/月</div>
+              <div class="small">
+                8GB RAM · 50GiB存储 · 300万API请求 · pgvector · RLS
+              </div>
+            </div>
+            <div class="card">
+              <div
+                class="num"
+                style="font-size: 2.5vw"
+              >
+                ¥150
+              </div>
+              <div>VPS/月</div>
+              <div class="small">自托管LiteLLM + LibreTranslate</div>
+            </div>
+            <div class="card">
+              <div
+                class="num"
+                style="font-size: 2.5vw"
+              >
+                ¥0
+              </div>
+              <div>千易API调用费</div>
+              <div class="small">通常无额外调用费，仅限频</div>
+            </div>
+            <div class="card">
+              <div
+                class="num"
+                style="font-size: 2.5vw"
+              >
+                &lt;¥2万
+              </div>
+              <div>开发人力·一次性</div>
+              <div class="small">1名工程师兼职3-4周 或外包</div>
+            </div>
+          </div>
+          <div
+            style="
+              text-align: center;
+              margin-top: 3vh;
+              font-size: 1vw;
+              opacity: 0.5;
+            "
+          >
+            对比传统数仓动辄十几万的初期投入 + 自建智能体平台数月工时 —
+            极高性价比的数据基础设施投资
+          </div>
+        </div>
+        <div class="foot"><span>13 — COST</span><span>14 / 18</span></div>
+      </div>
+
+      <!-- 14-17: Applications -->
+      <div class="slide">
+        <div class="meta">
+          <span>应用 1/6</span><span>库存预警 · 异常订单</span>
+        </div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <div class="grid2">
+            <div
+              class="card"
+              style="padding: 4vh 2.5vw"
+            >
+              <div class="num">30%+</div>
+              <div style="font-weight: 600; font-size: 1.2vw; margin: 0.8vh 0">
+                减少断货销售损失
+              </div>
+              <div class="small">
+                每天3次扫描库存+近期销量→预测未来2天可能断货的SKU→自动@采购员。结合在途采购+安全库存，精准预判
+              </div>
+              <div style="margin-top: 2vh">
+                <span class="tag">🛡️ 智能库存预警助手</span>
+              </div>
+            </div>
+            <div
+              class="card"
+              style="padding: 4vh 2.5vw"
+            >
+              <div class="num">40%</div>
+              <div style="font-weight: 600; font-size: 1.2vw; margin: 0.8vh 0">
+                客诉量预计下降
+              </div>
+              <div class="small">
+                新订单流入实时检测→超时未付款/地址不完整/疑似欺诈→自动打标通知客服→处理时效从小时级→分钟级
+              </div>
+              <div style="margin-top: 2vh">
+                <span class="tag">🚨 异常订单监控机器人</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="foot"><span>14 — APPS 1-2</span><span>15 / 18</span></div>
+      </div>
+
+      <div class="slide">
+        <div class="meta"><span>应用 3-4/6</span><span>战报 · 补货</span></div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <div class="grid2">
+            <div
+              class="card"
+              style="padding: 4vh 2.5vw"
+            >
+              <div class="num">1h/天</div>
+              <div style="font-weight: 600; font-size: 1.2vw; margin: 0.8vh 0">
+                释放运营精力
+              </div>
+              <div class="small">
+                每天早8点自动推送昨日销售额、TOP10、店铺排名、毛利率预估。决策不再依赖"滞后报表"，数据驱动成为习惯
+              </div>
+              <div style="margin-top: 2vh">
+                <span class="tag">📊 运营战报生成助手</span>
+              </div>
+            </div>
+            <div
+              class="card"
+              style="padding: 4vh 2.5vw"
+            >
+              <div class="num">15-20%</div>
+              <div style="font-weight: 600; font-size: 1.2vw; margin: 0.8vh 0">
+                库存周转率提升
+              </div>
+              <div class="small">
+                销量×库存×采购提前期→每周生成"建议采购单"。补货不再靠经验拍脑门，积压和缺货双向优化
+              </div>
+              <div style="margin-top: 2vh">
+                <span class="tag">🔄 智能补货建议助手</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="foot"><span>15 — APPS 3-4</span><span>16 / 18</span></div>
+      </div>
+
+      <div class="slide">
+        <div class="meta">
+          <span>应用 5-6/6</span><span>查询Bot · 物流分析</span>
+        </div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <div class="grid2">
+            <div
+              class="card"
+              style="padding: 4vh 2.5vw"
+            >
+              <div class="num">10x</div>
+              <div style="font-weight: 600; font-size: 1.2vw; margin: 0.8vh 0">
+                客服查询效率提升
+              </div>
+              <div class="small">
+                飞书@机器人"查订单Q12345物流"→3秒返回。新人零培训即用。当前每单2-3分钟→秒级响应
+              </div>
+              <div style="margin-top: 2vh">
+                <span class="tag">💬 客服订单查询Bot</span>
+              </div>
+            </div>
+            <div
+              class="card"
+              style="padding: 4vh 2.5vw"
+            >
+              <div class="num">持续优化</div>
+              <div style="font-weight: 600; font-size: 1.2vw; margin: 0.8vh 0">
+                物流成本与体验
+              </div>
+              <div class="small">
+                分析已发货订单→监控异常时效→对比不同物流渠道费用/时效→优化物流策略，降低运费
+              </div>
+              <div style="margin-top: 2vh">
+                <span class="tag">🚚 物流监控与费用分析</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="foot"><span>16 — APPS 5-6</span><span>17 / 18</span></div>
+      </div>
+
+      <!-- 17. Conclusion & CTA -->
+      <div class="slide">
+        <div class="meta"><span>结论</span><span>总结 & 行动</span></div>
+        <div
+          style="
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          "
+        >
+          <blockquote style="font-size: 2.2vw; margin-bottom: 4vh">
+            用一杯咖啡的日成本<br />换来<span style="color: var(--green)"
+              >全天候自动工作</span
+            >的数据智能体团队
+          </blockquote>
+          <div
+            style="
+              max-width: 85%;
+              margin: 0 auto;
+              line-height: 2;
+              opacity: 0.8;
+              font-size: 1.05vw;
+            "
+          >
+            <p>
+              ✅ 千易ERP + 6大系统 → <span class="highlight">统一数据底座</span>
+            </p>
+            <p>
+              ✅ Supabase 四层数仓 →
+              <span class="highlight">从原始数据到应用视图</span>
+            </p>
+            <p>
+              ✅ LiteLLM + OpenAI Agents SDK →
+              <span class="highlight">厂商中立AI网关</span>
+            </p>
+            <p>
+              ✅ Runner + Registry →
+              <span class="highlight">10人开发 · 90人使用</span>
+            </p>
+            <p>
+              ✅ RLS + SQL校验器 →
+              <span class="highlight">权限兜底 · 数据安全</span>
+            </p>
+            <p>
+              ✅ 月均 ¥380-550 · 首期3周见效 ·
+              <span class="highlight">第一个月即可回本</span>
+            </p>
+          </div>
+          <div
+            style="
+              text-align: center;
+              margin-top: 5vh;
+              font-size: 1.3vw;
+              font-weight: 700;
+              color: var(--green);
+            "
+          >
+            期待您的批准，让我们尽快启动。
+          </div>
+        </div>
+        <div class="foot"><span>17 — CONCLUSION</span><span>END</span></div>
+      </div>
+    </div>
+
+    <div
+      class="dots"
+      id="dots"
+    ></div>
+
+    <script>
+      let current = 0;
+      const deck = document.getElementById("deck");
+      const slides = document.querySelectorAll(".slide");
+      const N = slides.length;
+      const dots = document.getElementById("dots");
+      for (let i = 0; i < N; i++) {
+        const d = document.createElement("div");
+        d.className = "dot" + (i === 0 ? " active" : "");
+        d.onclick = () => go(i);
+        dots.appendChild(d);
+      }
+      deck.style.width = N * 100 + "vw";
+      function go(i) {
+        if (i < 0 || i >= N) return;
+        current = i;
+        deck.style.transform = `translateX(-${i * 100}vw)`;
+        document
+          .querySelectorAll(".dot")
+          .forEach((d, j) => d.classList.toggle("active", j === i));
+      }
+      let tx = 0;
+      document.addEventListener("touchstart", (e) => {
+        tx = e.touches[0].clientX;
+      });
+      document.addEventListener("touchend", (e) => {
+        const dx = e.changedTouches[0].clientX - tx;
+        if (Math.abs(dx) > 50) go(dx > 0 ? current - 1 : current + 1);
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowRight" || e.key === "ArrowDown") go(current + 1);
+        if (e.key === "ArrowLeft" || e.key === "ArrowUp") go(current - 1);
+      });
+      document.addEventListener(
+        "wheel",
+        (e) => {
+          if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+          if (Math.abs(e.deltaY) < 20) return;
+          go(e.deltaY > 0 ? current + 1 : current - 1);
+        },
+        { passive: true },
+      );
+    </script>
+  </body>
+</html>
