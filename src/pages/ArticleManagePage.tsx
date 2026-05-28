@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2, Eye, EyeOff, Save, X } from "lucide-react"
 import AuthGuard from "@/components/auth/AuthGuard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { sanitizeHtml } from "@/lib/sanitize"
 
 interface Article {
   id: number
@@ -138,7 +139,7 @@ export default function ArticleManagePage() {
                 className={`${preview ? "hidden" : "flex-1"} min-h-[200px] rounded-lg border bg-muted/50 px-3 py-2 text-sm outline-none font-mono resize-y`} />
               {preview && (
                 <div className="flex-1 min-h-[200px] rounded-lg border bg-muted/30 px-3 py-2 text-sm overflow-auto prose prose-sm dark:prose-invert max-w-none"
-                  dangerouslySetInnerHTML={{ __html: form.content.replace(/\n/g, "<br>") }} />
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(form.content.replace(/\n/g, "<br>")) }} />
               )}
             </div>
             <div className="flex justify-between">

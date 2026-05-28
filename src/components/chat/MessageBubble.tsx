@@ -1,5 +1,6 @@
 import { Bot } from "lucide-react"
 import { marked } from "marked"
+import { sanitizeHtml } from "@/lib/sanitize"
 
 interface Props {
   role: "user" | "assistant"
@@ -47,7 +48,7 @@ export default function MessageBubble({ role, content, userImage, userName }: Pr
           [&_p]:min-w-0
           [&_blockquote]:border-l-2 [&_blockquote]:border-primary/30 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground
         "
-        dangerouslySetInnerHTML={{ __html: renderMd(content) }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderMd(content)) }}
       />
     </div>
   )
