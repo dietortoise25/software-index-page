@@ -39,10 +39,10 @@ export function RevenueOverview({ dimension, platform, operatorId }: { dimension
       const thisMonth = getMonthRange(0), lastMonth = getMonthRange(-1), chartFrom = getMonthRange(-5)
 
       const queries = [
-        supabase.from("orders").select("*", { count: "exact", head: true }).gte("pay_time", today.start).lte("pay_time", today.end),
-        supabase.from("orders").select("*", { count: "exact", head: true }).gte("pay_time", yesterday.start).lte("pay_time", yesterday.end),
-        supabase.from("orders").select("*", { count: "exact", head: true }).gte("pay_time", thisMonth.start).lte("pay_time", thisMonth.end),
-        supabase.from("orders").select("*", { count: "exact", head: true }).gte("pay_time", lastMonth.start).lte("pay_time", lastMonth.end),
+        supabase.from("orders").select("id", { count: "exact", head: true }).gte("pay_time", today.start).lte("pay_time", today.end),
+        supabase.from("orders").select("id", { count: "exact", head: true }).gte("pay_time", yesterday.start).lte("pay_time", yesterday.end),
+        supabase.from("orders").select("id", { count: "exact", head: true }).gte("pay_time", thisMonth.start).lte("pay_time", thisMonth.end),
+        supabase.from("orders").select("id", { count: "exact", head: true }).gte("pay_time", lastMonth.start).lte("pay_time", lastMonth.end),
         supabase.from("orders").select("total_amount").gte("pay_time", today.start).lte("pay_time", today.end),
         supabase.from("orders").select("total_amount").gte("pay_time", yesterday.start).lte("pay_time", yesterday.end),
         supabase.from("orders").select("total_amount").gte("pay_time", thisMonth.start).lte("pay_time", thisMonth.end),
