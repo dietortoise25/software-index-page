@@ -16,7 +16,13 @@ export function HeroCover({ kicker, title, titleAccent, subtitle, lead, meta, st
   const { colors } = useSlideDeck()
 
   return (
-    <div className="flex-1 flex flex-col justify-center">
+    <motion.div
+      className="flex-1 flex flex-col justify-center"
+      variants={{
+        hidden: {},
+        visible: { transition: { staggerChildren: 0.12, delayChildren: 0.1 } },
+      }}
+    >
       {kicker && (
         <motion.div
           className="font-mono text-[10px] tracking-[0.25em] uppercase mb-[2vh]"
@@ -70,7 +76,7 @@ export function HeroCover({ kicker, title, titleAccent, subtitle, lead, meta, st
           ))}
         </motion.div>
       )}
-    </div>
+    </motion.div>
   )
 }
 

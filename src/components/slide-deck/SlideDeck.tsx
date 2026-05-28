@@ -1,5 +1,4 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { SlideDeckProvider, useSlideDeck } from './SlideDeckContext'
 import type { SlideDeckProps, DeckStyle } from './types'
 import type { MagazineTheme, SwissTheme } from './types'
@@ -50,23 +49,13 @@ function DeckInner({ slides, showNav = true }: { slides: ReactNode[]; showNav?: 
     <div
       ref={containerRef}
       className="fixed inset-0 overflow-hidden"
-      style={{ background: deckStyle === 'magazine' ? colors.ink : colors.paper }}
+      style={{ background: colors.ink }}
     >
       <WebGLBackground style={deckStyle} colors={colors} currentIndex={currentIndex} />
 
-      <AnimatePresence>
-        <motion.div
-          key={currentIndex}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.35, ease: 'easeInOut' }}
-          className="absolute inset-0"
-          style={{ zIndex: 10 }}
-        >
-          {slides[currentIndex]}
-        </motion.div>
-      </AnimatePresence>
+      <div className="absolute inset-0" style={{ zIndex: 10 }}>
+        {slides[currentIndex]}
+      </div>
 
       {showNav && <SlideNav />}
     </div>

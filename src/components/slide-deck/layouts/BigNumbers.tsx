@@ -29,7 +29,13 @@ export function BigNumbers({ kicker, title, lead, stats }: BigNumbersProps) {
   const { colors } = useSlideDeck()
 
   return (
-    <div style={{ paddingTop: '6vh' }}>
+    <motion.div
+      style={{ paddingTop: '6vh' }}
+      variants={{
+        hidden: {},
+        visible: { transition: { staggerChildren: 0.1, delayChildren: 0.1 } },
+      }}
+    >
       {kicker && (
         <motion.div
           className="font-mono text-[10px] tracking-[0.25em] uppercase mb-[2vh]"
@@ -87,6 +93,6 @@ export function BigNumbers({ kicker, title, lead, stats }: BigNumbersProps) {
           </motion.div>
         ))}
       </motion.div>
-    </div>
+    </motion.div>
   )
 }

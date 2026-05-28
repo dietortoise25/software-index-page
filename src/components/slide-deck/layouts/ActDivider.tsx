@@ -19,7 +19,14 @@ const item = {
 
 export function ActDivider({ kicker, act, title, lead }: ActDividerProps) {
   return (
-    <div className="flex-1 flex flex-col justify-center" style={{ gap: '6vh', minHeight: '80vh' }}>
+    <motion.div
+      className="flex-1 flex flex-col justify-center"
+      style={{ gap: '6vh', minHeight: '80vh' }}
+      variants={{
+        hidden: {},
+        visible: { transition: { staggerChildren: 0.15, delayChildren: 0.2 } },
+      }}
+    >
       <motion.div
         className="font-mono text-[10px] tracking-[0.25em] uppercase"
         style={{ opacity: 0.4 }}
@@ -43,6 +50,6 @@ export function ActDivider({ kicker, act, title, lead }: ActDividerProps) {
           {lead}
         </motion.p>
       )}
-    </div>
+    </motion.div>
   )
 }

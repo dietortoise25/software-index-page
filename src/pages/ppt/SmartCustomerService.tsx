@@ -79,21 +79,19 @@ export default function SmartCustomerServicePPT() {
       </Slide>
 
       {/* 2. Act Divider — 背景篇 */}
-      <Slide kind="hero-light" chromeLeft="第一幕" chromeRight="2 / 16">
+      <Slide kind="hero-dark" chromeLeft="第一幕" chromeRight="2 / 16">
         <ActDivider act="Act I" title="背景" lead="先看清问题，再讨论方案。" />
       </Slide>
 
       {/* 3. Core Problem */}
-      <Slide kind="light" chromeLeft="背景 · 核心问题" chromeRight="3 / 16"
+      <Slide kind="dark" chromeLeft="背景 · 核心问题" chromeRight="3 / 16"
              footLeft="RPA = Robotic Process Automation 机器人流程自动化" footRight="— · —">
         <SectionTitle
           kicker="BACKGROUND"
           title="RPA：退阶措施，非长久之计"
           lead={'当前智能客服与TF ERP的对接采用的是RPA\u201C模拟人工操作\u201D方案——因无法获得官方API授权而采取的退阶措施。'}
         />
-        <motion.div className="grid grid-cols-2 gap-[2vh_3vw] mt-[4vh]" variants={{
-          hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
-        }}>
+        <div className="grid grid-cols-2 gap-[2vh_3vw] mt-[4vh]">
           <div className="rounded-lg border border-white/6 p-[3vh_2vw]" style={{ background: 'rgba(255,255,255,0.04)' }}>
             <motion.div variants={item}>
               <Wrench className="w-8 h-8 mb-[2vh]" style={{ color: 'var(--color-red-500, #e04a3c)' }} />
@@ -112,7 +110,7 @@ export default function SmartCustomerServicePPT() {
               </div>
             </motion.div>
           </div>
-        </motion.div>
+        </div>
       </Slide>
 
       {/* 4. RPA Pain Data */}
@@ -130,7 +128,7 @@ export default function SmartCustomerServicePPT() {
       </Slide>
 
       {/* 5. Pain 1 — Stability */}
-      <Slide kind="light" chromeLeft="痛点一" chromeRight="5 / 16"
+      <Slide kind="dark" chromeLeft="痛点一" chromeRight="5 / 16"
              footLeft="技术语言 + 自然语言双语说明" footRight="— · —">
         <SectionTitle
           kicker="PAIN #1"
@@ -160,17 +158,15 @@ export default function SmartCustomerServicePPT() {
           title="维护成本畸高，持续消耗开发资源"
           lead="每周平均故障1-2次，单次修复2-3小时，保守估算每周维护工时4-6小时。此项投入为持续性沉没成本。"
         />
-        <motion.div className="grid grid-cols-3 gap-[2vh_2vw] mt-[3vh]" variants={{
-          hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
-        }}>
+        <div className="grid grid-cols-3 gap-[2vh_2vw] mt-[3vh]">
           <StatCard value="200-300" label="年化维护工时" note="按开发人天折算约4-8万元隐性成本（单位：小时）" color="#e04a3c" />
           <StatCard value="∞" label="持续性投入" note="只要TF ERP还在迭代，就永远修下去。无法终止。" color="#e04a3c" />
           <StatCard value="0" label="可优化空间" note="这不是代码质量问题——RPA与DOM的耦合是结构性缺陷" color="#e04a3c" />
-        </motion.div>
+        </div>
       </Slide>
 
       {/* 7. Pain 3 — Business Continuity */}
-      <Slide kind="light" chromeLeft="痛点三" chromeRight="7 / 16"
+      <Slide kind="dark" chromeLeft="痛点三" chromeRight="7 / 16"
              footLeft="直接影响：询单转化率 + 店铺评分" footRight="— · —">
         <SectionTitle
           kicker="PAIN #3"
@@ -182,9 +178,7 @@ export default function SmartCustomerServicePPT() {
             "脚本一挂，智能客服就'哑了'。客服同学只能手动回复，高峰期根本忙不过来。客户等久了就跑单，差评也来了。"
           </div>
         </motion.div>
-        <motion.div className="grid grid-cols-3 gap-[2vh_2vw] mt-[2vh]" variants={{
-          hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
-        }}>
+        <div className="grid grid-cols-3 gap-[2vh_2vw] mt-[2vh]">
           {[
             { icon: <ShieldAlert className="w-6 h-6" />, title: '故障期服务中断', desc: '自动回复、订单查询、售后处理全部失效' },
             { icon: <Clock className="w-6 h-6" />, title: '响应延迟增加', desc: '客服从自动化转为纯人工，响应慢' },
@@ -197,7 +191,7 @@ export default function SmartCustomerServicePPT() {
               <div className="text-[0.85vw] opacity-65 leading-relaxed">{col.desc}</div>
             </motion.div>
           ))}
-        </motion.div>
+        </div>
       </Slide>
 
       {/* 8. Act Divider — 分析篇 */}
@@ -206,15 +200,13 @@ export default function SmartCustomerServicePPT() {
       </Slide>
 
       {/* 9. Root Cause */}
-      <Slide kind="light" chromeLeft="根因分析" chromeRight="9 / 16"
+      <Slide kind="dark" chromeLeft="根因分析" chromeRight="9 / 16"
              footLeft="ERP = Enterprise Resource Planning · ISV = Independent Software Vendor" footRight="— · —">
         <SectionTitle
           kicker="ROOT CAUSE"
           title="生态壁垒：ERP与头部ISV深度绑定"
         />
-        <motion.div className="grid grid-cols-3 gap-[2vh_2vw] mt-[3vh]" variants={{
-          hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
-        }}>
+        <div className="grid grid-cols-3 gap-[2vh_2vw] mt-[3vh]">
           <motion.div className="rounded-lg border border-white/6 p-[3vh_2vw]" style={{ background: 'rgba(255,255,255,0.04)' }} variants={item}>
             <div className="text-[2vw] mb-[1.5vh]">🔗</div>
             <div className="font-semibold text-[1vw] mb-[1vh]">商业生态壁垒</div>
@@ -236,7 +228,7 @@ export default function SmartCustomerServicePPT() {
               乐言深耕电商AI八年，已发布"乐言GPT大模型"，全面接入DeepSeek，事实上成为ERP内置默认客服方案。
             </div>
           </motion.div>
-        </motion.div>
+        </div>
       </Slide>
 
       {/* 10. RPA Assessment Table */}
@@ -277,12 +269,12 @@ export default function SmartCustomerServicePPT() {
       </Slide>
 
       {/* 11. Act Divider — 方案篇 */}
-      <Slide kind="hero-light" chromeLeft="第三幕" chromeRight="11 / 16">
+      <Slide kind="hero-dark" chromeLeft="第三幕" chromeRight="11 / 16">
         <ActDivider act="Act III" title="方案对比" lead="市场价格调研 + 投入产出分析。" />
       </Slide>
 
       {/* 12. Market Price Reference */}
-      <Slide kind="light" chromeLeft="市场参考" chromeRight="12 / 16"
+      <Slide kind="dark" chromeLeft="市场参考" chromeRight="12 / 16"
              footLeft="数据来源：乐言科技官网 + 第三方平台收录" footRight="— · —">
         <SectionTitle
           kicker="MARKET REFERENCE"
@@ -330,9 +322,7 @@ export default function SmartCustomerServicePPT() {
           kicker="ROI ANALYSIS"
           title="投入产出对比"
         />
-        <motion.div className="grid grid-cols-2 gap-[3vh_3vw] mt-[3vh]" variants={{
-          hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.15 } },
-        }}>
+        <div className="grid grid-cols-2 gap-[3vh_3vw] mt-[3vh]">
           <motion.div className="rounded-lg border p-[3vh_2vw]" style={{ borderColor: 'rgba(224,74,60,0.3)', background: 'rgba(224,74,60,0.06)' }} variants={item}>
             <div className="font-mono text-[9px] tracking-[0.15em] uppercase mb-[2vh]" style={{ color: '#e04a3c' }}>当前RPA方案</div>
             <div className="space-y-[1.5vh] text-[0.95vw] opacity-80">
@@ -355,34 +345,32 @@ export default function SmartCustomerServicePPT() {
               <div>· 技术债务：无</div>
             </div>
           </motion.div>
-        </motion.div>
+        </div>
         <motion.div className="text-center mt-[4vh] text-[1.2vw] font-bold" style={{ color: '#3cb878' }} variants={item}>
           年化隐性成本（¥40K-80K）vs 年费（¥828-5,800） — RPA反而更贵
         </motion.div>
       </Slide>
 
       {/* 14. Four Solutions */}
-      <Slide kind="light" chromeLeft="方案建议" chromeRight="14 / 16"
-             footLeft="推荐优先级：路线一 > 路线二 > 路线三 > 路线四" footRight="— · —">
+      <Slide kind="dark" chromeLeft="方案建议" chromeRight="14 / 16"
+             footLeft="推荐优先级：路线二 > 路线一 > 路线三 > 路线四" footRight="— · —">
         <SectionTitle
           kicker="SOLUTIONS"
           title="四条解决路线"
         />
-        <motion.div className="space-y-[2vh]" variants={{
-          hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
-        }}>
+        <div className="space-y-[2vh]">
           {[
             {
-              num: '01', title: '采购乐言Chat+', tag: '推荐 · 1-2周', tagColor: '#3cb878',
-              desc: '¥828-5,800/年，GPT/DeepSeek驱动。性价比最高、风险最低。从"自研维护"转向"SaaS订阅"。',
+              num: '01', title: '商务谈判获取API授权', tag: '推荐 · 1-3月', tagColor: '#3cb878',
+              desc: '由高管与ERP生态部门正式接洽，以"仅内部集成"为由申请API授权。从根源解决生态壁垒问题。',
             },
             {
-              num: '02', title: '商务谈判获取API授权', tag: '周期1-3月', tagColor: '#d4a853',
-              desc: '由高管与ERP生态部门正式接洽，以"仅内部集成"为由申请API授权。需商务层面推动。',
+              num: '02', title: '采购乐言Chat+', tag: '备选 · 1-2周', tagColor: '#d4a853',
+              desc: '¥828-5,800/年，GPT/DeepSeek驱动。快速止血方案，但本质是绕开问题而非解决问题。',
             },
             {
-              num: '03', title: '迁移至开放型ERP', tag: '周期2-3月', tagColor: '#d4a853',
-              desc: '调研提供开放API/Webhook的ERP系统，综合对比迁移成本与长期收益。需预留迁移预算。',
+              num: '03', title: '迁移至开放型ERP', tag: '中期 · 2-3月', tagColor: '#d4a853',
+              desc: '调研提供开放API/Webhook的ERP系统。一劳永逸摆脱生态锁定，需预留迁移预算。',
             },
             {
               num: '04', title: '继续RPA现状', tag: '不推荐', tagColor: '#e04a3c',
@@ -406,7 +394,7 @@ export default function SmartCustomerServicePPT() {
               </div>
             </motion.div>
           ))}
-        </motion.div>
+        </div>
       </Slide>
 
       {/* 15. Summary Table */}
@@ -427,9 +415,9 @@ export default function SmartCustomerServicePPT() {
             </thead>
             <tbody>
               {[
-                ['采购乐言Chat+', '低（¥828-5,800/年）', '极低', '⭐⭐⭐⭐⭐', '★★★★★'],
-                ['商务谈判API', '中（商务投入）', '低', '⭐⭐⭐⭐⭐', '★★★☆☆'],
-                ['迁移开放ERP', '高（迁移成本）', '低', '⭐⭐⭐⭐', '★★☆☆☆'],
+                ['商务谈判API', '中（商务投入）', '低', '⭐⭐⭐⭐⭐', '★★★★☆'],
+                ['采购乐言Chat+', '低（¥828-5,800/年）', '极低', '⭐⭐⭐⭐⭐', '★★★☆☆'],
+                ['迁移开放ERP', '高（迁移成本）', '低', '⭐⭐⭐⭐', '★★★☆☆'],
                 ['继续RPA现状', '低（名义上）', '极高（人力沉没）', '⭐☆☆☆☆', '☆☆☆☆☆'],
               ].map((row, i) => (
                 <tr key={i}>
@@ -446,16 +434,16 @@ export default function SmartCustomerServicePPT() {
       </Slide>
 
       {/* 16. CTA */}
-      <Slide kind="hero-dark" chromeLeft="行动呼吁" chromeRight="16 / 16">
+      <Slide kind="hero-dark" chromeLeft="建议" chromeRight="16 / 16">
         <HeroQuestion
-          kicker="THE ASK"
+          kicker="RECOMMENDATION"
           titleLines={[
-            '是继续每周花半天',
-            '"修脚本"，',
-            '还是用¥828/年',
-            '彻底解决这个问题？',
+            'RPA不是技术问题，',
+            '是生态壁垒问题。',
+            '治本之道：',
+            '拿回API主动权。',
           ]}
-          lead="推荐路线一：采购乐言Chat+。1-2周落地，让技术团队回归真正有价值的工作。"
+          lead={'技术建议：优先推进路线二（商务谈判获取API授权），以“仅内部集成”为由争取合法接口。若谈判受阻，评估迁移至开放型ERP，从根本上摆脱生态锁定。'}
         />
       </Slide>
     </SlideDeck>

@@ -18,7 +18,14 @@ const item = {
 
 export function HeroQuestion({ kicker, titleLines, lead }: HeroQuestionProps) {
   return (
-    <div className="flex-1 flex flex-col justify-center" style={{ gap: '8vh', minHeight: '80vh' }}>
+    <motion.div
+      className="flex-1 flex flex-col justify-center"
+      style={{ gap: '8vh', minHeight: '80vh' }}
+      variants={{
+        hidden: {},
+        visible: { transition: { staggerChildren: 0.2, delayChildren: 0.1 } },
+      }}
+    >
       {kicker && (
         <motion.div
           className="font-mono text-[10px] tracking-[0.25em] uppercase"
@@ -51,6 +58,6 @@ export function HeroQuestion({ kicker, titleLines, lead }: HeroQuestionProps) {
           {lead}
         </motion.p>
       )}
-    </div>
+    </motion.div>
   )
 }
