@@ -20,7 +20,7 @@ export function HeroQuestion({ kicker, titleLines, lead }: HeroQuestionProps) {
   return (
     <motion.div
       className="flex-1 flex flex-col justify-center"
-      style={{ gap: '8vh', minHeight: '80vh' }}
+      style={{ gap: '4vh', minHeight: '50vh' }}
       variants={{
         hidden: {},
         visible: { transition: { staggerChildren: 0.2, delayChildren: 0.1 } },
