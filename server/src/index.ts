@@ -19,6 +19,7 @@ import feishuAuthRouter from "./routes/feishu-auth.js"
 import articlesRouter from "./routes/articles.js"
 import calendarRouter from "./routes/calendar.js"
 import shopeeRouter from "./routes/shopee.js"
+import authVerifyRouter from "./routes/auth-verify.js"
 
 const PORT = parseInt(process.env.PORT || "8765", 10)
 
@@ -29,6 +30,9 @@ app.use(express.urlencoded({ extended: false }))
 
 // 飞书 OAuth — 必须在 /api/auth/* 之前
 app.use("/api/auth/feishu", feishuAuthRouter)
+
+// 访客 token 验证 — 必须在 Better Auth 通配之前
+app.use("/api/auth", authVerifyRouter)
 
 // Better Auth handler — 必须在 express.json() 之前
 app.all("/api/auth/*", toNodeHandler(auth))

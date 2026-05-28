@@ -15,22 +15,24 @@ export default function AuthGuard({ children, requireAdmin }: Props) {
   const [searchParams] = useSearchParams()
   const [visitorChecked, setVisitorChecked] = useState(false)
 
-  // 访客 JWT token 验证
+  // 访客 JWT token 验证 — 服务端验签
   const token = searchParams.get("token")
   useEffect(() => {
     if (loggedIn || !token) { setVisitorChecked(true); return }
-    // 简单 JWT 解码验证（不验签名，仅检查过期）
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]))
-      if (payload.pagePath && payload.exp && Date.now() < payload.exp * 1000) {
-        // 检查 token 是否匹配当前路径
-        if (location.pathname.startsWith(payload.pagePath)) {
+    fetch("/api/auth/verify-guest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d.valid && d.pagePath && location.pathname.startsWith(d.pagePath)) {
           setVisitorChecked(true)
           return
         }
-      }
-    } catch { /* invalid token */ }
-    setVisitorChecked(true)
+        setVisitorChecked(true)
+      })
+      .catch(() => setVisitorChecked(true))
   }, [token, loggedIn])
 
   useEffect(() => {
