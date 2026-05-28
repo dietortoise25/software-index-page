@@ -3,6 +3,7 @@ import { Key, Copy, Play, Terminal, RefreshCw, ExternalLink, HelpCircle } from "
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { tiktokCredentialsSchema } from "@/lib/validation"
 
 /* ── 模拟 client 调用（实际应调后端 /api/tiktok-shop/*） ── */
 
@@ -154,7 +155,11 @@ export default function TikTokShopTestPage() {
               <input value={redirectUri} onChange={(e) => setRedirectUri(e.target.value)}
                 className="w-full rounded-lg border bg-muted/50 px-3 py-2 text-sm mt-1 outline-none focus:border-primary/50" />
             </div>
-            <Button size="sm" onClick={() => setStep(2)} disabled={!appKey || !appSecret}>下一步</Button>
+            <Button size="sm" onClick={() => {
+              const parsed = tiktokCredentialsSchema.safeParse({ appKey, appSecret, redirectUri })
+              if (!parsed.success) { alert(parsed.error.issues[0].message); return }
+              setStep(2)
+            }} disabled={!appKey || !appSecret}>下一步</Button>
           </div>
         </Card>
 

@@ -4,6 +4,7 @@ import AuthGuard from "@/components/auth/AuthGuard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { sanitizeHtml } from "@/lib/sanitize"
+import { articleSchema } from "@/lib/validation"
 
 interface Article {
   id: number
@@ -62,7 +63,8 @@ export default function ArticleManagePage() {
   }
 
   const handleSave = async () => {
-    if (!form.slug || !form.title) return
+    const parsed = articleSchema.safeParse(form)
+    if (!parsed.success) { alert(parsed.error.issues[0].message); return }
     setSaving(true)
     try {
       const method = editing ? "PUT" : "POST"

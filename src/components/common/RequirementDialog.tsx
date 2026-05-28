@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { requirementFormSchema } from "@/lib/validation"
 import { MessageSquarePlus } from "lucide-react"
 import {
   Dialog,
@@ -55,6 +56,8 @@ export default function RequirementDialog() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const parsed = requirementFormSchema.safeParse(form)
+    if (!parsed.success) { setSendError(parsed.error.issues[0].message); return }
     setSending(true)
     setSendError("")
 

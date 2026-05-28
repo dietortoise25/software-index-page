@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
+import { groupSchema, operatorSchema, shopBindingSchema } from "@/lib/validation"
 
 type Tab = "groups" | "operators" | "bindings" | "approval"
 
@@ -81,8 +82,9 @@ function GroupsTab() {
   useEffect(() => { fetch() }, [fetch])
 
   const add = async () => {
-    if (!newName.trim()) return
-    await api("/groups", { name: newName.trim() })
+    const parsed = groupSchema.safeParse({ name: newName.trim() })
+    if (!parsed.success) { alert(parsed.error.issues[0].message); return }
+    await api("/groups", { name: parsed.data.name })
     setNewName("")
     fetch()
   }
@@ -172,8 +174,9 @@ function OperatorsTab() {
   useEffect(() => { fetch() }, [fetch])
 
   const add = async () => {
-    if (!newName.trim()) return
-    await api("/operators", { name: newName.trim() })
+    const parsed = operatorSchema.safeParse({ name: newName.trim() })
+    if (!parsed.success) { alert(parsed.error.issues[0].message); return }
+    await api("/operators", { name: parsed.data.name })
     setNewName("")
     fetch()
   }
@@ -257,8 +260,9 @@ function BindingsTab() {
   useEffect(() => { fetch() }, [fetch])
 
   const add = async () => {
-    if (!selShop || !selOp) return
-    const r = await api("/shop-operators", { shop_id: selShop, operator_id: selOp, group_id: selGroup || null })
+    const parsed = shopBindingSchema.safeParse({ shop_id: selShop, operator_id: selOp })
+    if (!parsed.success) { alert(parsed.error.issues[0].message); return }
+    const r = await api("/shop-operators", { shop_id: parsed.data.shop_id, operator_id: parsed.data.operator_id, group_id: selGroup || null })
     if (r.ok) { setSelShop(0); setSelOp(0); setSelGroup(0); fetch() }
     else alert(r.error)
   }
