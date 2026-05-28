@@ -15,7 +15,7 @@ export default defineConfig({
     proxy: {
       "/api/return-workflow": "http://localhost:3002",
       "/api/agent": "http://localhost:8001",
-      "/api": "http://localhost:3001",
+      "/api": "http://localhost:8765",
     },
   },
   optimizeDeps: {

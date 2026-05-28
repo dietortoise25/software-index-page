@@ -1,3 +1,5 @@
+import "dotenv/config"
+
 /**
  * 软件发布站后端服务
  * relay.service — Express API (port 8765)
