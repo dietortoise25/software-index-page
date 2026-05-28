@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { Loader2, AlertCircle, RefreshCw } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { getMonthRange } from "@/lib/date-range"
@@ -8,15 +8,19 @@ import type { Dimension, Platform } from "./FilterBar"
 
 export function OperatorRanking({ dimension, platform, operatorId }: { dimension: Dimension; platform: Platform; operatorId: number }) {
   const [data, setData] = useState<{ name: string; gmv: number; orders: number }[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
-    const thisMonth = getMonthRange(0);
     (async () => {
+      try {
+      setLoading(true); setError(null)
+      const thisMonth = getMonthRange(0)
       const { data: bindings } = await supabase.schema("internal").from("shop_operators")
         .select("shop_id, operator_id, operator:operators(name)").eq("is_primary", true)
-      if (!bindings) return
       const shopToOp = new Map<number, { id: number; name: string }>()
-      for (const b of bindings) {
+      for (const b of (bindings || [])) {
         const op = (b as Record<string, unknown>).operator as Record<string, unknown>
         shopToOp.set(Number(b.shop_id), { id: Number(b.operator_id), name: String(op?.name || "?") })
       }
@@ -26,7 +30,8 @@ export function OperatorRanking({ dimension, platform, operatorId }: { dimension
         const ids = [...shopToOp.entries()].filter(([, op]) => op.id === operatorId).map(([sid]) => sid)
         if (ids.length) q = q.in("shop_id", ids)
       }
-      const { data: rows } = await q
+      const { data: rows, error: qe } = await q
+      if (qe) throw qe
       const opMap: Record<string, { name: string; gmv: number; orders: number }> = {}
       for (const r of (rows || [])) {
         const op = shopToOp.get(Number(r.shop_id))
@@ -35,10 +40,23 @@ export function OperatorRanking({ dimension, platform, operatorId }: { dimension
         else { const k = `${op.id}`; if (!opMap[k]) opMap[k] = { name: op.name, gmv: 0, orders: 0 }; opMap[k].gmv += amount; opMap[k].orders++ }
       }
       setData(Object.values(opMap).sort((a, b) => b.gmv - a.gmv).slice(0, 8))
+      } catch (e: any) { setError(e?.message || "查询失败") } finally { setLoading(false) }
     })()
-  }, [dimension, platform, operatorId])
+  }, [dimension, platform, operatorId, retryKey])
 
-  if (!data.length) return <div className="flex justify-center py-12"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+  if (error) return (
+    <Card><CardContent className="flex items-center gap-3 py-8">
+      <AlertCircle className="size-5 shrink-0 text-destructive" />
+      <span className="text-destructive text-sm flex-1">{error}</span>
+      <button onClick={() => { setError(null); setRetryKey(k => k + 1) }} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10">
+        <RefreshCw className="size-3.5" /> 重试
+      </button>
+    </CardContent></Card>
+  )
+  if (!data.length) return (
+    <Card><CardContent className="flex items-center justify-center py-12"><span className="text-muted-foreground text-sm">本月暂无订单数据</span></CardContent></Card>
+  )
 
   return (
     <Card>
