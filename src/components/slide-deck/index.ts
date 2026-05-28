@@ -1,0 +1,6 @@
+export { SlideDeck, Slide, SlideNav } from './SlideDeck'
+export { useSlideDeck } from './SlideDeckContext'
+export { WebGLBackground } from './backgrounds/WebGLBackground'
+export * from './layouts'
+export * from './types'
+export * from './themes'
