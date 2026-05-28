@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Loader2, ChevronLeft } from "lucide-react"
+import { Loader2, ChevronLeft, AlertCircle, RefreshCw } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,13 +17,24 @@ export function AdCostSection({ dimension, platform, operatorId }: { dimension: 
   const [rate, setRate] = useState<{ month: string; rate: number }[]>([])
   const [summary, setSummary] = useState<{ spend: number; rate: number; affiliatePct: number }>({ spend: 0, rate: 0, affiliatePct: 0 })
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [drill, setDrill] = useState<DrillState>({ level: "month" })
   const [drillData, setDrillData] = useState<{ date: string; affiliate: number; tech: number; total: number }[]>([])
   const [drillLoading, setDrillLoading] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
+
+  function friendlyError(err: any): string {
+    const msg = err?.message ?? ""
+    if (msg.includes("statement timeout") || msg.includes("57014")) return "查询超时，数据量较大，请稍后重试"
+    if (msg.includes("date/time") || msg.includes("22008")) return "日期范围有误"
+    if (msg.includes("network") || msg.includes("fetch")) return "网络连接异常，请检查网络后重试"
+    return msg || "查询失败，请重试"
+  }
 
   useEffect(() => {
     (async () => {
-      setLoading(true)
+      try {
+      setLoading(true); setError(null)
       let q = supabase.from("ad_costs").select("*").order("report_month", { ascending: true }).limit(12)
       if (dimension === "platform") q = q.eq("platform", platform)
       const { data: rows } = await q; const rows_ = (rows || []) as Record<string, unknown>[]
@@ -44,9 +55,9 @@ export function AdCostSection({ dimension, platform, operatorId }: { dimension: 
       const affTotal = rows_.filter(r => r.platform === "TIKTOK").reduce((s, r) => s + parseFloat(String((r as any).affiliate_cost || 0)), 0)
       setMonthly(mergedArr); setRate(rateArr)
       setSummary({ spend: last?.total || 0, rate: lastRate, affiliatePct: last?.total ? (affTotal / last.total) * 100 : 0 })
-      setLoading(false)
+      } catch (err) { setError(friendlyError(err)) } finally { setLoading(false) }
     })()
-  }, [dimension, platform, operatorId])
+  }, [dimension, platform, operatorId, retryKey])
 
   // 点击某月 → 从 ad_cost_details 查按天汇总
   const drillToMonth = async (month: string) => {
@@ -88,6 +99,15 @@ export function AdCostSection({ dimension, platform, operatorId }: { dimension: 
   }
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+  if (error) return (
+    <Card><CardContent className="flex items-center gap-3 py-8">
+      <AlertCircle className="size-5 shrink-0 text-destructive" />
+      <span className="text-destructive text-sm flex-1">{error}</span>
+      <button onClick={() => { setError(null); setRetryKey(k => k + 1) }} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10">
+        <RefreshCw className="size-3.5" /> 重试
+      </button>
+    </CardContent></Card>
+  )
   if (!monthly.length) return <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">暂无广告费用数据</CardContent></Card>
 
   return (

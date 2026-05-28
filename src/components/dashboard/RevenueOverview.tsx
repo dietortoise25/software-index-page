@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react"
-import { CalendarDays, TrendingUp, BarChart3, DollarSign, Loader2, AlertCircle } from "lucide-react"
+import { CalendarDays, TrendingUp, BarChart3, DollarSign, Loader2, AlertCircle, RefreshCw } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -31,6 +31,7 @@ export function RevenueOverview({ dimension, platform, operatorId }: { dimension
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [retrying, setRetrying] = useState(false)
 
   const fetchData = useCallback(async () => {
     try {
@@ -38,6 +39,7 @@ export function RevenueOverview({ dimension, platform, operatorId }: { dimension
       const today = getChinaDateRange(0), yesterday = getChinaDateRange(1)
       const thisMonth = getMonthRange(0), lastMonth = getMonthRange(-1), chartFrom = getMonthRange(-5)
 
+      const qLabels = ["今日订单数", "昨日订单数", "本月订单数", "上月订单数", "今日销售额", "昨日销售额", "本月销售额", "上月销售额", "近6月趋势"]
       const queries = [
         supabase.from("orders").select("id", { count: "exact", head: true }).gte("pay_time", today.start).lte("pay_time", today.end),
         supabase.from("orders").select("id", { count: "exact", head: true }).gte("pay_time", yesterday.start).lte("pay_time", yesterday.end),
@@ -58,7 +60,8 @@ export function RevenueOverview({ dimension, platform, operatorId }: { dimension
       }
 
       const [tc, yc, mc, lc, ts, ys, ms, ls, ch] = await Promise.all(queries) as any[]
-      for (const r of [tc, yc, mc, lc, ts, ys, ms, ls, ch]) { if (r.error) throw r.error }
+      const results = [tc, yc, mc, lc, ts, ys, ms, ls, ch]
+      for (let i = 0; i < results.length; i++) { if (results[i].error) throw Object.assign(results[i].error, { label: qLabels[i] }) }
       const sum = (d: any) => (d.data ?? []).reduce((a: number, r: any) => a + (parseFloat(String(r.total_amount ?? 0)) || 0), 0)
 
       const monthMap: Record<string, { sales: number; count: number }> = {}
@@ -66,13 +69,38 @@ export function RevenueOverview({ dimension, platform, operatorId }: { dimension
       const cd: ChartPoint[] = []; for (let i = -5; i <= 0; i++) { const range = getMonthRange(i); const key = range.start.slice(0, 7); cd.push({ month: key, ...monthMap[key] || { sales: 0, count: 0 } }) }
 
       setMetrics({ todayCount: tc.count ?? 0, yesterdayCount: yc.count ?? 0, todaySales: sum(ts), yesterdaySales: sum(ys), thisMonthCount: mc.count ?? 0, thisMonthSales: sum(ms), lastMonthCount: lc.count ?? 0, lastMonthSales: sum(ls), chartData: cd })
-    } catch (err) { setError(err instanceof Error ? err.message : "查询失败") } finally { setLoading(false) }
+    } catch (err: any) {
+      const label = err?.label ?? ""
+      const msg = err?.message ?? ""
+      let friendly: string
+      if (msg.includes("statement timeout") || msg.includes("57014")) friendly = `${label ? label + " " : ""}查询超时，数据量较大，请稍后重试`
+      else if (msg.includes("date/time") || msg.includes("22008")) friendly = `${label ? label + " " : ""}日期范围有误`
+      else if (msg.includes("network") || msg.includes("fetch")) friendly = "网络连接异常，请检查网络后重试"
+      else if (msg.includes("JWT") || msg.includes("auth")) friendly = "登录已过期，请刷新页面"
+      else friendly = `${label ? label + "：" : ""}${msg || "查询失败，请重试"}`
+      setError(friendly)
+    } finally { setLoading(false); setRetrying(false) }
   }, [dimension, platform, operatorId])
 
   useEffect(() => { fetchData() }, [fetchData])
 
   if (loading) return <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[...Array(4)].map((_,i) => <Card key={i}><CardContent className="flex items-center justify-center py-16"><Loader2 className="size-6 animate-spin text-muted-foreground" /></CardContent></Card>)}</div>
-  if (error) return <Card><CardContent className="flex items-center gap-3 py-8"><AlertCircle className="size-5 shrink-0 text-destructive" /><span className="text-destructive text-sm">{error}</span></CardContent></Card>
+  if (error) return (
+    <Card>
+      <CardContent className="flex items-center gap-3 py-8">
+        <AlertCircle className="size-5 shrink-0 text-destructive" />
+        <span className="text-destructive text-sm flex-1">{error}</span>
+        <button
+          onClick={() => { setRetrying(true); fetchData() }}
+          disabled={retrying}
+          className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+        >
+          <RefreshCw className={`size-3.5 ${retrying ? "animate-spin" : ""}`} />
+          重试
+        </button>
+      </CardContent>
+    </Card>
+  )
   if (!metrics) return null
 
   return (
