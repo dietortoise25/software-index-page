@@ -54,13 +54,13 @@ function DeckInner({ slides, showNav = true }: { slides: ReactNode[]; showNav?: 
     >
       <WebGLBackground style={deckStyle} colors={colors} currentIndex={currentIndex} />
 
-      <AnimatePresence mode="wait">
+      <AnimatePresence>
         <motion.div
           key={currentIndex}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.45, ease: 'easeInOut' }}
+          transition={{ duration: 0.35, ease: 'easeInOut' }}
           className="absolute inset-0"
           style={{ zIndex: 10 }}
         >
