@@ -4,6 +4,7 @@
 import { Router } from "express"
 import { createClient } from "@supabase/supabase-js"
 import { getTenantToken } from "../lib/feishu.js"
+import { requireAuth } from "../lib/auth-middleware.js"
 import crypto from "crypto"
 
 const router = Router()
@@ -13,7 +14,7 @@ const APPROVAL_CODE = process.env.FEISHU_APPROVAL_CODE || "9959B9BB-78C5-4DBC-91
 const FEISHU_API = "https://open.feishu.cn/open-apis"
 
 // ========== 提交审批 — 飞书原生审批 API ==========
-router.post("/approval/submit", async (req, res) => {
+router.post("/approval/submit", requireAuth, async (req, res) => {
   const { shop_id, operator_id, change_type, effective_from, reason } = req.body || {}
   if (!shop_id || !operator_id || !effective_from || !reason) {
     res.status(400).json({ ok: false, error: "参数不完整" }); return

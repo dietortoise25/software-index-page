@@ -3,6 +3,7 @@
  * 写入审查面板 JSON + 发送飞书纯文本通知
  */
 import { Router } from "express"
+import { requireAuth } from "../lib/auth-middleware.js"
 
 const SITE_BASE_URL = `http://${process.env.SERVER_IP || "42.193.170.109"}`
 import { getTenantToken, getUserOpenId, sendFeishuMessage, formatFeishuMessage } from "../lib/feishu.js"
@@ -10,7 +11,7 @@ import { addRequirement } from "../lib/storage.js"
 
 const router = Router()
 
-router.post("/", async (req, res) => {
+router.post("/", requireAuth, async (req, res) => {
   try {
     const form = req.body as Record<string, string>
     console.log(`[${new Date().toISOString()}] 收到需求:`, JSON.stringify(form).slice(0, 200))
