@@ -19,19 +19,21 @@ export type StageEvent =
   | { status: "done"; cardJson: unknown; msgId?: string; duration: number }
   | { status: "error"; stage: string; error: string }
 
-const cardSchema = z.object({
-  title: z.string().describe("卡片标题"),
-  summary: z.string().describe("一句话总体摘要"),
-  items: z.array(z.object({
-    title: z.string().describe("新闻标题"),
-    digest: z.string().describe("100字以内的新闻摘要"),
-    url: z.string().url().describe("原文链接"),
-    source: z.string().describe("新闻来源"),
-  })).min(3).max(5).describe("3-5条最重要的新闻"),
-  tags: z.array(z.string()).describe("相关标签"),
-})
+function makeCardSchema(cardCount: number) {
+  return z.object({
+    title: z.string().describe("卡片标题"),
+    summary: z.string().describe("一句话总体摘要"),
+    items: z.array(z.object({
+      title: z.string().describe("新闻标题"),
+      digest: z.string().describe("100字以内的新闻摘要"),
+      url: z.string().url().describe("原文链接"),
+      source: z.string().describe("新闻来源"),
+    })).min(1).max(cardCount).describe(`最重要的新闻，最多${cardCount}条`),
+    tags: z.array(z.string()).describe("相关标签"),
+  })
+}
 
-function buildFeishuCard(args: z.infer<typeof cardSchema>) {
+function buildFeishuCard(args: { title: string; summary: string; items: Array<{ title: string; digest: string; url: string; source: string }>; tags: string[] }) {
   const itemsMd = args.items.map((item, i) =>
     `**${i + 1}. ${item.title}**\n${item.digest}\n[阅读原文](${item.url}) — ${item.source}`,
   ).join("\n\n---\n\n")
@@ -108,7 +110,7 @@ export async function runNewsDigest(
     onStage({ status: "searching", query: searchKeywords })
     await updateRun(runId, { search_query: searchKeywords })
 
-    const rawResults = await searchNews(searchKeywords, { maxResults: config.max_results, days: 1 })
+    const rawResults = await searchNews(searchKeywords, { maxResults: config.search_count, days: 1 })
     onStage({ status: "search_done", resultCount: rawResults.length })
 
     if (rawResults.length === 0) {
@@ -126,7 +128,7 @@ export async function runNewsDigest(
 
     const model = getModel({ temperature: 0.3 })
     const response = await model.invoke([
-      new SystemMessage(`你是新闻摘要助手。从搜索结果中挑选3-5条最重要的新闻，输出JSON格式的新闻卡片。
+      new SystemMessage(`你是新闻摘要助手。从搜索结果中挑选最重要的新闻（最多${config.card_count}条），输出JSON格式的新闻卡片。
 注意：所有内容必须翻译成中文，包括标题、摘要、标签。
 
 输出格式（严格遵守，只输出JSON，不要其他文字）：
@@ -149,7 +151,8 @@ export async function runNewsDigest(
       return
     }
 
-    const result = JSON.parse(jsonMatch[0]) as z.infer<typeof cardSchema>
+    const schema = makeCardSchema(config.card_count)
+    const result = JSON.parse(jsonMatch[0]) as z.infer<typeof schema>
     onStage({ status: "summarize_done" })
 
     // Step 3: 组装并发送飞书卡片

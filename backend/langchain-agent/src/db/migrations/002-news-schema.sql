@@ -17,7 +17,8 @@ INSERT INTO agent.news_config (key, value) VALUES
   ('receive_id', '""'),
   ('receive_type', '"open_id"'),
   ('language', '"zh"'),
-  ('max_results', '10')
+  ('search_count', '10'),
+  ('card_count', '5')
 ON CONFLICT (key) DO NOTHING;
 
 -- 流水线运行记录表

@@ -10,7 +10,8 @@ interface NewsConfig {
   receive_id: string
   receive_type: "open_id" | "chat_id"
   language: string
-  max_results: number
+  search_count: number
+  card_count: number
 }
 
 type StageStatus = "idle" | "active" | "done" | "error"
@@ -189,11 +190,19 @@ function ConfigPanel({ config, onChange, onSave, saving, mode, onModeChange, goa
         </div>
       </div>
 
-      <div>
-        <label className="text-[11px] text-muted-foreground">最多返回条数</label>
-        <input type="number" min={1} max={20} value={config.max_results}
-          onChange={e => onChange({ ...config, max_results: parseInt(e.target.value) || 10 })}
-          className="w-24 border rounded px-2 py-1 text-xs mt-0.5" />
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[11px] text-muted-foreground">搜索条数 (Tavily)</label>
+          <input type="number" min={1} max={20} value={config.search_count}
+            onChange={e => onChange({ ...config, search_count: parseInt(e.target.value) || 10 })}
+            className="w-full border rounded px-2 py-1 text-xs mt-0.5" />
+        </div>
+        <div>
+          <label className="text-[11px] text-muted-foreground">卡片条数 (飞书)</label>
+          <input type="number" min={1} max={10} value={config.card_count}
+            onChange={e => onChange({ ...config, card_count: parseInt(e.target.value) || 5 })}
+            className="w-full border rounded px-2 py-1 text-xs mt-0.5" />
+        </div>
       </div>
 
       <button onClick={onSave} disabled={saving}
@@ -281,7 +290,8 @@ export default function NewsDigestTab() {
     receive_id: "",
     receive_type: "open_id",
     language: "zh",
-    max_results: 10,
+    search_count: 10,
+    card_count: 5,
   })
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)

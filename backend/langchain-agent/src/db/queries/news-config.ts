@@ -7,7 +7,8 @@ export interface NewsConfig {
   receive_id: string
   receive_type: "open_id" | "chat_id"
   language: string
-  max_results: number
+  search_count: number
+  card_count: number
 }
 
 const defaults: NewsConfig = {
@@ -17,7 +18,8 @@ const defaults: NewsConfig = {
   receive_id: process.env.FEISHU_ADMIN_OPEN_ID || "",
   receive_type: "open_id",
   language: "zh",
-  max_results: 10,
+  search_count: 10,
+  card_count: 5,
 }
 
 export async function getNewsConfig(): Promise<NewsConfig> {
