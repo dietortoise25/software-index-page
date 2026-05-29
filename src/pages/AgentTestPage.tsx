@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react"
+import NewsDigestTab from "@/components/agent/NewsDigestTab"
 
 interface Message {
   role: "user" | "assistant"
@@ -35,6 +36,7 @@ interface Conversation {
 
 const TABS = [
   { id: "demo-0", label: "Demo-0", desc: "Agent 基座 · 功能完整", status: "active" as const },
+  { id: "news-digest", label: "新闻汇集", desc: "Tavily 搜索 + LLM 摘要 + 飞书推送", status: "active" as const },
   { id: "linear", label: "线性工作流", desc: "createAgent 替换手写 tool loop", status: "coming" as const },
   { id: "branching", label: "分支路由", desc: "StateGraph + 意图分类 + 多 Agent", status: "coming" as const },
   { id: "supervisor", label: "Supervisor", desc: "createSupervisor 多 Agent 协作", status: "coming" as const },
@@ -250,7 +252,9 @@ export default function AgentTestPage() {
         ))}
       </div>
 
-      {currentTab.status === "coming" ? (
+      {currentTab.id === "news-digest" ? (
+        <NewsDigestTab />
+      ) : currentTab.status === "coming" ? (
         <ComingSoon tab={currentTab} />
       ) : (
         <div className="flex gap-6">

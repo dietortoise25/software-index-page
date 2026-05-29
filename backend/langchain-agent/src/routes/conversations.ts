@@ -10,11 +10,8 @@ import {
 
 export const conversationsRouter = Router()
 
-// 所有会话路由需要登录
-conversationsRouter.use(requireAuth)
-
 // GET /api/agent/conversations
-conversationsRouter.get("/conversations", async (req, res) => {
+conversationsRouter.get("/conversations", requireAuth, async (req, res) => {
   try {
     const list = await listConversations(req.user!.id)
     res.json({ ok: true, data: list })
@@ -25,7 +22,7 @@ conversationsRouter.get("/conversations", async (req, res) => {
 })
 
 // POST /api/agent/conversations
-conversationsRouter.post("/conversations", async (req, res) => {
+conversationsRouter.post("/conversations", requireAuth, async (req, res) => {
   try {
     const { title, agentType } = req.body as { title?: string; agentType?: string }
     const conv = await createConversation(req.user!.id, title, agentType)
@@ -37,7 +34,7 @@ conversationsRouter.post("/conversations", async (req, res) => {
 })
 
 // GET /api/agent/conversations/:id
-conversationsRouter.get("/conversations/:id", async (req, res) => {
+conversationsRouter.get("/conversations/:id", requireAuth, async (req, res) => {
   try {
     const conv = await getConversation(req.params.id!, req.user!.id)
     if (!conv) {
@@ -53,7 +50,7 @@ conversationsRouter.get("/conversations/:id", async (req, res) => {
 })
 
 // DELETE /api/agent/conversations/:id
-conversationsRouter.delete("/conversations/:id", async (req, res) => {
+conversationsRouter.delete("/conversations/:id", requireAuth, async (req, res) => {
   try {
     const conv = await getConversation(req.params.id!, req.user!.id)
     if (!conv) {
