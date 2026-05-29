@@ -4,10 +4,7 @@ import { listConfigs, createConfig, updateConfig, deleteConfig } from "../db/que
 
 export const newsConfigsRouter = Router()
 
-// 所有路由需要登录
-newsConfigsRouter.use(requireAuth)
-
-newsConfigsRouter.get("/news-configs", async (req, res) => {
+newsConfigsRouter.get("/news-configs", requireAuth, async (req, res) => {
   try {
     const configs = await listConfigs(req.user!.id)
     res.json({ ok: true, data: configs })
@@ -16,7 +13,7 @@ newsConfigsRouter.get("/news-configs", async (req, res) => {
   }
 })
 
-newsConfigsRouter.post("/news-configs", async (req, res) => {
+newsConfigsRouter.post("/news-configs", requireAuth, async (req, res) => {
   try {
     const { name, config } = req.body as { name?: string; config?: unknown }
     if (!name?.trim()) {
@@ -32,7 +29,7 @@ newsConfigsRouter.post("/news-configs", async (req, res) => {
   }
 })
 
-newsConfigsRouter.put("/news-configs/:id", async (req, res) => {
+newsConfigsRouter.put("/news-configs/:id", requireAuth, async (req, res) => {
   try {
     const { name, config } = req.body as { name?: string; config?: unknown }
     const row = await updateConfig(req.params.id!, req.user!.id, {
@@ -44,7 +41,7 @@ newsConfigsRouter.put("/news-configs/:id", async (req, res) => {
   }
 })
 
-newsConfigsRouter.delete("/news-configs/:id", async (req, res) => {
+newsConfigsRouter.delete("/news-configs/:id", requireAuth, async (req, res) => {
   try {
     await deleteConfig(req.params.id!, req.user!.id)
     res.json({ ok: true, data: null })
