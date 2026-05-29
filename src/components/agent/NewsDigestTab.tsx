@@ -359,6 +359,8 @@ export default function NewsDigestTab() {
     setSelectedId(row.id)
     setConfig(row.config)
     setConfigName(row.name)
+    setMode("manual")
+    setGoal("")
   }
 
   async function createNewConfig() {
