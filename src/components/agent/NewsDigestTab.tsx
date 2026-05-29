@@ -138,7 +138,7 @@ function ConfigPanel({ config, onChange, onSave, saving, mode, onModeChange, goa
         <div>
           <label className="text-[11px] text-muted-foreground">你想了解什么？</label>
           <textarea value={goal} onChange={e => onGoalChange(e.target.value)}
-            placeholder="例如：了解跨境电商最新政策、AI Agent 行业动态、Shopee 平台规则变化..."
+            placeholder="我是一个关注中国巴西贸易，跨境电商（shopee/tiktok），AI原生公司发展的CEO，业务还包含了巴西当地的转口贸易，自营跨境电商店，海外本土店。"
             rows={3}
             className="w-full border rounded px-2 py-1 text-xs mt-0.5 resize-none" />
         </div>
