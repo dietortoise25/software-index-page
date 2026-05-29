@@ -350,16 +350,22 @@ export default function NewsDigestTab() {
               const next = [...prev]
               switch (event.status) {
                 case "searching":
+                  next[0] = { ...next[0], status: "done" }
                   next[1] = { ...next[1], status: "active", detail: event.query, timestamp: new Date().toLocaleTimeString() }
                   break
                 case "search_done":
                   next[1] = { ...next[1], status: "done", detail: `找到 ${event.resultCount} 条结果` }
                   next[2] = { ...next[2], status: "active", timestamp: new Date().toLocaleTimeString() }
                   break
+                case "summarizing":
+                  next[2] = { ...next[2], status: "active", detail: event.progress, timestamp: new Date().toLocaleTimeString() }
+                  break
                 case "summarize_done":
                   next[2] = { ...next[2], status: "done" }
+                  next[3] = { ...next[3], status: "active", timestamp: new Date().toLocaleTimeString() }
                   break
                 case "building_card":
+                  next[2] = { ...next[2], status: "done" }
                   next[3] = { ...next[3], status: "active", timestamp: new Date().toLocaleTimeString() }
                   break
                 case "sending":
