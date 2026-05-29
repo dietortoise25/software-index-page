@@ -5,28 +5,15 @@ import { getModel } from "../config/model.js"
 import { getNewsConfig, type NewsConfig } from "../db/queries/news-config.js"
 
 function robustJsonParse(raw: string): unknown {
-  // 1. 提取 JSON 块
   const match = raw.match(/\{[\s\S]*\}/)
   let str = match ? match[0] : raw
-
-  // 2. 直接尝试
   try { return JSON.parse(str) } catch {}
-
-  // 3. jsonrepair 修复常见错误（未转义引号、尾部逗号等）
-  try {
-    const repaired = jsonrepair(str)
-    return JSON.parse(repaired)
-  } catch {}
-
-  // 4. 去掉首尾的 markdown code fence 再试
+  try { return JSON.parse(jsonrepair(str)) } catch {}
   const noFence = str.replace(/^```json?\s*/i, "").replace(/\s*```$/i, "")
-  try {
-    const repaired = jsonrepair(noFence)
-    return JSON.parse(repaired)
-  } catch {}
-
+  try { return JSON.parse(jsonrepair(noFence)) } catch {}
   throw new Error(`JSON 解析失败，原始内容前200字: ${raw.slice(0, 200)}`)
 }
+
 import { createRun, finishRun, updateRun, getLatestRunning } from "../db/queries/news-digest-runs.js"
 import { searchNews } from "./tavily.js"
 import { getTenantToken, sendFeishuCard } from "./feishu.js"
@@ -53,18 +40,20 @@ function makeCardSchema(cardCount: number) {
       digest: z.string().describe("100字以内中文摘要"),
       url: z.string().url().describe("原文链接"),
       source: z.string().describe("新闻来源"),
-      topic: z.string().describe("所属主题标签，如'跨境电商'"),
-      reason: z.string().describe("推荐理由，30字以内，解释为什么这条新闻值得关注"),
+      topic: z.string().describe("所属主题标签"),
+      reason: z.string().describe("推荐理由，30字以内"),
     })).min(1).max(cardCount).describe(`最重要的新闻，最多${cardCount}条`),
     tags: z.array(z.string()).describe("相关标签"),
   })
 }
 
-function buildFeishuCard(args: {
+interface CardData {
   title: string; summary: string
   items: Array<{ title: string; digest: string; url: string; source: string; topic: string; reason: string }>
   tags: string[]
-}) {
+}
+
+function buildFeishuCard(args: CardData) {
   const itemsMd = args.items.map((item, i) =>
     `**${i + 1}. ${item.title}** 🏷${item.topic}\n${item.digest}\n💡 推荐理由：${item.reason}\n[阅读原文](${item.url}) — ${item.source}`,
   ).join("\n\n---\n\n")
@@ -156,7 +145,7 @@ export async function runNewsDigest(
       `${i + 1}. ${r.title}\n   URL: ${r.url}\n   内容: ${r.content?.slice(0, 300) || "无内容"}`
     ).join("\n\n")
 
-    // Step 2: LLM 生成摘要 JSON
+    // Step 2: LLM 生成摘要 JSON，解析+校验，失败重试
     onStage({ status: "summarizing", progress: `处理 ${rawResults.length} 条结果` })
 
     const topicTagList = searchTopics.map(t => `"${t}"`).join(", ")
@@ -184,11 +173,14 @@ export async function runNewsDigest(
 
     let content = (response.content as string) || ""
 
-    // 解析 JSON，失败则重试一次
-    let result: z.infer<ReturnType<typeof makeCardSchema>> | null = null
+    // 解析 + 校验 + 重试（最多2次）
+    let cardData: CardData | null = null
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        result = robustJsonParse(content) as z.infer<ReturnType<typeof makeCardSchema>>
+        const parsed = robustJsonParse(content) as Record<string, unknown>
+        if (!Array.isArray(parsed.items) || parsed.items.length === 0) throw new Error("缺少 items 字段或为空")
+        if (!Array.isArray(parsed.tags) || parsed.tags.length === 0) throw new Error("缺少 tags 字段或为空")
+        cardData = parsed as unknown as CardData
         break
       } catch (e) {
         if (attempt === 1) {
@@ -197,36 +189,28 @@ export async function runNewsDigest(
           await finishRun(runId, "failed", { error: errMsg, result_count: rawResults.length })
           return
         }
-        // 重试：把错误信息返回给 LLM
         const retryModel = getModel({ temperature: 0.1 })
         const retryResponse = await retryModel.invoke([
-          new SystemMessage(`你之前的JSON输出格式有误，请修正后重新输出（只输出JSON，不要其他文字）。`),
-          new HumanMessage(`错误信息：${(e as Error).message}\n\n你之前的输出：${content.slice(0, 2000)}\n\n请修正JSON格式问题后重新输出。`),
+          new SystemMessage(`你之前的输出格式有误，请修正后重新输出（只输出完整JSON，必须包含 items 和 tags 数组字段）。`),
+          new HumanMessage(`错误：${(e as Error).message}\n\n之前输出：${content.slice(0, 2000)}\n\n修正后重新输出完整JSON。`),
         ])
         content = (retryResponse.content as string) || ""
       }
     }
 
-    if (!result) return // unreachable, kept for type safety
+    if (!cardData) return
 
     onStage({ status: "summarize_done", thinking: content.slice(0, 800) })
 
     // Step 3: 组装并发送飞书卡片
     onStage({ status: "building_card" })
-
-    if (!result.items?.length || !result.tags?.length) {
-      onStage({ status: "error", stage: "building_card", error: "LLM 输出缺少 items 或 tags 字段" })
-      await finishRun(runId, "failed", { error: "卡片数据不完整", result_count: rawResults.length })
-      return
-    }
-
-    const card = buildFeishuCard(result as { title: string; summary: string; items: Array<{ title: string; digest: string; url: string; source: string; topic: string; reason: string }>; tags: string[] })
+    const card = buildFeishuCard(cardData)
 
     onStage({ status: "sending", target: `${config.receive_type}:${config.receive_id || "未配置"}` })
 
     if (!config.receive_id) {
-      onStage({ status: "done", cardJson: result, duration: (Date.now() - startedAt) / 1000 })
-      await finishRun(runId, "success", { summary: result, result_count: rawResults.length, card_json: result,
+      onStage({ status: "done", cardJson: cardData, duration: (Date.now() - startedAt) / 1000 })
+      await finishRun(runId, "success", { summary: cardData, result_count: rawResults.length, card_json: cardData,
         feishu_response: "未配置飞书接收者" as unknown as Record<string, unknown> })
       return
     }
@@ -235,9 +219,9 @@ export async function runNewsDigest(
     const feishuResult = await sendFeishuCard(token, config.receive_id, card, config.receive_type)
 
     if (feishuResult.code === 0) {
-      onStage({ status: "done", cardJson: result, msgId: (feishuResult as { data?: { message_id?: string } }).data?.message_id,
+      onStage({ status: "done", cardJson: cardData, msgId: (feishuResult as { data?: { message_id?: string } }).data?.message_id,
         duration: (Date.now() - startedAt) / 1000 })
-      await finishRun(runId, "success", { summary: result, result_count: rawResults.length, card_json: result,
+      await finishRun(runId, "success", { summary: cardData, result_count: rawResults.length, card_json: cardData,
         feishu_response: feishuResult as unknown as Record<string, unknown> })
     } else {
       onStage({ status: "error", stage: "sending", error: `飞书返回: code=${feishuResult.code} msg=${feishuResult.msg || ""}` })
