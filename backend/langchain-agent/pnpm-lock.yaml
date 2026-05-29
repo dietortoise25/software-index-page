@@ -43,6 +43,9 @@ importers:
       express:
         specifier: ^4.21.0
         version: 4.22.2
+      jsonrepair:
+        specifier: ^3.14.0
+        version: 3.14.0
       langchain:
         specifier: ^1.4.2
         version: 1.4.2(@langchain/core@1.1.48(openai@6.39.0(zod@4.4.3)))(openai@6.39.0(zod@4.4.3))
@@ -1216,6 +1219,10 @@ packages:
 
   json-stable-stringify-without-jsonify@1.0.1:
     resolution: {integrity: sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw==}
+
+  jsonrepair@3.14.0:
+    resolution: {integrity: sha512-tWPGKMZf/8UPim+fcW2EfcQ/d/7aKUrP6IECz9G3Tu6Q5dX0orSleqJ9z6sSw7qrQkjF8/Edo4DvsWBZ8H+HNg==}
+    hasBin: true
 
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
@@ -2887,6 +2894,8 @@ snapshots:
   json-schema-traverse@0.4.1: {}
 
   json-stable-stringify-without-jsonify@1.0.1: {}
+
+  jsonrepair@3.14.0: {}
 
   keyv@4.5.4:
     dependencies:

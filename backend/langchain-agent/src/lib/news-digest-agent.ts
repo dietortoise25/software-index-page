@@ -1,7 +1,32 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { z } from "zod"
+import { jsonrepair } from "jsonrepair"
 import { getModel } from "../config/model.js"
 import { getNewsConfig, type NewsConfig } from "../db/queries/news-config.js"
+
+function robustJsonParse(raw: string): unknown {
+  // 1. 提取 JSON 块
+  const match = raw.match(/\{[\s\S]*\}/)
+  let str = match ? match[0] : raw
+
+  // 2. 直接尝试
+  try { return JSON.parse(str) } catch {}
+
+  // 3. jsonrepair 修复常见错误（未转义引号、尾部逗号等）
+  try {
+    const repaired = jsonrepair(str)
+    return JSON.parse(repaired)
+  } catch {}
+
+  // 4. 去掉首尾的 markdown code fence 再试
+  const noFence = str.replace(/^```json?\s*/i, "").replace(/\s*```$/i, "")
+  try {
+    const repaired = jsonrepair(noFence)
+    return JSON.parse(repaired)
+  } catch {}
+
+  throw new Error(`JSON 解析失败，原始内容前200字: ${raw.slice(0, 200)}`)
+}
 import { createRun, finishRun, updateRun, getLatestRunning } from "../db/queries/news-digest-runs.js"
 import { searchNews } from "./tavily.js"
 import { getTenantToken, sendFeishuCard } from "./feishu.js"
@@ -95,19 +120,12 @@ export async function runNewsDigest(
 
       const topicContent = (topicResponse.content as string) || ""
       const thinkingText = topicContent.slice(0, 500)
-      const topicMatch = topicContent.match(/\{[\s\S]*\}/)
-      if (topicMatch) {
-        try {
-          const generated = JSON.parse(topicMatch[0]) as { topics?: string[]; keywords?: string[] }
-          if (generated.topics?.length) config.topics = generated.topics
-          if (generated.keywords?.length) config.keywords = generated.keywords
-          onStage({ status: "topics_ready", topics: config.topics, keywords: config.keywords, thinking: thinkingText })
-        } catch {
-          onStage({ status: "topics_ready", topics: config.topics, keywords: config.keywords, thinking: thinkingText })
-        }
-      } else {
-        onStage({ status: "topics_ready", topics: config.topics, keywords: config.keywords, thinking: thinkingText })
-      }
+      try {
+        const generated = robustJsonParse(topicContent) as { topics?: string[]; keywords?: string[] }
+        if (generated.topics?.length) config.topics = generated.topics
+        if (generated.keywords?.length) config.keywords = generated.keywords
+      } catch { /* 解析失败，用已有配置 */ }
+      onStage({ status: "topics_ready", topics: config.topics, keywords: config.keywords, thinking: thinkingText })
     }
 
     const searchTopics = config.topics.length > 0 ? config.topics : ["AI"]
@@ -164,18 +182,34 @@ export async function runNewsDigest(
       new HumanMessage(`新闻搜索结果（按主题分列）：\n\n${newsText}`),
     ])
 
-    const content = (response.content as string) || ""
-    const summarizeThinking = content.slice(0, 800)
-    const jsonMatch = content.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
-      onStage({ status: "error", stage: "summarizing", error: "LLM 返回格式异常" })
-      await finishRun(runId, "failed", { error: "LLM 返回非JSON格式", result_count: rawResults.length })
-      return
+    let content = (response.content as string) || ""
+
+    // 解析 JSON，失败则重试一次
+    let result: z.infer<ReturnType<typeof makeCardSchema>> | null = null
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        result = robustJsonParse(content) as z.infer<ReturnType<typeof makeCardSchema>>
+        break
+      } catch (e) {
+        if (attempt === 1) {
+          const errMsg = e instanceof Error ? e.message : String(e)
+          onStage({ status: "error", stage: "summarizing", error: errMsg })
+          await finishRun(runId, "failed", { error: errMsg, result_count: rawResults.length })
+          return
+        }
+        // 重试：把错误信息返回给 LLM
+        const retryModel = getModel({ temperature: 0.1 })
+        const retryResponse = await retryModel.invoke([
+          new SystemMessage(`你之前的JSON输出格式有误，请修正后重新输出（只输出JSON，不要其他文字）。`),
+          new HumanMessage(`错误信息：${(e as Error).message}\n\n你之前的输出：${content.slice(0, 2000)}\n\n请修正JSON格式问题后重新输出。`),
+        ])
+        content = (retryResponse.content as string) || ""
+      }
     }
 
-    const schema = makeCardSchema(config.card_count)
-    const result = JSON.parse(jsonMatch[0]) as z.infer<typeof schema>
-    onStage({ status: "summarize_done", thinking: summarizeThinking })
+    if (!result) return // unreachable, kept for type safety
+
+    onStage({ status: "summarize_done", thinking: content.slice(0, 800) })
 
     // Step 3: 组装并发送飞书卡片
     onStage({ status: "building_card" })
