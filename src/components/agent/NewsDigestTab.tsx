@@ -12,6 +12,8 @@ interface NewsConfig {
   language: string
   search_count: number
   card_count: number
+  mode: "manual" | "ai"
+  goal: string
 }
 
 type StageStatus = "idle" | "active" | "done" | "error"
@@ -298,6 +300,8 @@ const defaultConfig: NewsConfig = {
   language: "zh",
   search_count: 10,
   card_count: 5,
+  mode: "ai",
+  goal: "",
 }
 
 export default function NewsDigestTab() {
@@ -312,10 +316,11 @@ export default function NewsDigestTab() {
 
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
-  const [mode, setMode] = useState<"manual" | "ai">("manual")
+  const [mode, setMode] = useState<"manual" | "ai">("ai")
   const [goal, setGoal] = useState("")
   const [stages, setStages] = useState<StageState[]>([
     { label: "启动", status: "idle", icon: Clock },
+    { label: "生成主题", status: "idle", icon: Lightbulb },
     { label: "搜索新闻", status: "idle", icon: Search },
     { label: "摘要", status: "idle", icon: FileText },
     { label: "组装卡片", status: "idle", icon: FileText },
@@ -359,8 +364,8 @@ export default function NewsDigestTab() {
     setSelectedId(row.id)
     setConfig(row.config)
     setConfigName(row.name)
-    setMode("manual")
-    setGoal("")
+    setMode(row.config.mode || "ai")
+    setGoal(row.config.goal || "")
   }
 
   async function createNewConfig() {
@@ -387,10 +392,11 @@ export default function NewsDigestTab() {
     if (!selectedId) return
     setSaving(true)
     try {
+      const merged = { ...config, mode, goal }
       const res = await fetch(`/api/agent/news-configs/${selectedId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: configName, config }),
+        body: JSON.stringify({ name: configName, config: merged }),
       })
       const json = await res.json()
       if (json.ok) {
@@ -439,8 +445,9 @@ export default function NewsDigestTab() {
 
   async function manualRun() {
     if (running) return
-    const currentGoal = mode === "ai" ? goal.trim() : ""
-    if (mode === "ai" && !currentGoal) return
+    const currentMode = mode
+    const currentGoal = currentMode === "ai" ? goal.trim() : ""
+    if (currentMode === "ai" && !currentGoal) return
 
     resetStages()
     setRunning(true)

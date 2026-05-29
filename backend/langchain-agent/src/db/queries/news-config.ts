@@ -9,6 +9,8 @@ export interface NewsConfig {
   language: string
   search_count: number
   card_count: number
+  mode: "manual" | "ai"
+  goal: string
 }
 
 const defaults: NewsConfig = {
@@ -20,6 +22,8 @@ const defaults: NewsConfig = {
   language: "zh",
   search_count: 10,
   card_count: 5,
+  mode: "ai",
+  goal: "",
 }
 
 export async function getNewsConfig(): Promise<NewsConfig> {
