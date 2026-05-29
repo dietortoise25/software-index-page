@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Play, Save, RefreshCw, CheckCircle, XCircle, Loader2, Clock, Search, Send, FileText, ChevronDown, ChevronRight, Lightbulb, Plus, Pencil, Trash2 } from "lucide-react"
+import { Play, Save, RefreshCw, CheckCircle, XCircle, Loader2, Clock, Search, Send, FileText, ChevronDown, ChevronRight, Lightbulb, Plus, Pencil, Trash2, Info } from "lucide-react"
 
 // ─── 类型 ───────────────────────────────────────────────
 
@@ -23,6 +23,7 @@ interface StageState {
   status: StageStatus
   detail?: string
   timestamp?: string
+  thinking?: string
   icon: typeof CheckCircle
 }
 
@@ -82,6 +83,7 @@ function formatDuration(ms: number) {
 function StageNode({ stage, isLast }: { stage: StageState; isLast: boolean }) {
   const Icon = ICONS[stage.status]
   const colorClass = STATUS_COLORS[stage.status]
+  const [showThinking, setShowThinking] = useState(false)
 
   return (
     <div className="flex gap-3">
@@ -89,8 +91,24 @@ function StageNode({ stage, isLast }: { stage: StageState; isLast: boolean }) {
         <Icon className={`w-4 h-4 ${colorClass} ${stage.status === "active" ? "animate-spin" : ""}`} />
         {!isLast && <div className={`w-px h-6 ${LINE_COLORS[stage.status]}`} />}
       </div>
-      <div className="pb-3 min-w-0">
-        <p className="text-sm font-medium">{stage.label}</p>
+      <div className="pb-3 min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-medium">{stage.label}</p>
+          {stage.thinking && (
+            <div className="relative">
+              <Info
+                className="w-3.5 h-3.5 text-muted-foreground/50 hover:text-muted-foreground cursor-help transition-colors"
+                onMouseEnter={() => setShowThinking(true)}
+                onMouseLeave={() => setShowThinking(false)}
+              />
+              {showThinking && (
+                <div className="absolute left-0 bottom-full mb-1 z-50 w-72 max-h-48 overflow-y-auto bg-popover border rounded-lg p-3 shadow-lg">
+                  <p className="text-[10px] text-muted-foreground leading-relaxed whitespace-pre-wrap break-all">{stage.thinking}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         {stage.detail && <p className="text-xs text-muted-foreground truncate">{stage.detail}</p>}
         {stage.timestamp && <p className="text-[10px] text-muted-foreground/60">{stage.timestamp}</p>}
       </div>
@@ -494,7 +512,7 @@ export default function NewsDigestTab() {
                   next[1] = { ...next[1], status: "active", timestamp: new Date().toLocaleTimeString() }
                   break
                 case "topics_ready":
-                  next[1] = { ...next[1], status: "done", detail: event.topics.join(", "), timestamp: new Date().toLocaleTimeString() }
+                  next[1] = { ...next[1], status: "done", detail: event.topics.join(", "), thinking: event.thinking, timestamp: new Date().toLocaleTimeString() }
                   next[2] = { ...next[2], status: "active", timestamp: new Date().toLocaleTimeString() }
                   break
                 case "searching":
@@ -510,7 +528,7 @@ export default function NewsDigestTab() {
                   next[2 + off] = { ...next[2 + off], status: "active", detail: event.progress, timestamp: new Date().toLocaleTimeString() }
                   break
                 case "summarize_done":
-                  next[2 + off] = { ...next[2 + off], status: "done" }
+                  next[2 + off] = { ...next[2 + off], status: "done", thinking: (event as { thinking?: string }).thinking }
                   next[3 + off] = { ...next[3 + off], status: "active", timestamp: new Date().toLocaleTimeString() }
                   break
                 case "building_card":

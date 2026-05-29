@@ -9,11 +9,11 @@ import { getTenantToken, sendFeishuCard } from "./feishu.js"
 export type StageEvent =
   | { status: "starting" }
   | { status: "generating_topics" }
-  | { status: "topics_ready"; topics: string[]; keywords: string[] }
+  | { status: "topics_ready"; topics: string[]; keywords: string[]; thinking: string }
   | { status: "searching"; query: string }
   | { status: "search_done"; resultCount: number }
   | { status: "summarizing"; progress: string }
-  | { status: "summarize_done" }
+  | { status: "summarize_done"; thinking: string }
   | { status: "building_card" }
   | { status: "sending"; target: string }
   | { status: "done"; cardJson: unknown; msgId?: string; duration: number }
@@ -94,19 +94,19 @@ export async function runNewsDigest(
       ])
 
       const topicContent = (topicResponse.content as string) || ""
+      const thinkingText = topicContent.slice(0, 500)
       const topicMatch = topicContent.match(/\{[\s\S]*\}/)
       if (topicMatch) {
         try {
           const generated = JSON.parse(topicMatch[0]) as { topics?: string[]; keywords?: string[] }
           if (generated.topics?.length) config.topics = generated.topics
           if (generated.keywords?.length) config.keywords = generated.keywords
-          onStage({ status: "topics_ready", topics: config.topics, keywords: config.keywords })
+          onStage({ status: "topics_ready", topics: config.topics, keywords: config.keywords, thinking: thinkingText })
         } catch {
-          // JSON 解析失败，继续用手动配置的主题
-          onStage({ status: "topics_ready", topics: config.topics, keywords: config.keywords })
+          onStage({ status: "topics_ready", topics: config.topics, keywords: config.keywords, thinking: thinkingText })
         }
       } else {
-        onStage({ status: "topics_ready", topics: config.topics, keywords: config.keywords })
+        onStage({ status: "topics_ready", topics: config.topics, keywords: config.keywords, thinking: thinkingText })
       }
     }
 
@@ -165,6 +165,7 @@ export async function runNewsDigest(
     ])
 
     const content = (response.content as string) || ""
+    const summarizeThinking = content.slice(0, 800)
     const jsonMatch = content.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
       onStage({ status: "error", stage: "summarizing", error: "LLM 返回格式异常" })
@@ -174,7 +175,7 @@ export async function runNewsDigest(
 
     const schema = makeCardSchema(config.card_count)
     const result = JSON.parse(jsonMatch[0]) as z.infer<typeof schema>
-    onStage({ status: "summarize_done" })
+    onStage({ status: "summarize_done", thinking: summarizeThinking })
 
     // Step 3: 组装并发送飞书卡片
     onStage({ status: "building_card" })
