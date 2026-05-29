@@ -8,6 +8,8 @@ import { getTenantToken, sendFeishuCard } from "./feishu.js"
 
 export type StageEvent =
   | { status: "starting" }
+  | { status: "generating_topics" }
+  | { status: "topics_ready"; topics: string[]; keywords: string[] }
   | { status: "searching"; query: string }
   | { status: "search_done"; resultCount: number }
   | { status: "summarizing"; progress: string }
@@ -49,6 +51,7 @@ function buildFeishuCard(args: z.infer<typeof cardSchema>) {
 export async function runNewsDigest(
   triggerType: "manual" | "cron",
   onStage: (event: StageEvent) => void,
+  goal?: string,
 ): Promise<void> {
   const startedAt = Date.now()
   let runId: string | undefined
@@ -66,10 +69,42 @@ export async function runNewsDigest(
     runId = run.id
     onStage({ status: "starting" })
 
+    // Step 0 (AI 模式): LLM 生成搜索主题
+    if (goal && goal.trim()) {
+      onStage({ status: "generating_topics" })
+
+      const topicModel = getModel({ temperature: 0.5 })
+      const topicResponse = await topicModel.invoke([
+        new SystemMessage(`根据用户目标生成新闻搜索策略。输出JSON格式（只输出JSON，不要其他文字）：
+{
+  "topics": ["主题1", "主题2", "主题3"],
+  "keywords": ["关键词1", "关键词2"]
+}
+最多5个主题、5个关键词。主题和关键词都必须是中文。`),
+        new HumanMessage(`用户目标：${goal.trim()}`),
+      ])
+
+      const topicContent = (topicResponse.content as string) || ""
+      const topicMatch = topicContent.match(/\{[\s\S]*\}/)
+      if (topicMatch) {
+        try {
+          const generated = JSON.parse(topicMatch[0]) as { topics?: string[]; keywords?: string[] }
+          if (generated.topics?.length) config.topics = generated.topics
+          if (generated.keywords?.length) config.keywords = generated.keywords
+          onStage({ status: "topics_ready", topics: config.topics, keywords: config.keywords })
+        } catch {
+          // JSON 解析失败，继续用手动配置的主题
+          onStage({ status: "topics_ready", topics: config.topics, keywords: config.keywords })
+        }
+      } else {
+        onStage({ status: "topics_ready", topics: config.topics, keywords: config.keywords })
+      }
+    }
+
     const searchKeywords = [...config.topics, ...config.keywords].join(" ")
     const today = new Date().toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "long" })
 
-    // Step 1: 直接搜索新闻
+    // Step 1: 搜索新闻
     onStage({ status: "searching", query: searchKeywords })
     await updateRun(runId, { search_query: searchKeywords })
 

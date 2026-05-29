@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Play, Save, RefreshCw, CheckCircle, XCircle, Loader2, Clock, Search, Send, FileText, ChevronDown, ChevronRight } from "lucide-react"
+import { Play, Save, RefreshCw, CheckCircle, XCircle, Loader2, Clock, Search, Send, FileText, ChevronDown, ChevronRight, Lightbulb } from "lucide-react"
 
 // ─── 类型 ───────────────────────────────────────────────
 
@@ -109,27 +109,52 @@ function PipelineView({ stages, error }: { stages: StageState[]; error?: string 
 
 // ─── ConfigPanel ─────────────────────────────────────────
 
-function ConfigPanel({ config, onChange, onSave, saving }: {
+function ConfigPanel({ config, onChange, onSave, saving, mode, onModeChange, goal, onGoalChange }: {
   config: NewsConfig
   onChange: (c: NewsConfig) => void
   onSave: () => void
   saving: boolean
+  mode: "manual" | "ai"
+  onModeChange: (m: "manual" | "ai") => void
+  goal: string
+  onGoalChange: (g: string) => void
 }) {
   return (
     <div className="border rounded-lg p-4 space-y-3">
       <h3 className="text-sm font-semibold">配置</h3>
 
-      <div>
-        <label className="text-[11px] text-muted-foreground">新闻主题（逗号分隔）</label>
-        <input value={config.topics.join(", ")} onChange={e => onChange({ ...config, topics: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
-          className="w-full border rounded px-2 py-1 text-xs mt-0.5" />
+      {/* 模式切换 */}
+      <div className="flex gap-1 bg-muted rounded p-0.5">
+        <button onClick={() => onModeChange("manual")}
+          className={`flex-1 text-xs py-1 rounded font-medium transition-colors ${mode === "manual" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        >手动配置</button>
+        <button onClick={() => onModeChange("ai")}
+          className={`flex-1 text-xs py-1 rounded font-medium transition-colors ${mode === "ai" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        >AI 生成</button>
       </div>
 
-      <div>
-        <label className="text-[11px] text-muted-foreground">关键词（逗号分隔）</label>
-        <input value={config.keywords.join(", ")} onChange={e => onChange({ ...config, keywords: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
-          className="w-full border rounded px-2 py-1 text-xs mt-0.5" />
-      </div>
+      {mode === "ai" ? (
+        <div>
+          <label className="text-[11px] text-muted-foreground">你想了解什么？</label>
+          <textarea value={goal} onChange={e => onGoalChange(e.target.value)}
+            placeholder="例如：了解跨境电商最新政策、AI Agent 行业动态、Shopee 平台规则变化..."
+            rows={3}
+            className="w-full border rounded px-2 py-1 text-xs mt-0.5 resize-none" />
+        </div>
+      ) : (
+        <>
+          <div>
+            <label className="text-[11px] text-muted-foreground">新闻主题（逗号分隔）</label>
+            <input value={config.topics.join(", ")} onChange={e => onChange({ ...config, topics: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
+              className="w-full border rounded px-2 py-1 text-xs mt-0.5" />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground">关键词（逗号分隔）</label>
+            <input value={config.keywords.join(", ")} onChange={e => onChange({ ...config, keywords: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
+              className="w-full border rounded px-2 py-1 text-xs mt-0.5" />
+          </div>
+        </>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <div>
@@ -260,6 +285,8 @@ export default function NewsDigestTab() {
   })
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
+  const [mode, setMode] = useState<"manual" | "ai">("manual")
+  const [goal, setGoal] = useState("")
   const [stages, setStages] = useState<StageState[]>([
     { label: "启动", status: "idle", icon: Clock },
     { label: "搜索新闻", status: "idle", icon: Search },
@@ -307,8 +334,27 @@ export default function NewsDigestTab() {
     setSaving(false)
   }
 
+  const baseStages: StageState[] = mode === "ai"
+    ? [
+        { label: "启动", status: "idle", icon: Clock },
+        { label: "生成主题", status: "idle", icon: Lightbulb },
+        { label: "搜索新闻", status: "idle", icon: Search },
+        { label: "摘要", status: "idle", icon: FileText },
+        { label: "组装卡片", status: "idle", icon: FileText },
+        { label: "发送飞书", status: "idle", icon: Send },
+        { label: "完成", status: "idle", icon: CheckCircle },
+      ]
+    : [
+        { label: "启动", status: "idle", icon: Clock },
+        { label: "搜索新闻", status: "idle", icon: Search },
+        { label: "摘要", status: "idle", icon: FileText },
+        { label: "组装卡片", status: "idle", icon: FileText },
+        { label: "发送飞书", status: "idle", icon: Send },
+        { label: "完成", status: "idle", icon: CheckCircle },
+      ]
+
   function resetStages() {
-    setStages(stages.map(s => ({ ...s, status: "idle" as StageStatus, detail: undefined, timestamp: undefined })))
+    setStages(baseStages.map(s => ({ ...s, status: "idle" as StageStatus, detail: undefined, timestamp: undefined })))
     setError("")
     setCardPreview(undefined)
     setDuration("")
@@ -316,18 +362,24 @@ export default function NewsDigestTab() {
 
   async function manualRun() {
     if (running) return
+    const currentGoal = mode === "ai" ? goal.trim() : ""
+    if (mode === "ai" && !currentGoal) return
+
     resetStages()
     setRunning(true)
 
-    // 标记启动
     setStages(prev => prev.map((s, i) => i === 0 ? { ...s, status: "active", timestamp: new Date().toLocaleTimeString() } : s))
 
     abortRef.current = new AbortController()
 
     try {
+      const body: Record<string, unknown> = {}
+      if (currentGoal) body.goal = currentGoal
+
       const res = await fetch("/api/agent/news-digest/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
         signal: abortRef.current!.signal,
       })
 
@@ -348,33 +400,44 @@ export default function NewsDigestTab() {
             const event = JSON.parse(line.slice(6))
             setStages(prev => {
               const next = [...prev]
+              const isAI = next.length === 7
+              const off = isAI ? 1 : 0  // AI 模式多一个"生成主题"节点
               switch (event.status) {
-                case "searching":
+                case "generating_topics":
                   next[0] = { ...next[0], status: "done" }
-                  next[1] = { ...next[1], status: "active", detail: event.query, timestamp: new Date().toLocaleTimeString() }
+                  next[1] = { ...next[1], status: "active", timestamp: new Date().toLocaleTimeString() }
                   break
-                case "search_done":
-                  next[1] = { ...next[1], status: "done", detail: `找到 ${event.resultCount} 条结果` }
+                case "topics_ready":
+                  next[1] = { ...next[1], status: "done", detail: event.topics.join(", "), timestamp: new Date().toLocaleTimeString() }
                   next[2] = { ...next[2], status: "active", timestamp: new Date().toLocaleTimeString() }
                   break
+                case "searching":
+                  if (isAI) next[1] = { ...next[1], status: "done" }
+                  next[0 + off] = { ...next[0 + off], status: "done" }
+                  next[1 + off] = { ...next[1 + off], status: "active", detail: event.query, timestamp: new Date().toLocaleTimeString() }
+                  break
+                case "search_done":
+                  next[1 + off] = { ...next[1 + off], status: "done", detail: `找到 ${event.resultCount} 条结果` }
+                  next[2 + off] = { ...next[2 + off], status: "active", timestamp: new Date().toLocaleTimeString() }
+                  break
                 case "summarizing":
-                  next[2] = { ...next[2], status: "active", detail: event.progress, timestamp: new Date().toLocaleTimeString() }
+                  next[2 + off] = { ...next[2 + off], status: "active", detail: event.progress, timestamp: new Date().toLocaleTimeString() }
                   break
                 case "summarize_done":
-                  next[2] = { ...next[2], status: "done" }
-                  next[3] = { ...next[3], status: "active", timestamp: new Date().toLocaleTimeString() }
+                  next[2 + off] = { ...next[2 + off], status: "done" }
+                  next[3 + off] = { ...next[3 + off], status: "active", timestamp: new Date().toLocaleTimeString() }
                   break
                 case "building_card":
-                  next[2] = { ...next[2], status: "done" }
-                  next[3] = { ...next[3], status: "active", timestamp: new Date().toLocaleTimeString() }
+                  next[2 + off] = { ...next[2 + off], status: "done" }
+                  next[3 + off] = { ...next[3 + off], status: "active", timestamp: new Date().toLocaleTimeString() }
                   break
                 case "sending":
-                  next[3] = { ...next[3], status: "done" }
-                  next[4] = { ...next[4], status: "active", detail: event.target, timestamp: new Date().toLocaleTimeString() }
+                  next[3 + off] = { ...next[3 + off], status: "done" }
+                  next[4 + off] = { ...next[4 + off], status: "active", detail: event.target, timestamp: new Date().toLocaleTimeString() }
                   break
                 case "done":
-                  next[4] = { ...next[4], status: "done" }
-                  next[5] = { ...next[5], status: "done", detail: `耗时 ${event.duration}s`, timestamp: new Date().toLocaleTimeString() }
+                  next[4 + off] = { ...next[4 + off], status: "done" }
+                  next[5 + off] = { ...next[5 + off], status: "done", detail: `耗时 ${event.duration}s`, timestamp: new Date().toLocaleTimeString() }
                   setCardPreview(event.cardJson)
                   setDuration(`${event.duration}s`)
                   break
@@ -420,7 +483,8 @@ export default function NewsDigestTab() {
 
       <div className="grid grid-cols-3 gap-4">
         {/* 左: 配置 */}
-        <ConfigPanel config={config} onChange={setConfig} onSave={saveConfig} saving={saving} />
+        <ConfigPanel config={config} onChange={setConfig} onSave={saveConfig} saving={saving}
+          mode={mode} onModeChange={setMode} goal={goal} onGoalChange={setGoal} />
 
         {/* 中: 流水线 */}
         <PipelineView stages={stages} error={error} />
