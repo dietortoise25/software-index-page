@@ -201,7 +201,7 @@ function ConfigPanel({ config, onChange, onSave, saving, mode, onModeChange, goa
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-[11px] text-muted-foreground">搜索条数 (Tavily)</label>
+          <label className="text-[11px] text-muted-foreground">每个主题搜索数</label>
           <input type="number" min={1} max={20} value={config.search_count}
             onChange={e => onChange({ ...config, search_count: parseInt(e.target.value) || 10 })}
             className="w-full border rounded px-2 py-1 text-xs mt-0.5" />
@@ -274,10 +274,14 @@ function CardPreview({ cardJson }: { cardJson?: unknown }) {
       </div>
       <p className="text-muted-foreground">{(card as { summary?: string }).summary || ""}</p>
       <hr />
-      {(card as { items?: Array<{ title: string; digest: string; url: string; source: string }> }).items?.map((item, i) => (
+      {(card as { items?: Array<{ title: string; digest: string; url: string; source: string; topic?: string; reason?: string }> }).items?.map((item, i) => (
         <div key={i}>
-          <p className="font-medium">{i + 1}. {item.title}</p>
+          <div className="flex items-center gap-1 mb-0.5">
+            <p className="font-medium">{i + 1}. {item.title}</p>
+            {item.topic && <span className="text-[9px] bg-blue-100 text-blue-700 px-1 rounded">{item.topic}</span>}
+          </div>
           <p className="text-muted-foreground text-[10px]">{item.digest}</p>
+          {item.reason && <p className="text-[9px] text-amber-600 mt-0.5">💡 {item.reason}</p>}
           <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 text-[10px] underline">{item.source}</a>
         </div>
       ))}

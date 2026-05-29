@@ -24,18 +24,24 @@ function makeCardSchema(cardCount: number) {
     title: z.string().describe("卡片标题"),
     summary: z.string().describe("一句话总体摘要"),
     items: z.array(z.object({
-      title: z.string().describe("新闻标题"),
-      digest: z.string().describe("100字以内的新闻摘要"),
+      title: z.string().describe("中文新闻标题"),
+      digest: z.string().describe("100字以内中文摘要"),
       url: z.string().url().describe("原文链接"),
       source: z.string().describe("新闻来源"),
+      topic: z.string().describe("所属主题标签，如'跨境电商'"),
+      reason: z.string().describe("推荐理由，30字以内，解释为什么这条新闻值得关注"),
     })).min(1).max(cardCount).describe(`最重要的新闻，最多${cardCount}条`),
     tags: z.array(z.string()).describe("相关标签"),
   })
 }
 
-function buildFeishuCard(args: { title: string; summary: string; items: Array<{ title: string; digest: string; url: string; source: string }>; tags: string[] }) {
+function buildFeishuCard(args: {
+  title: string; summary: string
+  items: Array<{ title: string; digest: string; url: string; source: string; topic: string; reason: string }>
+  tags: string[]
+}) {
   const itemsMd = args.items.map((item, i) =>
-    `**${i + 1}. ${item.title}**\n${item.digest}\n[阅读原文](${item.url}) — ${item.source}`,
+    `**${i + 1}. ${item.title}** 🏷${item.topic}\n${item.digest}\n💡 推荐理由：${item.reason}\n[阅读原文](${item.url}) — ${item.source}`,
   ).join("\n\n---\n\n")
 
   return {
@@ -104,15 +110,23 @@ export async function runNewsDigest(
       }
     }
 
-    const searchKeywords = [...config.topics, ...config.keywords].join(" ")
+    const searchTopics = config.topics.length > 0 ? config.topics : ["AI"]
     const today = new Date().toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "long" })
 
-    // Step 1: 搜索新闻
-    onStage({ status: "searching", query: searchKeywords })
-    await updateRun(runId, { search_query: searchKeywords })
+    // Step 1: 每个主题独立搜索
+    const allResults: Map<string, { title: string; url: string; content: string }> = new Map()
+    for (const topic of searchTopics) {
+      const query = [topic, ...config.keywords].join(" ")
+      onStage({ status: "searching", query: `[${topic}] ${query}` })
+      const results = await searchNews(query, { maxResults: config.search_count, days: 1 })
+      for (const r of results) {
+        if (!allResults.has(r.url)) allResults.set(r.url, r)
+      }
+    }
 
-    const rawResults = await searchNews(searchKeywords, { maxResults: config.search_count, days: 1 })
+    const rawResults = Array.from(allResults.values())
     onStage({ status: "search_done", resultCount: rawResults.length })
+    await updateRun(runId, { search_query: searchTopics.join(", "), result_count: rawResults.length })
 
     if (rawResults.length === 0) {
       onStage({ status: "error", stage: "searching", error: "未找到相关新闻" })
@@ -127,21 +141,27 @@ export async function runNewsDigest(
     // Step 2: LLM 生成摘要 JSON
     onStage({ status: "summarizing", progress: `处理 ${rawResults.length} 条结果` })
 
+    const topicTagList = searchTopics.map(t => `"${t}"`).join(", ")
+
     const model = getModel({ temperature: 0.3 })
     const response = await model.invoke([
       new SystemMessage(`你是新闻摘要助手。从搜索结果中挑选最重要的新闻（最多${config.card_count}条），输出JSON格式的新闻卡片。
 注意：所有内容必须翻译成中文，包括标题、摘要、标签。
+
+每条新闻必须填写：
+- topic: 该新闻属于哪个主题标签（从以下选择最匹配的：${topicTagList}）
+- reason: 推荐理由，30字以内，解释为什么这条新闻对读者有价值
 
 输出格式（严格遵守，只输出JSON，不要其他文字）：
 {
   "title": "资讯早报 | ${today}",
   "summary": "一句话总体摘要",
   "items": [
-    {"title": "中文新闻标题", "digest": "100字以内中文摘要", "url": "原文URL", "source": "Tavily"}
+    {"title": "中文新闻标题", "digest": "100字以内中文摘要", "url": "原文URL", "source": "Tavily", "topic": "${searchTopics[0] || "AI"}", "reason": "推荐理由"}
   ],
-  "tags": [${config.topics.map(t => `"${t}"`).join(", ")}]
+  "tags": [${topicTagList}]
 }`),
-      new HumanMessage(`新闻搜索结果：\n\n${newsText}`),
+      new HumanMessage(`新闻搜索结果（按主题分列）：\n\n${newsText}`),
     ])
 
     const content = (response.content as string) || ""
