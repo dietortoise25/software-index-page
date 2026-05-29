@@ -193,7 +193,22 @@
       "WebFetch(domain:docs.langchain.com)",
       "Bash(pnpm patch *)",
       "Bash(pnpm patch-commit *)",
-      "Bash(grep -v \"^$\")"
+      "Bash(grep -v \"^$\")",
+      "PowerShell(New-Item *)",
+      "Bash(where claude *)",
+      "Bash(winget list *)",
+      "PowerShell(git *)",
+      "Bash(Get-ChildItem -Recurse -Depth 0 \"C:\\\\Users\\\\Alan\\\\Desktop\\\\code\\\\software_index_page\")",
+      "Bash(Select-Object FullName, Mode)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(pnpm test *)",
+      "Bash(powershell -Command \"Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(npx tsx *)",
+      "Read(//tmp/**)",
+      "Bash(Get-ChildItem *)",
+      "Bash(timeout 90 cat)",
+      "Bash(echo \"frontend: $?\")",
+      "Bash(echo \"agent: $?\")"
     ]
   },
   "skipWebFetchPreflight": true

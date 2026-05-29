@@ -22,12 +22,11 @@ export function Slide({
   const fg = isDark ? colors.paper : colors.ink
 
   const staggerChildren = {
-    hidden: { opacity: 0 },
+    hidden: {},
     visible: {
-      opacity: 1,
       transition: {
         staggerChildren: isHero ? 0.16 : 0.075,
-        delayChildren: 0.3,
+        delayChildren: 0.15,
       },
     },
   }

@@ -92,13 +92,14 @@ export async function runNewsDigest(
     const model = getModel({ temperature: 0.3 })
     const response = await model.invoke([
       new SystemMessage(`你是新闻摘要助手。从搜索结果中挑选3-5条最重要的新闻，输出JSON格式的新闻卡片。
+注意：所有内容必须翻译成中文，包括标题、摘要、标签。
 
 输出格式（严格遵守，只输出JSON，不要其他文字）：
 {
   "title": "资讯早报 | ${today}",
   "summary": "一句话总体摘要",
   "items": [
-    {"title": "新闻标题", "digest": "100字以内摘要", "url": "原文URL", "source": "Tavily"}
+    {"title": "中文新闻标题", "digest": "100字以内中文摘要", "url": "原文URL", "source": "Tavily"}
   ],
   "tags": [${config.topics.map(t => `"${t}"`).join(", ")}]
 }`),
