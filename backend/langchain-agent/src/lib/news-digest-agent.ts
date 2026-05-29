@@ -213,7 +213,14 @@ export async function runNewsDigest(
 
     // Step 3: 组装并发送飞书卡片
     onStage({ status: "building_card" })
-    const card = buildFeishuCard(result)
+
+    if (!result.items?.length || !result.tags?.length) {
+      onStage({ status: "error", stage: "building_card", error: "LLM 输出缺少 items 或 tags 字段" })
+      await finishRun(runId, "failed", { error: "卡片数据不完整", result_count: rawResults.length })
+      return
+    }
+
+    const card = buildFeishuCard(result as { title: string; summary: string; items: Array<{ title: string; digest: string; url: string; source: string; topic: string; reason: string }>; tags: string[] })
 
     onStage({ status: "sending", target: `${config.receive_type}:${config.receive_id || "未配置"}` })
 
