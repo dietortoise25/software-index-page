@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Play, Save, RefreshCw, CheckCircle, XCircle, Loader2, Clock, Search, Send, FileText, ChevronDown, ChevronRight, Lightbulb } from "lucide-react"
+import { Play, Save, RefreshCw, CheckCircle, XCircle, Loader2, Clock, Search, Send, FileText, ChevronDown, ChevronRight, Lightbulb, Plus, Pencil, Trash2 } from "lucide-react"
 
 // ─── 类型 ───────────────────────────────────────────────
 
@@ -22,6 +22,13 @@ interface StageState {
   detail?: string
   timestamp?: string
   icon: typeof CheckCircle
+}
+
+interface ConfigRow {
+  id: string
+  name: string
+  config: NewsConfig
+  created_at: string
 }
 
 interface RunRecord {
@@ -282,17 +289,27 @@ function CardPreview({ cardJson }: { cardJson?: unknown }) {
 
 // ─── Main Component ──────────────────────────────────────
 
+const defaultConfig: NewsConfig = {
+  topics: ["AI", "LLM", "AI Agent"],
+  keywords: ["大模型", "智能体"],
+  cron: "0 9 * * *",
+  receive_id: "",
+  receive_type: "open_id",
+  language: "zh",
+  search_count: 10,
+  card_count: 5,
+}
+
 export default function NewsDigestTab() {
-  const [config, setConfig] = useState<NewsConfig>({
-    topics: ["AI", "LLM", "AI Agent"],
-    keywords: ["大模型", "智能体"],
-    cron: "0 9 * * *",
-    receive_id: "",
-    receive_type: "open_id",
-    language: "zh",
-    search_count: 10,
-    card_count: 5,
-  })
+  // 配置列表
+  const [configs, setConfigs] = useState<ConfigRow[]>([])
+  const [selectedId, setSelectedId] = useState<string>("")
+  const [config, setConfig] = useState<NewsConfig>({ ...defaultConfig })
+  const [configName, setConfigName] = useState("")
+  const [showNewDialog, setShowNewDialog] = useState(false)
+  const [newName, setNewName] = useState("")
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
+
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
   const [mode, setMode] = useState<"manual" | "ai">("manual")
@@ -312,13 +329,21 @@ export default function NewsDigestTab() {
   const [duration, setDuration] = useState("")
   const abortRef = useRef<AbortController | null>(null)
 
-  const loadConfig = useCallback(async () => {
+  const loadConfigs = useCallback(async () => {
     try {
-      const res = await fetch("/api/agent/news-config")
+      const res = await fetch("/api/agent/news-configs")
       const json = await res.json()
-      if (json.ok) setConfig(json.data)
+      if (json.ok && json.data.length > 0) {
+        setConfigs(json.data)
+        if (!selectedId || !json.data.find((c: ConfigRow) => c.id === selectedId)) {
+          const first = json.data[0] as ConfigRow
+          setSelectedId(first.id)
+          setConfig(first.config)
+          setConfigName(first.name)
+        }
+      }
     } catch { /* ignore */ }
-  }, [])
+  }, [selectedId])
 
   const loadRuns = useCallback(async () => {
     try {
@@ -328,20 +353,60 @@ export default function NewsDigestTab() {
     } catch { /* ignore */ }
   }, [])
 
-  useEffect(() => { loadConfig(); loadRuns() }, [loadConfig, loadRuns])
+  useEffect(() => { loadConfigs(); loadRuns() }, [loadConfigs, loadRuns])
 
-  async function saveConfig() {
+  function selectConfig(row: ConfigRow) {
+    setSelectedId(row.id)
+    setConfig(row.config)
+    setConfigName(row.name)
+  }
+
+  async function createNewConfig() {
+    if (!newName.trim()) return
     setSaving(true)
     try {
-      const res = await fetch("/api/agent/news-config", {
-        method: "PUT",
+      const res = await fetch("/api/agent/news-configs", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
+        body: JSON.stringify({ name: newName.trim(), config: defaultConfig }),
       })
       const json = await res.json()
-      if (json.ok) setConfig(json.data)
+      if (json.ok) {
+        setShowNewDialog(false)
+        setNewName("")
+        await loadConfigs()
+        selectConfig(json.data)
+      }
     } catch { /* ignore */ }
     setSaving(false)
+  }
+
+  async function saveConfig() {
+    if (!selectedId) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/agent/news-configs/${selectedId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: configName, config }),
+      })
+      const json = await res.json()
+      if (json.ok) {
+        setConfig(json.data.config)
+        setConfigName(json.data.name)
+        loadConfigs()
+      }
+    } catch { /* ignore */ }
+    setSaving(false)
+  }
+
+  async function deleteConfig(id: string) {
+    try {
+      await fetch(`/api/agent/news-configs/${id}`, { method: "DELETE" })
+      setShowDeleteConfirm(null)
+      if (selectedId === id) setSelectedId("")
+      loadConfigs()
+    } catch { /* ignore */ }
   }
 
   const baseStages: StageState[] = mode === "ai"
@@ -377,13 +442,11 @@ export default function NewsDigestTab() {
 
     resetStages()
     setRunning(true)
-
     setStages(prev => prev.map((s, i) => i === 0 ? { ...s, status: "active", timestamp: new Date().toLocaleTimeString() } : s))
-
     abortRef.current = new AbortController()
 
     try {
-      const body: Record<string, unknown> = {}
+      const body: Record<string, unknown> = { config }
       if (currentGoal) body.goal = currentGoal
 
       const res = await fetch("/api/agent/news-digest/run", {
@@ -411,7 +474,7 @@ export default function NewsDigestTab() {
             setStages(prev => {
               const next = [...prev]
               const isAI = next.length === 7
-              const off = isAI ? 1 : 0  // AI 模式多一个"生成主题"节点
+              const off = isAI ? 1 : 0
               switch (event.status) {
                 case "generating_topics":
                   next[0] = { ...next[0], status: "done" }
@@ -459,52 +522,130 @@ export default function NewsDigestTab() {
               }
               return next
             })
-          } catch { /* skip malformed */ }
+          } catch { /* skip */ }
         }
         buffer = ""
       }
     } catch (e) {
-      if ((e as Error).name !== "AbortError") {
-        setError((e as Error).message)
-      }
+      if ((e as Error).name !== "AbortError") setError((e as Error).message)
     }
 
     setRunning(false)
     loadRuns()
   }
 
+  const hasConfigs = configs.length > 0
+  const atLimit = configs.length >= 10
+
   return (
-    <div className="space-y-4">
-      {/* 操作栏 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <button onClick={manualRun} disabled={running}
-            className="flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
-          >
-            {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            {running ? "执行中..." : "手动执行"}
-          </button>
-          <button onClick={loadRuns} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-            <RefreshCw className="w-3 h-3" /> 刷新
+    <div className="flex gap-4">
+      {/* 左侧：配置卡片列表 */}
+      <div className="w-64 shrink-0 space-y-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">配置列表</h3>
+          <button onClick={() => setShowNewDialog(true)} disabled={atLimit}
+            className="flex items-center gap-1 text-[10px] text-primary hover:underline disabled:text-muted-foreground disabled:no-underline"
+            title={atLimit ? "最多保存 10 条配置" : "新建配置"}>
+            <Plus className="w-3 h-3" /> 新建
           </button>
         </div>
-        {duration && <span className="text-xs text-muted-foreground">上次耗时: {duration}</span>}
+
+        {!hasConfigs && <p className="text-xs text-muted-foreground">暂无配置，点击"新建"创建</p>}
+
+        {configs.map(c => (
+          <div key={c.id} onClick={() => selectConfig(c)}
+            className={`border rounded-lg p-3 cursor-pointer transition-colors ${selectedId === c.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}
+          >
+            <div className="flex items-start justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-medium truncate">{c.name}</p>
+                <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                  {c.config.topics?.join(", ") || "未设定主题"}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-2">
+              <button onClick={e => { e.stopPropagation(); selectConfig(c); setMode("manual"); setGoal("") }}
+                className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-0.5">
+                <Pencil className="w-3 h-3" /> 编辑
+              </button>
+              <button onClick={e => { e.stopPropagation(); setShowDeleteConfirm(c.id) }}
+                className="text-[10px] text-muted-foreground hover:text-red-500 flex items-center gap-0.5">
+                <Trash2 className="w-3 h-3" /> 删除
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        {/* 左: 配置 */}
-        <ConfigPanel config={config} onChange={setConfig} onSave={saveConfig} saving={saving}
-          mode={mode} onModeChange={setMode} goal={goal} onGoalChange={setGoal} />
+      {/* 右侧：主内容区 */}
+      <div className="flex-1 min-w-0 space-y-4">
+        {/* 操作栏 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button onClick={manualRun} disabled={running || !selectedId}
+              className="flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+            >
+              {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+              {running ? "执行中..." : "手动执行"}
+            </button>
+            <button onClick={loadRuns} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+              <RefreshCw className="w-3 h-3" /> 刷新
+            </button>
+          </div>
+          {duration && <span className="text-xs text-muted-foreground">上次耗时: {duration}</span>}
+        </div>
 
-        {/* 中: 流水线 */}
-        <PipelineView stages={stages} error={error} />
+        <div className="grid grid-cols-3 gap-4">
+          {/* 配置面板 */}
+          <ConfigPanel config={config} onChange={setConfig} onSave={saveConfig} saving={saving}
+            mode={mode} onModeChange={setMode} goal={goal} onGoalChange={setGoal} />
 
-        {/* 右: 卡片预览 */}
-        <CardPreview cardJson={cardPreview} />
+          {/* 流水线 */}
+          <PipelineView stages={stages} error={error} />
+
+          {/* 卡片预览 */}
+          <CardPreview cardJson={cardPreview} />
+        </div>
+
+        {/* 历史 */}
+        <HistoryList runs={runs} onSelect={(r) => { setSelectedRunId(r.id); setCardPreview(r.card_json) }} selectedId={selectedRunId} />
       </div>
 
-      {/* 历史 */}
-      <HistoryList runs={runs} onSelect={(r) => { setSelectedRunId(r.id); setCardPreview(r.card_json) }} selectedId={selectedRunId} />
+      {/* 新建弹窗 */}
+      {showNewDialog && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowNewDialog(false)}>
+          <div className="bg-background border rounded-xl p-6 w-80 space-y-3" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-sm">新建配置</h3>
+            <input value={newName} onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && createNewConfig()}
+              placeholder="配置名称，如：跨境电商日报" autoFocus
+              className="w-full border rounded px-3 py-1.5 text-sm" />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowNewDialog(false)}
+                className="px-3 py-1.5 text-xs rounded border">取消</button>
+              <button onClick={createNewConfig} disabled={saving || !newName.trim()}
+                className="px-3 py-1.5 text-xs rounded bg-primary text-primary-foreground disabled:opacity-50">创建</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 删除确认弹窗 */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowDeleteConfirm(null)}>
+          <div className="bg-background border rounded-xl p-6 w-80 space-y-3" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-sm">确认删除</h3>
+            <p className="text-xs text-muted-foreground">删除后不可恢复，确定要删除这条配置吗？</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowDeleteConfirm(null)}
+                className="px-3 py-1.5 text-xs rounded border">取消</button>
+              <button onClick={() => deleteConfig(showDeleteConfirm)}
+                className="px-3 py-1.5 text-xs rounded bg-red-500 text-white">删除</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

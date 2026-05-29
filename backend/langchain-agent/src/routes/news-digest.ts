@@ -15,10 +15,10 @@ newsDigestRouter.post("/news-digest/run", async (req, res) => {
   res.setHeader("X-Accel-Buffering", "no")
 
   try {
-    const goal = (req.body as { goal?: string }).goal
+    const { goal, config } = req.body as { goal?: string; config?: Record<string, unknown> }
     await runNewsDigest("manual", (event) => {
       sse(res, event)
-    }, goal)
+    }, goal, config as never)
   } catch (e) {
     sse(res, { status: "error", stage: "system", error: e instanceof Error ? e.message : String(e) })
   }

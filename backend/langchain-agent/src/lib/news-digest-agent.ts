@@ -1,7 +1,7 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { z } from "zod"
 import { getModel } from "../config/model.js"
-import { getNewsConfig } from "../db/queries/news-config.js"
+import { getNewsConfig, type NewsConfig } from "../db/queries/news-config.js"
 import { createRun, finishRun, updateRun, getLatestRunning } from "../db/queries/news-digest-runs.js"
 import { searchNews } from "./tavily.js"
 import { getTenantToken, sendFeishuCard } from "./feishu.js"
@@ -54,12 +54,13 @@ export async function runNewsDigest(
   triggerType: "manual" | "cron",
   onStage: (event: StageEvent) => void,
   goal?: string,
+  overrideConfig?: NewsConfig,
 ): Promise<void> {
   const startedAt = Date.now()
   let runId: string | undefined
 
   try {
-    const config = await getNewsConfig()
+    const config = overrideConfig || await getNewsConfig()
 
     const existing = await getLatestRunning()
     if (existing) {

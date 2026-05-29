@@ -5,6 +5,7 @@ import { healthRouter } from "./routes/health.js"
 import { chatRouter } from "./routes/chat.js"
 import { conversationsRouter } from "./routes/conversations.js"
 import { newsConfigRouter } from "./routes/news-config.js"
+import { newsConfigsRouter } from "./routes/news-configs.js"
 import { newsDigestRouter } from "./routes/news-digest.js"
 import { startCron } from "./lib/cron-scheduler.js"
 import { ensureTables } from "./db/setup.js"
@@ -28,6 +29,7 @@ app.use("/api/agent", healthRouter)
 app.use("/api/agent", chatRouter)
 app.use("/api/agent", conversationsRouter)
 app.use("/api/agent", newsConfigRouter)
+app.use("/api/agent", newsConfigsRouter)
 app.use("/api/agent", newsDigestRouter)
 
 app.listen(PORT, async () => {
