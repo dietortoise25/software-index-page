@@ -236,7 +236,7 @@ export default function AgentTestPage() {
   const currentTab = TABS.find(t => t.id === activeTab)!
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-4">
+    <div className="px-6 py-6 space-y-4">
       <h1 className="text-xl font-bold">Agent 平台探索</h1>
 
       <div className="flex gap-1 border-b pb-0">

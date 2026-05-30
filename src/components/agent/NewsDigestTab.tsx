@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { Play, Save, RefreshCw, CheckCircle, XCircle, Loader2, Clock, Search, Send, FileText, ChevronDown, ChevronRight, Lightbulb, Plus, Pencil, Trash2, Info } from "lucide-react"
+import { Input } from "@/components/ui/input"
 
 // ─── 类型 ───────────────────────────────────────────────
 
@@ -165,7 +166,7 @@ function ConfigPanel({ config, onChange, onSave, saving, mode, onModeChange, goa
         <div>
           <label className="text-[11px] text-muted-foreground">你想了解什么？</label>
           <textarea value={goal} onChange={e => onGoalChange(e.target.value)}
-            placeholder="我是一个关注中国巴西贸易，跨境电商（shopee/tiktok），AI原生公司发展的CEO，业务还包含了巴西当地的转口贸易，自营跨境电商店，海外本土店。"
+            placeholder="身处中国的跨境电商公司文案策划，运营公司自媒体账号，需要巴西最新资讯…"
             rows={3}
             className="w-full border rounded px-2 py-1 text-xs mt-0.5 resize-none" />
         </div>
@@ -186,9 +187,11 @@ function ConfigPanel({ config, onChange, onSave, saving, mode, onModeChange, goa
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-[11px] text-muted-foreground">Cron 表达式</label>
-          <input value={config.cron} onChange={e => onChange({ ...config, cron: e.target.value })}
-            className="w-full border rounded px-2 py-1 text-xs mt-0.5 font-mono" />
+          <label className="text-[11px] text-muted-foreground">每天定时发送</label>
+          <Input type="time" value={cronToTime(config.cron)}
+            onChange={e => onChange({ ...config, cron: timeToCron(e.target.value) })}
+            step="60"
+            className="appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none text-xs mt-0.5" />
         </div>
         <div>
           <label className="text-[11px] text-muted-foreground">语言</label>
@@ -220,13 +223,13 @@ function ConfigPanel({ config, onChange, onSave, saving, mode, onModeChange, goa
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="text-[11px] text-muted-foreground">每个主题搜索数</label>
-          <input type="number" min={1} max={20} value={config.search_count}
+          <input type="number" min={1} max={100} value={config.search_count}
             onChange={e => onChange({ ...config, search_count: parseInt(e.target.value) || 10 })}
             className="w-full border rounded px-2 py-1 text-xs mt-0.5" />
         </div>
         <div>
           <label className="text-[11px] text-muted-foreground">卡片条数 (飞书)</label>
-          <input type="number" min={1} max={10} value={config.card_count}
+          <input type="number" min={1} max={50} value={config.card_count}
             onChange={e => onChange({ ...config, card_count: parseInt(e.target.value) || 5 })}
             className="w-full border rounded px-2 py-1 text-xs mt-0.5" />
         </div>
@@ -317,13 +320,26 @@ const defaultConfig: NewsConfig = {
   topics: ["AI", "LLM", "AI Agent"],
   keywords: ["大模型", "智能体"],
   cron: "0 9 * * *",
-  receive_id: "",
-  receive_type: "open_id",
+  receive_id: "oc_70900f981e8f18aea2e3471b9d5d7d42",
+  receive_type: "chat_id",
   language: "zh",
-  search_count: 10,
-  card_count: 5,
+  search_count: 50,
+  card_count: 20,
   mode: "ai",
-  goal: "",
+  goal: "身处中国的跨境电商公司文案策划 你运营的公司自媒体账号主要内容产出方向是：掌握巴西本地最新资讯，掌握一手经济、电商、商业、贸易往来、政治交流等热点动态，同时与国内关注巴西市场的群体探讨巴西市场、交流巴西电商运营心得、交流实战经验 ，所以请你搜索值得做的 吸引人看的巴西这三天内的热点信息 我要整理成资讯 让大家更多的关注公司的自媒体账号 注意必须是这三天之类 最新的",
+}
+
+function cronToTime(cron: string): string {
+  const parts = cron.split(" ")
+  if (parts.length >= 2) {
+    return `${parts[1].padStart(2, "0")}:${parts[0].padStart(2, "0")}`
+  }
+  return "09:00"
+}
+
+function timeToCron(time: string): string {
+  const [hour, minute] = time.split(":")
+  return `${parseInt(minute)} ${parseInt(hour)} * * *`
 }
 
 export default function NewsDigestTab() {
