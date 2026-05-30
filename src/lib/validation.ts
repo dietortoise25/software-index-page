@@ -41,3 +41,16 @@ export const tiktokCredentialsSchema = z.object({
   appSecret: z.string().min(1, "AppSecret 不能为空"),
   redirectUri: z.string().url("必须是有效的 URL"),
 })
+
+export const newsConfigSchema = z.object({
+  topics: z.array(z.string()).max(10, "最多 10 个主题"),
+  keywords: z.array(z.string()).max(10, "最多 10 个关键词"),
+  cron: z.string().min(1, "Cron 不能为空"),
+  receive_id: z.string().min(1, "接收者 ID 不能为空"),
+  receive_type: z.enum(["open_id", "chat_id"]),
+  language: z.enum(["zh", "en"]),
+  search_count: z.number().min(1, "至少搜索 1 条").max(100, "最多搜索 100 条"),
+  card_count: z.number().min(1, "至少 1 条卡片").max(50, "最多 50 条卡片"),
+  mode: z.enum(["manual", "ai"]),
+  goal: z.string().optional().default(""),
+})

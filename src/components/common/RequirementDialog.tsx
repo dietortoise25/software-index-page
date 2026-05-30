@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Select } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 
 const TYPE_OPTIONS = [
@@ -121,18 +121,28 @@ export default function RequirementDialog() {
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1.5">
                 <Label htmlFor="type">需求类型 *</Label>
-                <Select id="type" value={form.type} onChange={set("type")} required>
-                  {TYPE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
+                <Select items={TYPE_OPTIONS.filter(o => o.value).map(o => ({ label: o.label, value: o.value }))} value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v ?? "" }))}>
+                  <SelectTrigger id="type">
+                    <SelectValue placeholder="请选择" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TYPE_OPTIONS.filter(o => o.value).map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="priority">优先级 *</Label>
-                <Select id="priority" value={form.priority} onChange={set("priority")} required>
-                  {PRIORITY_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
+                <Select items={PRIORITY_OPTIONS.filter(o => o.value).map(o => ({ label: o.label, value: o.value }))} value={form.priority} onValueChange={v => setForm(f => ({ ...f, priority: v ?? "" }))}>
+                  <SelectTrigger id="priority">
+                    <SelectValue placeholder="请选择" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRIORITY_OPTIONS.filter(o => o.value).map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
             </div>
