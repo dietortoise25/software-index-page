@@ -1,3 +1,6 @@
+import https from "https"
+import { SocksProxyAgent } from "socks-proxy-agent"
+
 export interface SearchResult {
   title: string
   url: string
@@ -5,6 +8,9 @@ export interface SearchResult {
 }
 
 const JINA_KEY = process.env.JINA_API_KEY || ""
+const JINA_PROXY = process.env.JINA_PROXY || ""
+
+const proxyAgent = JINA_PROXY ? new SocksProxyAgent(JINA_PROXY) : undefined
 
 function hasKey(): boolean {
   if (!JINA_KEY) {
@@ -14,20 +20,57 @@ function hasKey(): boolean {
   return true
 }
 
+function httpGet(url: string, timeout = 15000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, {
+      agent: proxyAgent,
+      headers: { Authorization: `Bearer ${JINA_KEY}` },
+      timeout,
+    }, (res) => {
+      if (!res.statusCode || res.statusCode >= 400) {
+        reject(new Error(`HTTP ${res.statusCode}`))
+        return
+      }
+      let body = ""
+      res.on("data", (chunk: Buffer) => { body += chunk.toString() })
+      res.on("end", () => resolve(body))
+    })
+    req.on("error", reject)
+    req.on("timeout", () => { req.destroy(); reject(new Error("timeout")) })
+  })
+}
+
+function httpGetJson(url: string, timeout = 20000): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, {
+      agent: proxyAgent,
+      headers: {
+        Authorization: `Bearer ${JINA_KEY}`,
+        Accept: "application/json",
+      },
+      timeout,
+    }, (res) => {
+      if (!res.statusCode || res.statusCode >= 400) {
+        reject(new Error(`HTTP ${res.statusCode}`))
+        return
+      }
+      let body = ""
+      res.on("data", (chunk: Buffer) => { body += chunk.toString() })
+      res.on("end", () => {
+        try { resolve(JSON.parse(body)) }
+        catch { reject(new Error("JSON parse failed")) }
+      })
+    })
+    req.on("error", reject)
+    req.on("timeout", () => { req.destroy(); reject(new Error("timeout")) })
+  })
+}
+
 export async function searchJina(query: string, maxResults = 10): Promise<SearchResult[]> {
   if (!hasKey()) return []
 
   try {
-    const url = `https://s.jina.ai/?q=${encodeURIComponent(query)}`
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${JINA_KEY}` },
-      signal: AbortSignal.timeout(15000),
-    })
-    if (!res.ok) {
-      console.warn(`[jina] search 返回 ${res.status}`)
-      return []
-    }
-    const text = await res.text()
+    const text = await httpGet(`https://s.jina.ai/?q=${encodeURIComponent(query)}`)
     return parseJinaResults(text).slice(0, maxResults)
   } catch (e) {
     console.warn("[jina] search 异常:", e instanceof Error ? e.message : String(e))
@@ -39,18 +82,9 @@ export async function readUrl(url: string): Promise<SearchResult | null> {
   if (!hasKey()) return null
 
   try {
-    const res = await fetch(`https://r.jina.ai/${encodeURIComponent(url)}`, {
-      headers: {
-        Authorization: `Bearer ${JINA_KEY}`,
-        Accept: "application/json",
-      },
-      signal: AbortSignal.timeout(20000),
-    })
-    if (!res.ok) {
-      console.warn(`[jina] readUrl 返回 ${res.status}: ${url}`)
-      return null
+    const json = await httpGetJson(`https://r.jina.ai/${encodeURIComponent(url)}`) as {
+      data?: { title?: string; url?: string; content?: string }
     }
-    const json = await res.json() as { data?: { title?: string; url?: string; content?: string } }
     const d = json.data
     if (!d?.content) return null
     return { title: d.title || "", url: d.url || url, content: d.content }
@@ -62,20 +96,20 @@ export async function readUrl(url: string): Promise<SearchResult | null> {
 
 function parseJinaResults(text: string): SearchResult[] {
   const results: SearchResult[] = []
-  // Jina Search 返回 LLM-friendly markdown 格式，按标题+URL+内容解析
   const blocks = text.split(/\n(?=Title:|###\s)/)
   for (const block of blocks) {
     const titleMatch = block.match(/(?:Title:|###)\s*(.+)/)
     const urlMatch = block.match(/URL(?: Source)?:\s*(https?:\/\/\S+)/)
-    const content = block.replace(/^(?:Title:|###)\s*.+\n?/m, "").replace(/^URL(?: Source)?:\s*https?:\/\/\S+\n?/m, "").trim()
+    const content = block
+      .replace(/^(?:Title:|###)\s*.+\n?/m, "")
+      .replace(/^URL(?: Source)?:\s*https?:\/\/\S+\n?/m, "")
+      .trim()
     if (titleMatch && urlMatch) {
       results.push({ title: titleMatch[1].trim(), url: urlMatch[1].trim(), content: content.slice(0, 500) })
     }
   }
-  // fallback: 尝试按 URL 行提取
   if (results.length === 0) {
-    const urlMatches = text.matchAll(/https?:\/\/\S+/g)
-    for (const m of urlMatches) {
+    for (const m of text.matchAll(/https?:\/\/\S+/g)) {
       results.push({ title: "", url: m[0], content: "" })
     }
   }
