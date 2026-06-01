@@ -7,7 +7,7 @@ import { conversationsRouter } from "./routes/conversations.js"
 import { newsConfigRouter } from "./routes/news-config.js"
 import { newsConfigsRouter } from "./routes/news-configs.js"
 import { newsDigestRouter } from "./routes/news-digest.js"
-import { startCron } from "./lib/cron-scheduler.js"
+import { rebuildCronJobs } from "./lib/cron-scheduler.js"
 import { ensureTables } from "./db/setup.js"
 
 // 注册内置工具（side-effect import）
@@ -41,5 +41,5 @@ app.listen(PORT, async () => {
   console.log(`[agent] 新闻配置 API: GET/PUT http://localhost:${PORT}/api/agent/news-config`)
   console.log(`[agent] 新闻汇集 API: POST http://localhost:${PORT}/api/agent/news-digest/run`)
   await ensureTables()
-  startCron()
+  rebuildCronJobs().catch(err => console.error("[agent] 启动时初始化定时任务失败:", err))
 })

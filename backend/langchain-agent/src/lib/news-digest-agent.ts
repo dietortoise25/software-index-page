@@ -17,12 +17,15 @@ function robustJsonParse(raw: string): unknown {
 import { createRun, finishRun, updateRun, getLatestRunning } from "../db/queries/news-digest-runs.js"
 import { searchNews } from "./tavily.js"
 import { getTenantToken, sendFeishuCard } from "./feishu.js"
+import { searchJina, readUrl, type SearchResult } from "./jina.js"
+import pLimit from "p-limit"
 
 export type StageEvent =
   | { status: "starting" }
   | { status: "generating_topics" }
   | { status: "topics_ready"; topics: string[]; keywords: string[]; thinking: string }
-  | { status: "searching"; query: string }
+  | { status: "searching"; query: string; source: string }
+  | { status: "source_error"; source: string; error: string }
   | { status: "search_done"; resultCount: number }
   | { status: "summarizing"; progress: string }
   | { status: "summarize_done"; thinking: string }
@@ -65,7 +68,7 @@ function buildFeishuCard(args: CardData) {
       { tag: "hr" },
       { tag: "div", text: { content: itemsMd, tag: "lark_md" } },
       { tag: "hr" },
-      { tag: "note", elements: [{ tag: "plain_text", content: args.tags.join(" · ") + " | Tavily 搜索" }] },
+      { tag: "note", elements: [{ tag: "plain_text", content: args.tags.join(" · ") }] },
     ],
   }
 }
@@ -120,14 +123,49 @@ export async function runNewsDigest(
     const searchTopics = config.topics.length > 0 ? config.topics : ["AI"]
     const today = new Date().toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "long" })
 
-    // Step 1: 每个主题独立搜索
-    const allResults: Map<string, { title: string; url: string; content: string }> = new Map()
+    // Step 1: 每个主题 × 每个源并行搜索
+    const allResults: Map<string, SearchResult> = new Map()
+    const sources = config.sources?.length ? config.sources : ["tavily"]
+
+    async function searchBySource(source: string, query: string): Promise<SearchResult[]> {
+      onStage({ status: "searching", query: `[${source}] ${query}`, source })
+
+      try {
+        switch (source) {
+          case "tavily":
+            return await searchNews(query, { maxResults: config.search_count, days: 1 })
+          case "jina_search":
+            return await searchJina(query, config.search_count)
+          case "jina_deep": {
+            const searchResults = await searchJina(query, config.search_count)
+            if (searchResults.length === 0) return []
+            const limit = pLimit(5)
+            const full = await Promise.allSettled(searchResults.map(r => limit(() => readUrl(r.url))))
+            const merged: SearchResult[] = []
+            for (let i = 0; i < full.length; i++) {
+              const s = full[i]
+              if (s.status === "fulfilled" && s.value) merged.push(s.value)
+            }
+            return merged
+          }
+          default:
+            return []
+        }
+      } catch (e) {
+        onStage({ status: "source_error", source, error: e instanceof Error ? e.message : String(e) })
+        return []
+      }
+    }
+
     for (const topic of searchTopics) {
       const query = [topic, ...config.keywords].join(" ")
-      onStage({ status: "searching", query: `[${topic}] ${query}` })
-      const results = await searchNews(query, { maxResults: config.search_count, days: 1 })
-      for (const r of results) {
-        if (!allResults.has(r.url)) allResults.set(r.url, r)
+      const settled = await Promise.allSettled(sources.map(src => searchBySource(src, query)))
+      for (const s of settled) {
+        if (s.status === "fulfilled") {
+          for (const r of s.value) {
+            if (!allResults.has(r.url)) allResults.set(r.url, r)
+          }
+        }
       }
     }
 

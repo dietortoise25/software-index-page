@@ -11,6 +11,8 @@ export interface NewsConfig {
   card_count: number
   mode: "manual" | "ai"
   goal: string
+  enabled: boolean
+  sources: string[]
 }
 
 const defaults: NewsConfig = {
@@ -24,6 +26,8 @@ const defaults: NewsConfig = {
   card_count: 5,
   mode: "ai",
   goal: "",
+  enabled: true,
+  sources: ["tavily"],
 }
 
 export async function getNewsConfig(): Promise<NewsConfig> {

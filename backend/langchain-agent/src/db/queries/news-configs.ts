@@ -50,3 +50,15 @@ export async function deleteConfig(id: string, userId: string): Promise<void> {
     .eq("id", id).eq("user_id", userId)
   if (error) throw error
 }
+
+export async function listAllConfigs(): Promise<NewsConfigRow[]> {
+  const sb = getSb()
+  const { data, error } = await sb.schema("agent").from("news_configs")
+    .select("*")
+    .order("created_at", { ascending: true })
+  if (error) {
+    console.error("[news-configs] listAllConfigs 查询失败:", error.message)
+    return []
+  }
+  return (data || []) as NewsConfigRow[]
+}

@@ -53,4 +53,6 @@ export const newsConfigSchema = z.object({
   card_count: z.number().min(1, "至少 1 条卡片").max(50, "最多 50 条卡片"),
   mode: z.enum(["manual", "ai"]),
   goal: z.string().optional().default(""),
+  enabled: z.boolean().default(true),
+  sources: z.array(z.enum(["tavily", "jina_search", "jina_deep"])).min(1, "至少选一个新闻源").default(["tavily"]),
 })

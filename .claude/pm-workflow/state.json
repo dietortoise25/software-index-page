@@ -1,0 +1,20 @@
+{
+  "phase": 4,
+  "phases": {
+    "1": { "status": "confirmed" },
+    "2": { "status": "confirmed", "stories": {
+      "US-1": { "status": "confirmed", "title": "数据模型 & 校验" },
+      "US-2": { "status": "confirmed", "title": "Jina API 集成" },
+      "US-3": { "status": "confirmed", "title": "多源并行搜索工作流" },
+      "US-4": { "status": "confirmed", "title": "Cron 调度器识别 enabled" },
+      "US-5": { "status": "confirmed", "title": "环境变量 & 部署配置" },
+      "US-6": { "status": "confirmed", "title": "前端表单 enabled + sources" },
+      "US-7": { "status": "confirmed", "title": "前端卡片 enabled 状态指示" },
+      "US-8": { "status": "confirmed", "title": "API Key 状态暴露" },
+      "US-9": { "status": "confirmed", "title": "清除旧数据 + 全链路测试" },
+      "US-10": { "status": "confirmed", "title": "前端流水线多源进度" }
+    }},
+    "3": { "status": "confirmed" },
+    "4": { "status": "in_progress", "completed": [] }
+  }
+}

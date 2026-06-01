@@ -19,6 +19,8 @@ interface NewsConfig {
   card_count: number
   mode: "manual" | "ai"
   goal: string
+  enabled: boolean
+  sources: string[]
 }
 
 type StageStatus = "idle" | "active" | "done" | "error"
@@ -30,6 +32,7 @@ interface StageState {
   timestamp?: string
   thinking?: string
   icon: typeof CheckCircle
+  subStages?: Array<{ source: string; label: string; status: StageStatus; detail?: string }>
 }
 
 interface ConfigRow {
@@ -116,6 +119,17 @@ function StageNode({ stage, isLast }: { stage: StageState; isLast: boolean }) {
         </div>
         {stage.detail && <p className="text-xs text-muted-foreground truncate">{stage.detail}</p>}
         {stage.timestamp && <p className="text-[10px] text-muted-foreground/60">{stage.timestamp}</p>}
+        {stage.subStages?.map((ss, i) => {
+          const SubIcon = ICONS[ss.status]
+          const subColor = STATUS_COLORS[ss.status]
+          return (
+            <div key={i} className="flex items-center gap-1.5 mt-0.5 ml-1">
+              <SubIcon className={`w-3 h-3 ${subColor} ${ss.status === "active" ? "animate-spin" : ""}`} />
+              <span className="text-[10px] text-muted-foreground">{ss.label}</span>
+              {ss.detail && <span className="text-[9px] text-muted-foreground/60">{ss.detail}</span>}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -146,7 +160,7 @@ function errClass(key: string, errs: Record<string, string>) {
   return errs[key] ? "border-destructive" : ""
 }
 
-function ConfigPanel({ config, onChange, onSave, saving, mode, onModeChange, goal, onGoalChange, selfOpenId, formErrors }: {
+function ConfigPanel({ config, onChange, onSave, saving, mode, onModeChange, goal, onGoalChange, selfOpenId, formErrors, apiKeys }: {
   config: NewsConfig
   onChange: (c: NewsConfig) => void
   onSave: () => void
@@ -157,6 +171,7 @@ function ConfigPanel({ config, onChange, onSave, saving, mode, onModeChange, goa
   onGoalChange: (g: string) => void
   selfOpenId: string
   formErrors: Record<string, string>
+  apiKeys: Record<string, string>
 }) {
   const LANG_ITEMS = [{ label: "中文", value: "zh" }, { label: "English", value: "en" }]
   const RECEIVE_ITEMS = [
@@ -199,6 +214,42 @@ function ConfigPanel({ config, onChange, onSave, saving, mode, onModeChange, goa
           </div>
         </>
       )}
+
+      {/* 定时触发开关 */}
+      <div className="flex items-center justify-between">
+        <label className="text-[11px] text-muted-foreground">定时触发</label>
+        <button onClick={() => onChange({ ...config, enabled: !(config.enabled ?? true) })}
+          className={`w-8 h-4 rounded-full transition-colors ${(config.enabled ?? true) ? "bg-primary" : "bg-muted-foreground/30"}`}
+        >
+          <div className={`w-3 h-3 rounded-full bg-white transition-transform mx-0.5 ${(config.enabled ?? true) ? "translate-x-3.5" : ""}`} />
+        </button>
+      </div>
+
+      {/* 新闻源多选 */}
+      <div>
+        <label className="text-[11px] text-muted-foreground">新闻源</label>
+        <div className="flex flex-col gap-1 mt-0.5">
+          {[
+            { key: "tavily", label: "Tavily", api: "tavily" },
+            { key: "jina_search", label: "Jina 搜索", api: "jina" },
+            { key: "jina_deep", label: "Jina 深度", api: "jina" },
+          ].map(src => {
+            const checked = (config.sources || ["tavily"]).includes(src.key)
+            const missingKey = src.api && apiKeys[src.api] !== "configured"
+            return (
+              <label key={src.key} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                <input type="checkbox" checked={checked} onChange={() => {
+                  const s = config.sources || ["tavily"]
+                  onChange({ ...config, sources: checked ? s.filter(x => x !== src.key) : [...s, src.key] })
+                }} className="w-3 h-3" />
+                {src.label}
+                {missingKey && <span className="text-[10px] text-amber-500" title="API Key 未配置">⚠️</span>}
+              </label>
+            )
+          })}
+        </div>
+        {formErrors.sources && <p className="text-[10px] text-destructive mt-0.5">{formErrors.sources}</p>}
+      </div>
 
       <div className="grid grid-cols-2 gap-2">
         <div>
@@ -356,6 +407,8 @@ const defaultConfig: NewsConfig = {
   card_count: 20,
   mode: "ai",
   goal: "身处中国的跨境电商公司文案策划 你运营的公司自媒体账号主要内容产出方向是：掌握巴西本地最新资讯，掌握一手经济、电商、商业、贸易往来、政治交流等热点动态，同时与国内关注巴西市场的群体探讨巴西市场、交流巴西电商运营心得、交流实战经验 ，所以请你搜索值得做的 吸引人看的巴西这三天内的热点信息 我要整理成资讯 让大家更多的关注公司的自媒体账号 注意必须是这三天之类 最新的",
+  enabled: true,
+  sources: ["tavily"],
 }
 
 function cronToTime(cron: string): string {
@@ -403,6 +456,7 @@ export default function NewsDigestTab() {
   const [selectedRunId, setSelectedRunId] = useState<string>()
   const [cardPreview, setCardPreview] = useState<unknown>()
   const [duration, setDuration] = useState("")
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({})
   const abortRef = useRef<AbortController | null>(null)
 
   const loadConfigs = useCallback(async () => {
@@ -430,6 +484,11 @@ export default function NewsDigestTab() {
   }, [])
 
   useEffect(() => { loadConfigs(); loadRuns() }, [loadConfigs, loadRuns])
+  useEffect(() => {
+    fetch("/api/agent/news-cron-status").then(r => r.json()).then(j => {
+      if (j.ok) setApiKeys(j.data.health?.api_keys || {})
+    }).catch(() => {})
+  }, [])
 
   function selectConfig(row: ConfigRow) {
     setSelectedId(row.id)
@@ -583,13 +642,33 @@ export default function NewsDigestTab() {
                   next[1] = { ...next[1], status: "done", detail: event.topics.join(", "), thinking: event.thinking, timestamp: new Date().toLocaleTimeString() }
                   next[2] = { ...next[2], status: "active", timestamp: new Date().toLocaleTimeString() }
                   break
-                case "searching":
+                case "searching": {
+                  const src = (event as { source?: string }).source || "unknown"
+                  const label: Record<string, string> = { tavily: "Tavily", jina_search: "Jina搜索", jina_deep: "Jina深度" }
                   if (isAI) next[1] = { ...next[1], status: "done" }
                   next[0 + off] = { ...next[0 + off], status: "done" }
-                  next[1 + off] = { ...next[1 + off], status: "active", detail: event.query, timestamp: new Date().toLocaleTimeString() }
+                  const searchStage = next[1 + off]
+                  const prevSubs = searchStage.subStages || []
+                  const filtered = prevSubs.filter(s => s.source !== src)
+                  next[1 + off] = { ...searchStage, status: "active", detail: event.query,
+                    subStages: [...filtered, { source: src, label: label[src] || src, status: "active" }],
+                    timestamp: new Date().toLocaleTimeString() }
                   break
+                }
+                case "source_error": {
+                  const se = event as { source: string; error: string }
+                  const label: Record<string, string> = { tavily: "Tavily", jina_search: "Jina搜索", jina_deep: "Jina深度" }
+                  const searchStage = next[1 + off]
+                  const prevSubs = searchStage.subStages || []
+                  const filtered = prevSubs.filter(s => s.source !== se.source)
+                  next[1 + off] = { ...searchStage,
+                    subStages: [...filtered, { source: se.source, label: label[se.source] || se.source, status: "error", detail: se.error }],
+                  }
+                  break
+                }
                 case "search_done":
-                  next[1 + off] = { ...next[1 + off], status: "done", detail: `找到 ${event.resultCount} 条结果` }
+                  next[1 + off] = { ...next[1 + off], status: "done", detail: `找到 ${event.resultCount} 条结果`,
+                    subStages: (next[1 + off].subStages || []).map(s => s.status === "active" ? { ...s, status: "done" as StageStatus } : s) }
                   next[2 + off] = { ...next[2 + off], status: "active", timestamp: new Date().toLocaleTimeString() }
                   break
                 case "summarizing":
@@ -651,15 +730,22 @@ export default function NewsDigestTab() {
 
         {!hasConfigs && <p className="text-xs text-muted-foreground">暂无配置，点击"新建"创建</p>}
 
-        {configs.map(c => (
+        {configs.map(c => {
+          const enabled = c.config.enabled ?? true
+          const sources = c.config.sources?.length ? c.config.sources : ["tavily"]
+          const sourceLabels: Record<string, string> = { tavily: "Tavily", jina_search: "Jina搜索", jina_deep: "Jina深度" }
+          return (
           <div key={c.id} onClick={() => selectConfig(c)}
             className={`border rounded-lg p-3 cursor-pointer transition-colors ${selectedId === c.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}
           >
             <div className="flex items-start justify-between">
               <div className="min-w-0">
-                <p className="text-xs font-medium truncate">{c.name}</p>
+                <div className="flex items-center gap-1">
+                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${enabled ? "bg-green-500" : "bg-muted-foreground/50"}`} />
+                  <p className="text-xs font-medium truncate">{c.name}</p>
+                </div>
                 <p className="text-[10px] text-muted-foreground truncate mt-0.5">
-                  {c.config.topics?.join(", ") || "未设定主题"}
+                  {sources.map(s => sourceLabels[s] || s).join(" · ")}
                 </p>
               </div>
             </div>
@@ -674,7 +760,7 @@ export default function NewsDigestTab() {
               </button>
             </div>
           </div>
-        ))}
+          )})}
       </div>
 
       {/* 右侧：主内容区 */}
@@ -698,7 +784,7 @@ export default function NewsDigestTab() {
         <div className="grid grid-cols-3 gap-4">
           {/* 配置面板 */}
           <ConfigPanel config={config} onChange={setConfig} onSave={saveConfig} saving={saving}
-            mode={mode} onModeChange={setMode} goal={goal} onGoalChange={setGoal} selfOpenId={selfOpenId} formErrors={formErrors} />
+            mode={mode} onModeChange={setMode} goal={goal} onGoalChange={setGoal} selfOpenId={selfOpenId} formErrors={formErrors} apiKeys={apiKeys} />
 
           {/* 流水线 */}
           <PipelineView stages={stages} error={error} />

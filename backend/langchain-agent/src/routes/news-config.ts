@@ -1,6 +1,6 @@
 import { Router } from "express"
 import { getNewsConfig, setAllNewsConfig } from "../db/queries/news-config.js"
-import { startCron } from "../lib/cron-scheduler.js"
+import { rebuildCronJobs } from "../lib/cron-scheduler.js"
 
 export const newsConfigRouter = Router()
 
@@ -16,7 +16,7 @@ newsConfigRouter.get("/news-config", async (_req, res) => {
 newsConfigRouter.put("/news-config", async (req, res) => {
   try {
     await setAllNewsConfig(req.body)
-    startCron()
+    rebuildCronJobs().catch(err => console.error("[news-config] PUT 后重建定时任务失败:", err))
     const config = await getNewsConfig()
     res.json({ ok: true, data: config })
   } catch (e) {

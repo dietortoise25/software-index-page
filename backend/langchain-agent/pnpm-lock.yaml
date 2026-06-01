@@ -5,9 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  '@langchain/openai@1.4.7':
-    hash: 09a14abd08c51df83406004dd7edd4d61b9329ad7b0ca69fb7261946c7740463
-    path: patches/@langchain__openai@1.4.7.patch
+  '@langchain/openai@1.4.7': 09a14abd08c51df83406004dd7edd4d61b9329ad7b0ca69fb7261946c7740463
 
 importers:
 
@@ -52,6 +50,9 @@ importers:
       node-cron:
         specifier: ^4.2.1
         version: 4.2.1
+      p-limit:
+        specifier: ^3.1.0
+        version: 3.1.0
       pg:
         specifier: ^8.21.0
         version: 8.21.0
