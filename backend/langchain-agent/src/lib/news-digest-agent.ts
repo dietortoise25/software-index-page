@@ -194,6 +194,7 @@ export async function runNewsDigest(
 注意：所有内容必须翻译成中文，包括标题、摘要、标签。
 
 每条新闻必须填写：
+- source: 新闻的真实来源（如 Reuters、BBC、36氪、TechCrunch 等），不是搜索引擎名
 - topic: 该新闻属于哪个主题标签（从以下选择最匹配的：${topicTagList}）
 - reason: 推荐理由，30字以内，解释为什么这条新闻对读者有价值
 
@@ -202,7 +203,7 @@ export async function runNewsDigest(
   "title": "资讯早报 | ${today}",
   "summary": "一句话总体摘要",
   "items": [
-    {"title": "中文新闻标题", "digest": "100字以内中文摘要", "url": "原文URL", "source": "Tavily", "topic": "${searchTopics[0] || "AI"}", "reason": "推荐理由"}
+    {"title": "中文新闻标题", "digest": "100字以内中文摘要", "url": "原文URL", "source": "新闻来源名称", "topic": "${searchTopics[0] || "AI"}", "reason": "推荐理由"}
   ],
   "tags": [${topicTagList}]
 }`),

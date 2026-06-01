@@ -215,16 +215,6 @@ function ConfigPanel({ config, onChange, onSave, saving, mode, onModeChange, goa
         </>
       )}
 
-      {/* 定时触发开关 */}
-      <div className="flex items-center justify-between">
-        <label className="text-[11px] text-muted-foreground">定时触发</label>
-        <button onClick={() => onChange({ ...config, enabled: !(config.enabled ?? true) })}
-          className={`w-8 h-4 rounded-full transition-colors ${(config.enabled ?? true) ? "bg-primary" : "bg-muted-foreground/30"}`}
-        >
-          <div className={`w-3 h-3 rounded-full bg-white transition-transform mx-0.5 ${(config.enabled ?? true) ? "translate-x-3.5" : ""}`} />
-        </button>
-      </div>
-
       {/* 新闻源多选 */}
       <div>
         <label className="text-[11px] text-muted-foreground">新闻源</label>
@@ -251,26 +241,33 @@ function ConfigPanel({ config, onChange, onSave, saving, mode, onModeChange, goa
         {formErrors.sources && <p className="text-[10px] text-destructive mt-0.5">{formErrors.sources}</p>}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[11px] text-muted-foreground">每天定时发送</label>
-          <Input type="time" value={cronToTime(config.cron)}
-            onChange={e => onChange({ ...config, cron: timeToCron(e.target.value) })}
-            step="60"
-            className="appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none text-xs mt-0.5" />
-        </div>
-        <div>
-          <label className="text-[11px] text-muted-foreground">语言</label>
-          <Select items={LANG_ITEMS} value={config.language} onValueChange={v => onChange({ ...config, language: v ?? "zh" })}>
-            <SelectTrigger className="text-xs mt-0.5">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="zh">中文</SelectItem>
-              <SelectItem value="en">English</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      {/* 定时触发 + 时间 */}
+      <div className="flex items-center gap-2">
+        <label className="text-[11px] text-muted-foreground shrink-0">定时触发</label>
+        <button onClick={() => onChange({ ...config, enabled: !(config.enabled ?? true) })}
+          className={`w-8 h-4 rounded-full transition-colors shrink-0 ${(config.enabled ?? true) ? "bg-primary" : "bg-muted-foreground/30"}`}
+        >
+          <div className={`w-3 h-3 rounded-full bg-white transition-transform mx-0.5 ${(config.enabled ?? true) ? "translate-x-3.5" : ""}`} />
+        </button>
+        <Input type="time" value={cronToTime(config.cron)}
+          onChange={e => onChange({ ...config, cron: timeToCron(e.target.value) })}
+          disabled={!(config.enabled ?? true)}
+          step="60"
+          className="appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none text-xs w-24" />
+        <span className="text-[11px] text-muted-foreground ml-1">每天</span>
+      </div>
+
+      <div>
+        <label className="text-[11px] text-muted-foreground">语言</label>
+        <Select items={LANG_ITEMS} value={config.language} onValueChange={v => onChange({ ...config, language: v ?? "zh" })}>
+          <SelectTrigger className="text-xs mt-0.5">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="zh">中文</SelectItem>
+            <SelectItem value="en">English</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
