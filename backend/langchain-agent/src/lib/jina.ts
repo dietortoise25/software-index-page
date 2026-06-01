@@ -12,6 +12,11 @@ const JINA_PROXY = process.env.JINA_PROXY || ""
 
 const proxyAgent = JINA_PROXY ? new SocksProxyAgent(JINA_PROXY) : undefined
 
+export interface JinaSearchOptions {
+  gl?: string
+  hl?: string
+}
+
 function hasKey(): boolean {
   if (!JINA_KEY) {
     console.warn("[jina] JINA_API_KEY 未配置，跳过 Jina 源")
@@ -20,13 +25,11 @@ function hasKey(): boolean {
   return true
 }
 
-function httpGet(url: string, timeout = 15000): Promise<string> {
+function httpGet(url: string, extraHeaders?: Record<string, string>, timeout = 15000): Promise<string> {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, {
-      agent: proxyAgent,
-      headers: { Authorization: `Bearer ${JINA_KEY}` },
-      timeout,
-    }, (res) => {
+    const headers: Record<string, string> = { Authorization: `Bearer ${JINA_KEY}` }
+    if (extraHeaders) Object.assign(headers, extraHeaders)
+    const req = https.get(url, { agent: proxyAgent, headers, timeout }, (res) => {
       if (!res.statusCode || res.statusCode >= 400) {
         reject(new Error(`HTTP ${res.statusCode}`))
         return
@@ -66,11 +69,16 @@ function httpGetJson(url: string, timeout = 20000): Promise<unknown> {
   })
 }
 
-export async function searchJina(query: string, maxResults = 10): Promise<SearchResult[]> {
+export async function searchJina(query: string, maxResults = 10, opts?: JinaSearchOptions): Promise<SearchResult[]> {
   if (!hasKey()) return []
 
   try {
-    const text = await httpGet(`https://s.jina.ai/?q=${encodeURIComponent(query)}`)
+    const params = new URLSearchParams()
+    params.set("q", query)
+    if (opts?.gl) params.set("gl", opts.gl)
+    if (opts?.hl) params.set("hl", opts.hl)
+    const extraHeaders: Record<string, string> = { "X-Engine": "direct" }
+    const text = await httpGet(`https://s.jina.ai/?${params.toString()}`, extraHeaders)
     return parseJinaResults(text).slice(0, maxResults)
   } catch (e) {
     console.warn("[jina] search 异常:", e instanceof Error ? e.message : String(e))

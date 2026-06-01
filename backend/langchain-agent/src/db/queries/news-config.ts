@@ -3,6 +3,8 @@ import { getSb } from "../pool.js"
 export interface NewsSourceOptions {
   search_count: number
   read_count?: number
+  gl?: string
+  hl?: string
 }
 
 export interface NewsConfig {

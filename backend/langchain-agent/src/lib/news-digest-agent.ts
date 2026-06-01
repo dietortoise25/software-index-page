@@ -139,9 +139,9 @@ export async function runNewsDigest(
           case "tavily":
             return await searchNews(query, { maxResults: sc, days: 1 })
           case "jina_search":
-            return await searchJina(query, sc)
+            return await searchJina(query, sc, { gl: opts.gl, hl: opts.hl })
           case "jina_deep": {
-            const searchResults = await searchJina(query, sc)
+            const searchResults = await searchJina(query, sc, { gl: opts.gl, hl: opts.hl })
             if (searchResults.length === 0) return []
             const readMax = (opts.read_count && opts.read_count < searchResults.length)
               ? opts.read_count : Math.min(searchResults.length, 5)

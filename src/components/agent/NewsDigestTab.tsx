@@ -21,7 +21,7 @@ interface NewsConfig {
   goal: string
   enabled: boolean
   sources: string[]
-  source_options?: Record<string, { search_count?: number; read_count?: number }>
+  source_options?: Record<string, { search_count?: number; read_count?: number; gl?: string; hl?: string }>
 }
 
 type StageStatus = "idle" | "active" | "done" | "error"
@@ -414,8 +414,8 @@ const defaultConfig: NewsConfig = {
   sources: ["tavily"],
   source_options: {
     tavily: { search_count: 50 },
-    jina_search: { search_count: 10 },
-    jina_deep: { search_count: 5, read_count: 5 },
+    jina_search: { search_count: 10, gl: "CN", hl: "zh-cn" },
+    jina_deep: { search_count: 5, read_count: 5, gl: "CN", hl: "zh-cn" },
   },
 }
 
