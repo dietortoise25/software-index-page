@@ -1,5 +1,10 @@
 import { getSb } from "../pool.js"
 
+export interface NewsSourceOptions {
+  search_count: number
+  read_count?: number
+}
+
 export interface NewsConfig {
   topics: string[]
   keywords: string[]
@@ -13,6 +18,7 @@ export interface NewsConfig {
   goal: string
   enabled: boolean
   sources: string[]
+  source_options?: Partial<Record<string, NewsSourceOptions>>
 }
 
 const defaults: NewsConfig = {

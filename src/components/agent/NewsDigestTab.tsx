@@ -21,6 +21,7 @@ interface NewsConfig {
   goal: string
   enabled: boolean
   sources: string[]
+  source_options?: Record<string, { search_count?: number; read_count?: number }>
 }
 
 type StageStatus = "idle" | "active" | "done" | "error"
@@ -215,10 +216,10 @@ function ConfigPanel({ config, onChange, onSave, saving, mode, onModeChange, goa
         </>
       )}
 
-      {/* 新闻源多选 */}
+      {/* 新闻源多选 + 搜索数 */}
       <div>
         <label className="text-[11px] text-muted-foreground">新闻源</label>
-        <div className="flex flex-col gap-1 mt-0.5">
+        <div className="flex flex-col gap-1.5 mt-0.5">
           {[
             { key: "tavily", label: "Tavily", api: "tavily" },
             { key: "jina_search", label: "Jina 搜索", api: "jina" },
@@ -226,14 +227,26 @@ function ConfigPanel({ config, onChange, onSave, saving, mode, onModeChange, goa
           ].map(src => {
             const checked = (config.sources || ["tavily"]).includes(src.key)
             const missingKey = src.api && apiKeys[src.api] !== "configured"
+            const opts = config.source_options?.[src.key] || {}
+            const searchCount = opts.search_count ?? config.search_count
             return (
               <label key={src.key} className="flex items-center gap-1.5 text-xs cursor-pointer">
                 <input type="checkbox" checked={checked} onChange={() => {
                   const s = config.sources || ["tavily"]
                   onChange({ ...config, sources: checked ? s.filter(x => x !== src.key) : [...s, src.key] })
                 }} className="w-3 h-3" />
-                {src.label}
+                <span className="w-14">{src.label}</span>
                 {missingKey && <span className="text-[10px] text-amber-500" title="API Key 未配置">⚠️</span>}
+                {checked && (
+                  <input type="number" min={1} max={200} value={searchCount}
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => {
+                      const v = parseInt(e.target.value) || 10
+                      onChange({ ...config, source_options: { ...config.source_options, [src.key]: { ...opts, search_count: v } } })
+                    }}
+                    className="w-12 text-xs border rounded px-1 py-px"
+                  />
+                )}
               </label>
             )
           })}
@@ -296,13 +309,6 @@ function ConfigPanel({ config, onChange, onSave, saving, mode, onModeChange, goa
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[11px] text-muted-foreground">每个主题搜索数</label>
-          <Input type="number" min={1} max={100} value={config.search_count}
-            onChange={e => onChange({ ...config, search_count: parseInt(e.target.value) || 10 })}
-            className={`text-xs mt-0.5 ${errClass("search_count", formErrors)}`} />
-          {formErrors.search_count && <p className="text-[10px] text-destructive mt-0.5">{formErrors.search_count}</p>}
-        </div>
         <div>
           <label className="text-[11px] text-muted-foreground">卡片条数 (飞书)</label>
           <Input type="number" min={1} max={50} value={config.card_count}
@@ -406,6 +412,11 @@ const defaultConfig: NewsConfig = {
   goal: "身处中国的跨境电商公司文案策划 你运营的公司自媒体账号主要内容产出方向是：掌握巴西本地最新资讯，掌握一手经济、电商、商业、贸易往来、政治交流等热点动态，同时与国内关注巴西市场的群体探讨巴西市场、交流巴西电商运营心得、交流实战经验 ，所以请你搜索值得做的 吸引人看的巴西这三天内的热点信息 我要整理成资讯 让大家更多的关注公司的自媒体账号 注意必须是这三天之类 最新的",
   enabled: true,
   sources: ["tavily"],
+  source_options: {
+    tavily: { search_count: 50 },
+    jina_search: { search_count: 10 },
+    jina_deep: { search_count: 5, read_count: 5 },
+  },
 }
 
 function cronToTime(cron: string): string {
@@ -650,6 +661,28 @@ export default function NewsDigestTab() {
                   next[1 + off] = { ...searchStage, status: "active", detail: event.query,
                     subStages: [...filtered, { source: src, label: label[src] || src, status: "active" }],
                     timestamp: new Date().toLocaleTimeString() }
+                  break
+                }
+                case "reading": {
+                  const re = event as { source: string; current: number; total: number }
+                  const label: Record<string, string> = { tavily: "Tavily", jina_search: "Jina搜索", jina_deep: "Jina深度" }
+                  const searchStage = next[1 + off]
+                  const prevSubs = searchStage.subStages || []
+                  const filtered = prevSubs.filter(s => s.source !== re.source)
+                  next[1 + off] = { ...searchStage,
+                    subStages: [...filtered, { source: re.source, label: label[re.source] || re.source, status: "active", detail: `全文 ${re.current}/${re.total}` }],
+                  }
+                  break
+                }
+                case "reading_done": {
+                  const rd = event as { source: string; count: number }
+                  const label: Record<string, string> = { tavily: "Tavily", jina_search: "Jina搜索", jina_deep: "Jina深度" }
+                  const searchStage = next[1 + off]
+                  const prevSubs = searchStage.subStages || []
+                  const filtered = prevSubs.filter(s => s.source !== rd.source)
+                  next[1 + off] = { ...searchStage,
+                    subStages: [...filtered, { source: rd.source, label: label[rd.source] || rd.source, status: "done", detail: `全文 ${rd.count} 篇` }],
+                  }
                   break
                 }
                 case "source_error": {

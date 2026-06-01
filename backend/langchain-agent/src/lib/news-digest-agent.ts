@@ -2,7 +2,7 @@ import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { z } from "zod"
 import { jsonrepair } from "jsonrepair"
 import { getModel } from "../config/model.js"
-import { getNewsConfig, type NewsConfig } from "../db/queries/news-config.js"
+import { getNewsConfig, type NewsConfig, type NewsSourceOptions } from "../db/queries/news-config.js"
 
 function robustJsonParse(raw: string): unknown {
   const match = raw.match(/\{[\s\S]*\}/)
@@ -25,6 +25,8 @@ export type StageEvent =
   | { status: "generating_topics" }
   | { status: "topics_ready"; topics: string[]; keywords: string[]; thinking: string }
   | { status: "searching"; query: string; source: string }
+  | { status: "reading"; source: string; current: number; total: number }
+  | { status: "reading_done"; source: string; count: number }
   | { status: "source_error"; source: string; error: string }
   | { status: "search_done"; resultCount: number }
   | { status: "summarizing"; progress: string }
@@ -128,19 +130,34 @@ export async function runNewsDigest(
     const sources = config.sources?.length ? config.sources : ["tavily"]
 
     async function searchBySource(source: string, query: string): Promise<SearchResult[]> {
+      const opts: NewsSourceOptions = config.source_options?.[source] || { search_count: config.search_count }
+      const sc = opts.search_count || config.search_count
       onStage({ status: "searching", query: `[${source}] ${query}`, source })
 
       try {
         switch (source) {
           case "tavily":
-            return await searchNews(query, { maxResults: config.search_count, days: 1 })
+            return await searchNews(query, { maxResults: sc, days: 1 })
           case "jina_search":
-            return await searchJina(query, config.search_count)
+            return await searchJina(query, sc)
           case "jina_deep": {
-            const searchResults = await searchJina(query, config.search_count)
+            const searchResults = await searchJina(query, sc)
             if (searchResults.length === 0) return []
+            const readMax = (opts.read_count && opts.read_count < searchResults.length)
+              ? opts.read_count : Math.min(searchResults.length, 5)
+            const toRead = searchResults.slice(0, readMax)
             const limit = pLimit(5)
-            const full = await Promise.allSettled(searchResults.map(r => limit(() => readUrl(r.url))))
+            let readDone = 0
+            onStage({ status: "reading", source: "jina_deep", current: 0, total: toRead.length })
+            const full = await Promise.allSettled(toRead.map(r =>
+              limit(async () => {
+                const result = await readUrl(r.url)
+                readDone++
+                onStage({ status: "reading", source: "jina_deep", current: readDone, total: toRead.length })
+                return result
+              })
+            ))
+            onStage({ status: "reading_done", source: "jina_deep", count: readDone })
             const merged: SearchResult[] = []
             for (let i = 0; i < full.length; i++) {
               const s = full[i]

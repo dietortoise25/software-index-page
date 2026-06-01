@@ -1,5 +1,20 @@
 import cron from "node-cron"
+import net from "net"
 import { listAllConfigs } from "../db/queries/news-configs.js"
+
+function checkProxy(): Promise<string> {
+  return new Promise((resolve) => {
+    const proxyUrl = process.env.JINA_PROXY
+    if (!proxyUrl) return resolve("not_configured")
+    const match = proxyUrl.match(/socks5?:\/\/([\d.]+):(\d+)|([\d.]+):(\d+)/)
+    const host = match?.[1] || match?.[3] || "127.0.0.1"
+    const port = parseInt(match?.[2] || match?.[4] || "10808", 10)
+    const sock = net.createConnection({ host, port, timeout: 3000 })
+    sock.on("connect", () => { sock.destroy(); resolve("running") })
+    sock.on("error", () => resolve("down"))
+    sock.on("timeout", () => { sock.destroy(); resolve("down") })
+  })
+}
 
 interface CronJob {
   task: cron.ScheduledTask
@@ -60,6 +75,7 @@ async function runHealthCheck(): Promise<HealthResult> {
   const api_keys = {
     tavily: process.env.TAVILY_API_KEY ? "configured" : "missing",
     jina: process.env.JINA_API_KEY ? "configured" : "missing",
+    proxy: await checkProxy(),
   }
 
   return {
