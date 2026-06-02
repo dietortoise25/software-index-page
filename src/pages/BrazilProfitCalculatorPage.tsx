@@ -1,12 +1,14 @@
 import { useState, useMemo, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Calculator, TrendingUp, TrendingDown, ReceiptText, Package, Plus, Trash2, AlertTriangle, ExternalLink, DollarSign, Landmark, Truck, Info, ChevronRight } from "lucide-react"
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts"
+import { Calculator, TrendingUp, TrendingDown, ReceiptText, Package, Plus, Trash2, AlertTriangle, DollarSign, Landmark, Truck, Info, ChevronRight } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 
 /* ── 常量 ── */
 
@@ -72,11 +74,11 @@ function getTikTokFee(price: number) {
 }
 
 function fmt(n: number): string {
-  return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function fmtPercent(n: number): string {
-  return (n * 100).toFixed(2) + "%"
+  return (n * 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%"
 }
 
 /* ── 子组件 ── */
@@ -89,6 +91,104 @@ function InfoTip({ text }: { text: string }) {
       </TooltipTrigger>
       <TooltipContent>{text}</TooltipContent>
     </Tooltip>
+  )
+}
+
+const PIE_COLOR_KEYS = ["--destructive", "--chart-1", "--chart-2", "--chart-5"]
+
+function useThemeColors() {
+  const [colors, setColors] = useState<string[]>([])
+  const refresh = () => {
+    const root = document.documentElement
+    const style = getComputedStyle(root)
+    setColors(PIE_COLOR_KEYS.map((k) => style.getPropertyValue(k).trim()))
+  }
+  useEffect(() => {
+    refresh()
+    const obs = new MutationObserver(refresh)
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+    return () => obs.disconnect()
+  }, [])
+  return colors
+}
+
+const PIE_FALLBACK = ["#ef4444", "#22c55e", "#3b82f6", "#9ca3af", "#8b5cf6"]
+
+function CostPieChart({
+  platformFee, taxAmount, procVal, shipVal, otherTotal,
+}: {
+  platformFee: number; taxAmount: number; procVal: number; shipVal: number; otherTotal: number
+}) {
+  const themeColors = useThemeColors()
+  const fillColors = themeColors.length > 0 ? themeColors : PIE_FALLBACK
+
+  const raw = [
+    { name: "平台费", value: platformFee },
+    { name: "税费", value: taxAmount },
+    { name: "采购成本", value: procVal },
+    { name: "运费", value: shipVal },
+    { name: "其他", value: otherTotal },
+  ].filter((d) => d.value > 0)
+  const totalCostOnly = platformFee + taxAmount + procVal + shipVal + otherTotal
+  const total = totalCostOnly > 0 ? totalCostOnly : 1
+  const data = raw.map((d) => ({ ...d, pct: ((d.value / total) * 100).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }))
+
+  function renderLabel(props: any) {
+    const { cx, cy, midAngle, innerRadius, outerRadius, percent, name } = props
+    const r = innerRadius + (outerRadius - innerRadius) * 0.6
+    const x = cx + r * Math.cos(-midAngle * (Math.PI / 180))
+    const y = cy + r * Math.sin(-midAngle * (Math.PI / 180))
+    if (percent < 0.05) return null
+    return (
+      <text x={x} y={y} textAnchor="middle" dominantBaseline="central" className="text-[11px] font-semibold fill-white" style={{ textShadow: "0 1px 2px rgba(0,0,0,.3)" }}>
+        <tspan x={x} dy={-5}>{name}</tspan>
+        <tspan x={x} dy={14}>{(percent * 100).toFixed(0)}%</tspan>
+      </text>
+    )
+  }
+
+  return (
+    <Card className="p-4 flex items-center gap-6">
+      <div className="w-60 h-60 shrink-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={data}
+              cx="50%"
+              cy="50%"
+              innerRadius={68}
+              outerRadius={114}
+              paddingAngle={2}
+              dataKey="value"
+              strokeWidth={0}
+              label={renderLabel}
+              labelLine={false}
+            >
+              {data.map((_, i) => (
+                <Cell key={i} fill={fillColors[i % fillColors.length]} className="outline-none" />
+              ))}
+            </Pie>
+            <RechartsTooltip
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null
+                const d = payload[0].payload
+                const fmtVal = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                return (
+                  <div className="bg-background border rounded-md px-2.5 py-1.5 text-xs shadow-md">
+                    <span className="font-medium">{d.name}</span>
+                    <span className="text-muted-foreground ml-1">R$ {fmtVal(d.value)}</span>
+                    <span className="text-muted-foreground ml-1">({d.pct}%)</span>
+                  </div>
+                )
+              }}
+            />
+            <text x="50%" y="47%" textAnchor="middle" dominantBaseline="central" className="fill-muted-foreground text-xs font-medium">
+              成本占比
+            </text>
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+    </Card>
   )
 }
 
@@ -137,7 +237,7 @@ function TwoLevelDetail({
   summary: { label: string; value: number; highlight?: boolean }[]
   price: number
 }) {
-  const pct = (v: number) => (price > 0 ? ((v / price) * 100).toFixed(1) : "0.0")
+  const pct = (v: number) => (price > 0 ? ((v / price) * 100).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "0.0")
   const [open, setOpen] = useState(false)
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({})
 
@@ -201,9 +301,8 @@ function TwoLevelDetail({
                       {cat.label}
                       <span className="text-xs text-muted-foreground/60">({pct(cat.total)}%)</span>
                     </span>
-                    <span className="font-medium tabular-nums text-right">
-                      <span className="text-red-600 dark:text-red-400">- R$ {fmt(cat.total)}</span>
-                      <span className="text-xs text-muted-foreground/60 ml-1">({pct(cat.total)}%)</span>
+                    <span className="font-medium tabular-nums text-right text-red-600 dark:text-red-400">
+                      R$ {fmt(cat.total)}
                     </span>
                   </button>
                   {/* 二级：展开明细 */}
@@ -222,9 +321,8 @@ function TwoLevelDetail({
                               <span className={item.muted ? "text-muted-foreground/70" : "text-muted-foreground"}>
                                 {item.label}
                               </span>
-                              <span className="tabular-nums text-right">
-                                <span className="text-red-600/80 dark:text-red-400/80">- R$ {fmt(item.value)}</span>
-                                <span className="text-xs text-muted-foreground/50 ml-1">({pct(item.value)}%)</span>
+                              <span className="tabular-nums text-right text-red-600/80 dark:text-red-400/80">
+                                R$ {fmt(item.value)}
                               </span>
                             </div>
                           ))}
@@ -277,8 +375,10 @@ export default function BrazilProfitCalculatorPage() {
   const [rbt12, setRbt12] = useState("")
   const [customTaxRate, setCustomTaxRate] = useState("")
   const [useCustomTax, setUseCustomTax] = useState(false)
+  const [showWarning, setShowWarning] = useState(true)
   const [invoicePercent, setInvoicePercent] = useState("100")
   const [shipping, setShipping] = useState("")
+  const [procurement, setProcurement] = useState("")
   const [otherCosts, setOtherCosts] = useState<OtherCost[]>([])
   const [nextId, setNextId] = useState(1)
   const [changeId, setChangeId] = useState(0)
@@ -313,6 +413,7 @@ export default function BrazilProfitCalculatorPage() {
   const result = useMemo(() => {
     const p = parseFloat(price)
     const invPct = parseFloat(invoicePercent) || 0
+    const procVal = parseFloat(procurement) || 0
     const shipVal = parseFloat(shipping) || 0
     const otherTotal = otherCosts.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0)
 
@@ -326,7 +427,7 @@ export default function BrazilProfitCalculatorPage() {
     const taxBase = p * (invPct / 100)
     const taxAmount = taxMode === "mei" ? 0 : taxBase * taxRate // MEI handled separately
 
-    const totalCost = platformFee + taxAmount + shipVal + otherTotal
+    const totalCost = platformFee + taxAmount + procVal + shipVal + otherTotal
     const netProfit = p - totalCost
     const profitMargin = (netProfit / p) * 100
 
@@ -336,6 +437,7 @@ export default function BrazilProfitCalculatorPage() {
       taxRate,
       taxBase,
       taxAmount,
+      procVal,
       shipVal,
       otherTotal,
       totalCost,
@@ -344,11 +446,11 @@ export default function BrazilProfitCalculatorPage() {
       shopeeFee,
       tiktokFee,
     }
-  }, [price, rbt12, invoicePercent, shipping, otherCosts, platform, taxMode, effectiveTaxRate])
+  }, [price, rbt12, invoicePercent, procurement, shipping, otherCosts, platform, taxMode, effectiveTaxRate])
 
   useEffect(() => {
     if (result) setChangeId((id) => id + 1)
-  }, [result?.netProfit, result?.platformFee, result?.taxAmount, result?.totalCost])
+  }, [result?.netProfit, result?.platformFee, result?.taxAmount, result?.procVal, result?.shipVal, result?.otherTotal])
 
   /* ── 明细数据 ── */
 
@@ -382,13 +484,14 @@ export default function BrazilProfitCalculatorPage() {
 
     // 其他成本
     const otherItems: { label: string; value: number }[] = []
+    if (result.procVal > 0) otherItems.push({ label: "采购成本", value: result.procVal })
     if (result.shipVal > 0) otherItems.push({ label: "运费", value: result.shipVal })
     otherCosts.forEach((c) => {
       const amt = parseFloat(c.amount) || 0
       if (amt > 0) otherItems.push({ label: c.name || "其他费用", value: amt })
     })
     if (otherItems.length > 0) {
-      cats.push({ label: "其他成本", total: result.shipVal + result.otherTotal, items: otherItems, defaultOpen: otherItems.length <= 2 })
+      cats.push({ label: "其他成本", total: result.procVal + result.shipVal + result.otherTotal, items: otherItems, defaultOpen: otherItems.length <= 2 })
     }
 
     return cats
@@ -419,21 +522,60 @@ export default function BrazilProfitCalculatorPage() {
           {/* 标题 */}
           <div className="text-center space-y-1">
             <h1 className="text-2xl font-bold tracking-tight">巴西电商利润计算器</h1>
-            <p className="text-sm text-muted-foreground">Shopee & TikTok Shop · Simples Nacional</p>
+            <p className="text-sm text-muted-foreground flex items-center justify-center gap-1.5">
+              Shopee & TikTok Shop · Simples Nacional
+              <Popover>
+                <PopoverTrigger>
+                  <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground/50 hover:text-muted-foreground cursor-pointer transition-colors">
+                    <Info className="h-3.5 w-3.5" />
+                    参考来源
+                  </span>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 text-left">
+                  <div className="space-y-2 text-xs">
+                    <div>
+                      <span className="font-medium">Shopee 官方：</span>
+                      <a href="https://seller.br.shopee.cn/edu/article/26839/Comissao-para-vendedores-CNPJ-e-CPF-em-2026" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline block mt-0.5">Comissão CNPJ/CPF 2026</a>
+                    </div>
+                    <div>
+                      <span className="font-medium">TikTok Shop：</span>
+                      <a href="https://seller-br.tiktok.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline block mt-0.5">Seller Center BR</a>
+                    </div>
+                    <div>
+                      <span className="font-medium">Simples Nacional：</span>
+                      <a href="http://www8.receita.fazenda.gov.br/SimplesNacional/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline block mt-0.5">Portal do Simples Nacional - Anexo I (Comércio)</a>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-2 pt-2 border-t">费率更新：2026-03-01（Shopee）/ 2026-02-05（TikTok）</p>
+                </PopoverContent>
+              </Popover>
+            </p>
           </div>
 
           {/* 公司类型提醒 */}
-          <Card className="border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/10 p-4 max-w-3xl mx-auto">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-              <div className="text-sm text-amber-800 dark:text-amber-200">
-                <p className="font-medium">仅适用于 Simples Nacional (CNPJ) 企业卖家</p>
-                <p className="mt-1 text-amber-700/80 dark:text-amber-300/70">
-                  如您的公司类型为 CPF 个人、Lucro Presumido（核定利润）或 Lucro Real（实际利润），本工具计算结果不适用，请咨询会计师。
-                </p>
+          {showWarning && (
+            <Card className="border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/10 p-4 max-w-3xl mx-auto">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="text-sm text-amber-800 dark:text-amber-200">
+                  <p className="font-medium">仅适用于 Simples Nacional (CNPJ) 企业卖家</p>
+                  <p className="mt-1 text-amber-700/80 dark:text-amber-300/70">
+                    如您的公司类型为 CPF 个人、Lucro Presumido（核定利润）或 Lucro Real（实际利润），本工具计算结果不适用，请咨询会计师。
+                  </p>
+                </div>
               </div>
-            </div>
-          </Card>
+              <div className="flex justify-end mt-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100"
+                  onClick={() => setShowWarning(false)}
+                >
+                  我知道了
+                </Button>
+              </div>
+            </Card>
+          )}
 
           {/* 平台切换 */}
           <div className="flex gap-2 p-1 bg-muted rounded-lg max-w-xs mx-auto">
@@ -459,16 +601,16 @@ export default function BrazilProfitCalculatorPage() {
             </button>
           </div>
 
-          {/* 主内容：左右两栏 */}
-          <div className={`grid gap-6 ${result ? "lg:grid-cols-2" : "max-w-xl mx-auto"}`}>
+          {/* 主内容：左右两栏 4:6 */}
+          <div className="grid gap-6 lg:grid-cols-10">
             {/* 左栏：输入 */}
-            <div className="space-y-6">
+            <div className="lg:col-span-4 space-y-6">
               <Card className="p-6 space-y-5">
                 {/* 商品售价 */}
                 <div className="flex items-center gap-3">
                   <Label htmlFor="price" className="w-40 shrink-0 text-sm font-medium flex items-center gap-1">
                     <DollarSign className="h-4 w-4" />
-                    商品售价 (BRL)
+                    商品售价
                     <InfoTip text="买家实际支付的金额。用于计算平台佣金和固定费的基数。" />
                   </Label>
                   <Input
@@ -476,7 +618,7 @@ export default function BrazilProfitCalculatorPage() {
                     type="number"
                     step="0.01"
                     min="0"
-                    placeholder="例: 100.00"
+                    placeholder="例: 100"
                     className="flex-1"
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
@@ -641,6 +783,23 @@ export default function BrazilProfitCalculatorPage() {
                   </h3>
 
                   <div className="flex items-center gap-3">
+                    <Label htmlFor="procurement" className="w-40 shrink-0 text-sm flex items-center gap-1">
+                      采购成本 (BRL)
+                      <InfoTip text="商品的进货/制造成本。分析自身利润时必填，反推对手成本时可为 0。" />
+                    </Label>
+                    <Input
+                      id="procurement"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="例: 30.00"
+                      className="flex-1"
+                      value={procurement}
+                      onChange={(e) => setProcurement(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-3">
                     <Label htmlFor="shipping" className="w-40 shrink-0 text-sm flex items-center gap-1">
                       运费 (BRL)
                       <InfoTip text="单件商品的物流成本。如使用平台官方物流，可参考运费补贴计划的实际支出。" />
@@ -693,10 +852,11 @@ export default function BrazilProfitCalculatorPage() {
               </Card>
             </div>
 
-            {/* 右栏：结果 */}
-            {result && (
+            {/* 右栏：结果 / 空状态 */}
+            <div className="lg:col-span-6">
+            {result ? (
               <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">
-                {/* 摘要卡片：平台费用 / 税费 / 总成本 / 净利润 */}
+                {/* 摘要卡片：平台费用 / 税费 / 总成本 / 净利润+利润率 */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <motion.div
                     key={`platform-${changeId}`}
@@ -704,13 +864,13 @@ export default function BrazilProfitCalculatorPage() {
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: "spring", stiffness: 400, damping: 20 }}
                   >
-                    <Card className="p-4 text-center space-y-1">
+                    <Card className="p-3 text-center space-y-0.5">
                       <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                         平台费用
                         <InfoTip text="平台收取的佣金 + 固定费 + 交易费/SFP 等合计。Shopee 佣金已含交易费。" />
                       </p>
-                      <p className={`text-lg font-bold ${result.platformFee > 0 ? "text-red-600 dark:text-red-400" : ""}`}>
-                        - R$ <AnimatedNumber value={result.platformFee} />
+                      <p className="text-lg font-bold tabular-nums text-red-600 dark:text-red-400">
+                        <AnimatedNumber value={result.platformFee} />
                       </p>
                     </Card>
                   </motion.div>
@@ -720,13 +880,13 @@ export default function BrazilProfitCalculatorPage() {
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.05 }}
                   >
-                    <Card className="p-4 text-center space-y-1">
+                    <Card className="p-3 text-center space-y-0.5">
                       <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                         税费
                         <InfoTip text={`税制: ${taxMode === "simples" ? "Simples Nacional" : taxMode === "mei" ? "MEI 固定月费" : "零税模式"}。计税基数 = 售价 × 开票比例。`} />
                       </p>
-                      <p className={`text-lg font-bold ${result.taxAmount > 0 ? "text-red-600 dark:text-red-400" : ""}`}>
-                        - R$ <AnimatedNumber value={result.taxAmount} />
+                      <p className="text-lg font-bold tabular-nums text-red-600 dark:text-red-400">
+                        <AnimatedNumber value={result.taxAmount} />
                       </p>
                     </Card>
                   </motion.div>
@@ -736,13 +896,13 @@ export default function BrazilProfitCalculatorPage() {
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.1 }}
                   >
-                    <Card className="p-4 text-center space-y-1">
+                    <Card className="p-3 text-center space-y-0.5">
                       <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                         总成本
-                        <InfoTip text="平台费用 + 税费 + 运费 + 所有自定义费用的总和。" />
+                        <InfoTip text="平台费用 + 税费 + 采购 + 运费 + 所有自定义费用。" />
                       </p>
-                      <p className="text-lg font-bold text-red-600 dark:text-red-400">
-                        - R$ <AnimatedNumber value={result.totalCost} />
+                      <p className="text-lg font-bold tabular-nums text-red-600 dark:text-red-400">
+                        <AnimatedNumber value={result.totalCost} />
                       </p>
                     </Card>
                   </motion.div>
@@ -752,52 +912,36 @@ export default function BrazilProfitCalculatorPage() {
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.15 }}
                   >
-                    <Card className={`p-4 text-center space-y-1 border-2 ${result.netProfit >= 0 ? "border-green-500/30 bg-green-50/50 dark:bg-green-950/10" : "border-red-500/30 bg-red-50/50 dark:bg-red-950/10"}`}>
+                    <Card className={`p-3 text-center border-2 ${result.netProfit >= 0 ? "border-green-500/30 bg-green-50/50 dark:bg-green-950/10" : "border-red-500/30 bg-red-50/50 dark:bg-red-950/10"}`}>
                       <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                         净利润
-                        <InfoTip text="售价 − 所有成本。正数绿色高亮，负数红色警告。" />
+                        <InfoTip text="售价 − 所有成本，同行显示利润率。" />
                       </p>
-                      <p className={`text-lg font-bold ${result.netProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                        {result.netProfit >= 0 ? "+ " : "- "}R$ <AnimatedNumber value={Math.abs(result.netProfit)} />
+                      <p className={`text-lg font-bold tabular-nums flex items-center justify-center gap-1.5 ${result.netProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                        <span>{result.netProfit >= 0 ? "+" : "-"}<AnimatedNumber value={Math.abs(result.netProfit)} /></span>
+                        <span className="text-xs font-medium opacity-70">
+                          {result.profitMargin >= 0 ? <TrendingUp className="inline h-3 w-3" /> : <TrendingDown className="inline h-3 w-3" />}
+                          {fmtPercent(result.profitMargin / 100)}
+                        </span>
                       </p>
                     </Card>
                   </motion.div>
                 </div>
 
-                {/* 利润率条 */}
+                {/* 成本占比饼图 独占一行 */}
                 <motion.div
-                  key={`bar-${changeId}`}
+                  key={`pie-${changeId}`}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.2 }}
+                  transition={{ duration: 0.3, delay: 0.1 }}
                 >
-                  <Card className="p-4 space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground flex items-center gap-1">
-                        利润率
-                        <InfoTip text="净利润 ÷ 售价。≥20% 绿色，0~20% 黄色，<0 红色。" />
-                      </span>
-                      <span className={`font-bold ${result.profitMargin >= 0 ? "text-green-600" : "text-red-600"}`}>
-                        {result.profitMargin >= 0 ? <TrendingUp className="inline h-4 w-4 mr-1" /> : <TrendingDown className="inline h-4 w-4 mr-1" />}
-                        {fmtPercent(result.profitMargin / 100)}
-                      </span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
-                      <motion.div
-                        className={`h-full rounded-full ${
-                          result.profitMargin >= 20 ? "bg-green-500"
-                          : result.profitMargin >= 0 ? "bg-amber-500"
-                          : "bg-red-500"
-                        }`}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${Math.max(0, Math.min(100, (result.netProfit / result.price) * 100))}%` }}
-                        transition={{ duration: 0.6, ease: "easeOut" }}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      每卖出一件该商品，净利润约 R$ {fmt(result.netProfit)}
-                    </p>
-                  </Card>
+                  <CostPieChart
+                    platformFee={result.platformFee}
+                    taxAmount={result.taxAmount}
+                    procVal={result.procVal}
+                    shipVal={result.shipVal}
+                    otherTotal={result.otherTotal}
+                  />
                 </motion.div>
 
                 {/* 二级折叠明细 */}
@@ -819,62 +963,17 @@ export default function BrazilProfitCalculatorPage() {
                   </Card>
                 )}
               </div>
+            ) : (
+              <div className="lg:sticky lg:top-20">
+                <Card className="p-12 text-center space-y-3">
+                  <Calculator className="h-10 w-10 mx-auto text-muted-foreground/40" />
+                  <p className="text-muted-foreground text-sm">输入商品售价后自动计算</p>
+                </Card>
+              </div>
             )}
-
-            {/* 空状态 */}
-            {!result && (
-              <Card className="p-12 text-center space-y-3">
-                <Calculator className="h-10 w-10 mx-auto text-muted-foreground/40" />
-                <p className="text-muted-foreground text-sm">输入商品售价后自动计算</p>
-              </Card>
-            )}
+            </div>
           </div>
 
-          {/* 参考链接 */}
-          <Card className="p-5 space-y-3 max-w-3xl mx-auto">
-            <h3 className="text-sm font-semibold flex items-center gap-1.5">
-              <ExternalLink className="h-4 w-4" />
-              参考来源
-            </h3>
-            <div className="space-y-1.5 text-sm">
-              <p>
-                <span className="font-medium">Shopee 官方：</span>
-                <a
-                  href="https://seller.br.shopee.cn/edu/article/26839/Comissao-para-vendedores-CNPJ-e-CPF-em-2026"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline ml-1"
-                >
-                  Comissão CNPJ/CPF 2026
-                </a>
-              </p>
-              <p>
-                <span className="font-medium">TikTok Shop：</span>
-                <a
-                  href="https://seller-br.tiktok.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline ml-1"
-                >
-                  Seller Center BR
-                </a>
-              </p>
-              <p>
-                <span className="font-medium">Simples Nacional：</span>
-                <a
-                  href="http://www8.receita.fazenda.gov.br/SimplesNacional/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline ml-1"
-                >
-                  Portal do Simples Nacional - Anexo I (Comércio)
-                </a>
-              </p>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              费率更新日期：2026-03-01（Shopee）/ 2026-02-05（TikTok）。如有变动请以平台官方公告为准。
-            </p>
-          </Card>
         </div>
       </div>
     </TooltipProvider>
