@@ -131,11 +131,13 @@ interface DetailCategory {
 }
 
 function TwoLevelDetail({
-  categories, summary,
+  categories, summary, price,
 }: {
   categories: DetailCategory[]
   summary: { label: string; value: number; highlight?: boolean }[]
+  price: number
 }) {
+  const pct = (v: number) => (price > 0 ? ((v / price) * 100).toFixed(1) : "0.0")
   const [open, setOpen] = useState(false)
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({})
 
@@ -197,9 +199,11 @@ function TwoLevelDetail({
                         <ChevronRight className="h-3.5 w-3.5" />
                       </motion.span>
                       {cat.label}
+                      <span className="text-xs text-muted-foreground/60">({pct(cat.total)}%)</span>
                     </span>
-                    <span className="font-medium text-red-600 dark:text-red-400 tabular-nums">
-                      - R$ {fmt(cat.total)}
+                    <span className="font-medium tabular-nums text-right">
+                      <span className="text-red-600 dark:text-red-400">- R$ {fmt(cat.total)}</span>
+                      <span className="text-xs text-muted-foreground/60 ml-1">({pct(cat.total)}%)</span>
                     </span>
                   </button>
                   {/* 二级：展开明细 */}
@@ -218,8 +222,9 @@ function TwoLevelDetail({
                               <span className={item.muted ? "text-muted-foreground/70" : "text-muted-foreground"}>
                                 {item.label}
                               </span>
-                              <span className="text-red-600/80 dark:text-red-400/80 tabular-nums">
-                                - R$ {fmt(item.value)}
+                              <span className="tabular-nums text-right">
+                                <span className="text-red-600/80 dark:text-red-400/80">- R$ {fmt(item.value)}</span>
+                                <span className="text-xs text-muted-foreground/50 ml-1">({pct(item.value)}%)</span>
                               </span>
                             </div>
                           ))}
@@ -240,6 +245,7 @@ function TwoLevelDetail({
                 >
                   <span className={s.highlight ? "font-bold" : "font-semibold"}>
                     {s.label}
+                    <span className="text-xs text-muted-foreground/60 ml-1">({pct(Math.abs(s.value))}%)</span>
                   </span>
                   <span className={`font-bold tabular-nums ${s.highlight ? "text-green-600 dark:text-green-400" : s.value > 0 ? "text-red-600 dark:text-red-400" : ""}`}>
                     {s.highlight ? "+ " : "- "}R$ {fmt(Math.abs(s.value))}
@@ -795,7 +801,7 @@ export default function BrazilProfitCalculatorPage() {
                 </motion.div>
 
                 {/* 二级折叠明细 */}
-                <TwoLevelDetail categories={detailCategories} summary={detailSummary} />
+                <TwoLevelDetail categories={detailCategories} summary={detailSummary} price={result.price} />
 
                 {/* TikTok SFP 提醒 */}
                 {platform === "tiktok" && (
