@@ -203,6 +203,22 @@ export const softwareList: Software[] = [
     ],
   },
   {
+    id: "brazil-profit-calculator",
+    name: "巴西电商利润计算器",
+    description: "Shopee & TikTok Shop 巴西站利润成本计算，支持 Simples Nacional 税务 + 多费用项",
+    iconName: "Calculator",
+    category: "Web 工具",
+    versions: [
+      {
+        version: "1.0.0",
+        releaseDate: "2026-06-02",
+        isLatest: true,
+        changelog: ["Shopee CNPJ 费率（2026.3.1起）", "TikTok Shop 费率", "Simples Nacional 税务计算", "多费用项支持"],
+        workbenchUrl: "/brazil-profit-calculator",
+      },
+    ],
+  },
+  {
     id: "a-shity-helper",
     name: "淘宝/天猫商品数据采集器",
     description: "淘宝/天猫商品数据采集 Chrome 扩展，支持单品、批量采集与智能反风控",

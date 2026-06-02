@@ -23,6 +23,7 @@ import LoginPage from "@/pages/LoginPage"
 import ShopeeAnalyzePage from "@/pages/ShopeeAnalyzePage"
 import ShopeeDashboardPage from "@/pages/ShopeeDashboardPage"
 import AgentTestPage from "@/pages/AgentTestPage"
+import BrazilProfitCalculatorPage from "@/pages/BrazilProfitCalculatorPage"
 
 export default function App() {
   return (
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="shopee" element={<ShopeeAnalyzePage />} />
         <Route path="shopee/dashboard" element={<ShopeeDashboardPage />} />
         <Route path="agent-test" element={<AgentTestPage />} />
+        <Route path="brazil-profit-calculator" element={<BrazilProfitCalculatorPage />} />
       </Route>
 
       {/* Dashboard — 侧边栏布局 */}
