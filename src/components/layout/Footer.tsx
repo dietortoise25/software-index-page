@@ -9,6 +9,7 @@ const FOOTER_LINKS = [
   { to: "/about", label: "关于" },
   { to: "/dashboard", label: "控制台" },
   { to: "/changelog", label: "更新日志" },
+  { to: "/agent-test", label: "Agent" },
 ]
 
 export default function Footer() {
