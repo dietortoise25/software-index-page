@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts"
-import { Calculator, TrendingUp, TrendingDown, ReceiptText, Package, Plus, Trash2, AlertTriangle, DollarSign, Landmark, Truck, Info, ChevronRight } from "lucide-react"
+import { Calculator, TrendingUp, TrendingDown, ReceiptText, Package, Plus, Trash2, AlertTriangle, DollarSign, Landmark, Truck, Info, ChevronRight, Store, CircleDollarSign } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -866,6 +866,7 @@ export default function BrazilProfitCalculatorPage() {
                   >
                     <Card className="p-3 text-center space-y-0.5">
                       <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                        <Store className="h-3.5 w-3.5" />
                         平台费用
                         <InfoTip text="平台收取的佣金 + 固定费 + 交易费/SFP 等合计。Shopee 佣金已含交易费。" />
                       </p>
@@ -882,6 +883,7 @@ export default function BrazilProfitCalculatorPage() {
                   >
                     <Card className="p-3 text-center space-y-0.5">
                       <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                        <Landmark className="h-3.5 w-3.5" />
                         税费
                         <InfoTip text={`税制: ${taxMode === "simples" ? "Simples Nacional" : taxMode === "mei" ? "MEI 固定月费" : "零税模式"}。计税基数 = 售价 × 开票比例。`} />
                       </p>
@@ -898,6 +900,7 @@ export default function BrazilProfitCalculatorPage() {
                   >
                     <Card className="p-3 text-center space-y-0.5">
                       <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                        <CircleDollarSign className="h-3.5 w-3.5" />
                         总成本
                         <InfoTip text="平台费用 + 税费 + 采购 + 运费 + 所有自定义费用。" />
                       </p>
@@ -914,6 +917,7 @@ export default function BrazilProfitCalculatorPage() {
                   >
                     <Card className={`p-3 text-center border-2 ${result.netProfit >= 0 ? "border-green-500/30 bg-green-50/50 dark:bg-green-950/10" : "border-red-500/30 bg-red-50/50 dark:bg-red-950/10"}`}>
                       <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                        <TrendingUp className="h-3.5 w-3.5" />
                         净利润
                         <InfoTip text="售价 − 所有成本，同行显示利润率。" />
                       </p>
