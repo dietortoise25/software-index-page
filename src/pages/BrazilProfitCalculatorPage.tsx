@@ -1,15 +1,17 @@
 import { useState, useMemo, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Calculator, TrendingUp, TrendingDown, ReceiptText, Package, Plus, Trash2, AlertTriangle, ExternalLink, DollarSign, Landmark, Truck } from "lucide-react"
+import { Calculator, TrendingUp, TrendingDown, ReceiptText, Package, Plus, Trash2, AlertTriangle, ExternalLink, DollarSign, Landmark, Truck, Info, ChevronRight } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 
 /* ── 常量 ── */
 
 type Platform = "shopee" | "tiktok"
+type TaxMode = "simples" | "mei" | "zero"
 
 interface ShopeeTier {
   max: number
@@ -38,6 +40,8 @@ const TIKTOK_COMMISSION = 0.06
 const TIKTOK_FIXED_FEE = 4
 const TIKTOK_SFP_RATE = 0.06
 const TIKTOK_SFP_CAP = 50
+
+const MEI_MONTHLY_FEE = 75
 
 /* ── 工具函数 ── */
 
@@ -75,6 +79,19 @@ function fmtPercent(n: number): string {
   return (n * 100).toFixed(2) + "%"
 }
 
+/* ── 子组件 ── */
+
+function InfoTip({ text }: { text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger>
+        <Info className="h-3.5 w-3.5 text-muted-foreground/50 hover:text-muted-foreground cursor-help inline-block" />
+      </TooltipTrigger>
+      <TooltipContent>{text}</TooltipContent>
+    </Tooltip>
+  )
+}
+
 function AnimatedNumber({ value, className }: { value: number; className?: string }) {
   const [display, setDisplay] = useState(value)
   const prevRef = useRef(value)
@@ -104,26 +121,35 @@ function AnimatedNumber({ value, className }: { value: number; className?: strin
   return <span className={className}>{fmt(Math.abs(display))}</span>
 }
 
-/* ── 折叠明细组件 ── */
+/* ── 二级折叠明细 ── */
 
-interface CalcResult {
-  price: number; platformFee: number; taxRate: number; taxBase: number; taxAmount: number
-  shipVal: number; otherTotal: number; totalCost: number; netProfit: number; profitMargin: number
-  shopeeFee: { rate: number; fixed: number; commission: number; total: number } | null
-  tiktokFee: { commission: number; sfp: number; fixed: number; total: number } | null
+interface DetailCategory {
+  label: string
+  total: number
+  items: { label: string; value: number; muted?: boolean }[]
+  defaultOpen?: boolean
 }
 
-function CollapsibleDetail({
-  platform, result, invoicePercent, otherCosts, fmt, fmtPercent,
+function TwoLevelDetail({
+  categories, summary,
 }: {
-  platform: Platform
-  result: CalcResult
-  invoicePercent: string
-  otherCosts: OtherCost[]
-  fmt: (n: number) => string
-  fmtPercent: (n: number) => string
+  categories: DetailCategory[]
+  summary: { label: string; value: number; highlight?: boolean }[]
 }) {
   const [open, setOpen] = useState(false)
+  const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    const init: Record<string, boolean> = {}
+    categories.forEach((c) => {
+      if (c.defaultOpen) init[c.label] = true
+    })
+    setExpandedCats(init)
+  }, [])
+
+  const toggleCat = (label: string) => {
+    setExpandedCats((prev) => ({ ...prev, [label]: !prev[label] }))
+  }
 
   return (
     <Card className="overflow-hidden">
@@ -155,87 +181,71 @@ function CollapsibleDetail({
             className="overflow-hidden"
           >
             <Separator />
-            <div className="p-4 space-y-2 text-sm">
-              <div className="flex justify-between py-1.5">
-                <span className="text-muted-foreground">商品售价</span>
-                <span className="font-medium">R$ {fmt(result.price)}</span>
-              </div>
-              <Separator />
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">平台费用</span>
-                <span className="text-xs" />
-              </div>
-              {platform === "shopee" && result.shopeeFee && (
-                <>
-                  <div className="flex justify-between py-1 pl-4">
-                    <span className="text-muted-foreground">佣金 ({fmtPercent(result.shopeeFee.rate)})</span>
-                    <span className="text-red-600 dark:text-red-400">- R$ {fmt(result.shopeeFee.commission)}</span>
-                  </div>
-                  <div className="flex justify-between py-1 pl-4">
-                    <span className="text-muted-foreground">固定费</span>
-                    <span className="text-red-600 dark:text-red-400">- R$ {fmt(result.shopeeFee.fixed)}</span>
-                  </div>
-                </>
-              )}
-              {platform === "tiktok" && result.tiktokFee && (
-                <>
-                  <div className="flex justify-between py-1 pl-4">
-                    <span className="text-muted-foreground">佣金 (6%)</span>
-                    <span className="text-red-600 dark:text-red-400">- R$ {fmt(result.tiktokFee.commission)}</span>
-                  </div>
-                  <div className="flex justify-between py-1 pl-4">
-                    <span className="text-muted-foreground">固定费 (R$4/件)</span>
-                    <span className="text-red-600 dark:text-red-400">- R$ {fmt(result.tiktokFee.fixed)}</span>
-                  </div>
-                  <div className="flex justify-between py-1 pl-4">
-                    <span className="text-muted-foreground">SFP 运费佣金 (6%)</span>
-                    <span className="text-red-600 dark:text-red-400">- R$ {fmt(result.tiktokFee.sfp)}</span>
-                  </div>
-                </>
-              )}
-              <Separator />
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">税费</span>
-                <span className="text-xs" />
-              </div>
-              <div className="flex justify-between py-1 pl-4">
-                <span className="text-muted-foreground">
-                  Simples ({fmtPercent(result.taxRate)}) × 开票 {invoicePercent || "0"}%
-                </span>
-                <span className="text-red-600 dark:text-red-400">- R$ {fmt(result.taxAmount)}</span>
-              </div>
-              <Separator />
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">其他成本</span>
-                <span className="text-xs" />
-              </div>
-              {result.shipVal > 0 && (
-                <div className="flex justify-between py-1 pl-4">
-                  <span className="text-muted-foreground">运费</span>
-                  <span className="text-red-600 dark:text-red-400">- R$ {fmt(result.shipVal)}</span>
+            <div className="p-4 space-y-1 text-sm">
+              {/* 一级：分类汇总 */}
+              {categories.map((cat) => (
+                <div key={cat.label}>
+                  <button
+                    onClick={() => toggleCat(cat.label)}
+                    className="w-full flex items-center justify-between py-2 hover:bg-muted/40 rounded px-2 transition-colors"
+                  >
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <motion.span
+                        animate={{ rotate: expandedCats[cat.label] ? 90 : 0 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </motion.span>
+                      {cat.label}
+                    </span>
+                    <span className="font-medium text-red-600 dark:text-red-400 tabular-nums">
+                      - R$ {fmt(cat.total)}
+                    </span>
+                  </button>
+                  {/* 二级：展开明细 */}
+                  <AnimatePresence>
+                    {expandedCats[cat.label] && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="pl-8 pr-2 space-y-0.5 pb-1">
+                          {cat.items.map((item) => (
+                            <div key={item.label} className="flex justify-between py-1">
+                              <span className={item.muted ? "text-muted-foreground/70" : "text-muted-foreground"}>
+                                {item.label}
+                              </span>
+                              <span className="text-red-600/80 dark:text-red-400/80 tabular-nums">
+                                - R$ {fmt(item.value)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-              )}
-              {otherCosts.map((c: OtherCost) => {
-                const amt = parseFloat(c.amount) || 0
-                if (amt <= 0) return null
-                return (
-                  <div key={c.id} className="flex justify-between py-1 pl-4">
-                    <span className="text-muted-foreground">{c.name || "其他费用"}</span>
-                    <span className="text-red-600 dark:text-red-400">- R$ {fmt(amt)}</span>
-                  </div>
-                )
-              })}
-              <Separator />
-              <div className="flex justify-between py-2">
-                <span className="font-semibold">总成本</span>
-                <span className="font-semibold text-red-600 dark:text-red-400">- R$ {fmt(result.totalCost)}</span>
-              </div>
-              <div className="flex justify-between py-2 text-base">
-                <span className="font-bold">净利润</span>
-                <span className={`font-bold ${result.netProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                  {result.netProfit >= 0 ? "+ " : "- "}R$ {fmt(Math.abs(result.netProfit))}
-                </span>
-              </div>
+              ))}
+
+              <Separator className="my-1" />
+
+              {/* 总计 */}
+              {summary.map((s) => (
+                <div
+                  key={s.label}
+                  className={`flex justify-between py-2 px-2 rounded ${s.highlight ? "bg-green-50 dark:bg-green-950/20" : ""}`}
+                >
+                  <span className={s.highlight ? "font-bold" : "font-semibold"}>
+                    {s.label}
+                  </span>
+                  <span className={`font-bold tabular-nums ${s.highlight ? "text-green-600 dark:text-green-400" : s.value > 0 ? "text-red-600 dark:text-red-400" : ""}`}>
+                    {s.highlight ? "+ " : "- "}R$ {fmt(Math.abs(s.value))}
+                  </span>
+                </div>
+              ))}
             </div>
           </motion.div>
         )}
@@ -244,7 +254,7 @@ function CollapsibleDetail({
   )
 }
 
-/* ── 组件 ── */
+/* ── 类型 ── */
 
 interface OtherCost {
   id: number
@@ -252,10 +262,15 @@ interface OtherCost {
   amount: string
 }
 
+/* ── 主组件 ── */
+
 export default function BrazilProfitCalculatorPage() {
   const [platform, setPlatform] = useState<Platform>("shopee")
   const [price, setPrice] = useState("")
+  const [taxMode, setTaxMode] = useState<TaxMode>("simples")
   const [rbt12, setRbt12] = useState("")
+  const [customTaxRate, setCustomTaxRate] = useState("")
+  const [useCustomTax, setUseCustomTax] = useState(false)
   const [invoicePercent, setInvoicePercent] = useState("100")
   const [shipping, setShipping] = useState("")
   const [otherCosts, setOtherCosts] = useState<OtherCost[]>([])
@@ -277,36 +292,36 @@ export default function BrazilProfitCalculatorPage() {
 
   /* ── 计算 ── */
 
+  const effectiveTaxRate = useMemo(() => {
+    if (taxMode === "zero") return 0
+    if (taxMode === "mei") return 0 // MEI fixed fee, not rate-based
+    if (useCustomTax) {
+      const r = parseFloat(customTaxRate)
+      return !isNaN(r) && r >= 0 ? r / 100 : null
+    }
+    const r = parseFloat(rbt12)
+    if (isNaN(r) || r <= 0) return SIMPLES_TABLE[0].rate // 默认最低档
+    return getSimplesRate(r)
+  }, [taxMode, useCustomTax, customTaxRate, rbt12])
+
   const result = useMemo(() => {
     const p = parseFloat(price)
-    const rbt12Val = parseFloat(rbt12)
     const invPct = parseFloat(invoicePercent) || 0
     const shipVal = parseFloat(shipping) || 0
     const otherTotal = otherCosts.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0)
 
-    if (isNaN(p) || p <= 0) {
-      return null
-    }
+    if (isNaN(p) || p <= 0) return null
 
-    // 平台费用
     const shopeeFee = platform === "shopee" ? getShopeeFee(p) : null
     const tiktokFee = platform === "tiktok" ? getTikTokFee(p) : null
-
-    // 税费
-    const taxRate = !isNaN(rbt12Val) && rbt12Val > 0 ? getSimplesRate(rbt12Val) : 0
-    const taxBase = p * (invPct / 100)
-    const taxAmount = taxBase * taxRate
-
-    // 平台总费用
     const platformFee = platform === "shopee" ? shopeeFee!.total : tiktokFee!.total
 
-    // 总成本
+    const taxRate = effectiveTaxRate ?? 0
+    const taxBase = p * (invPct / 100)
+    const taxAmount = taxMode === "mei" ? 0 : taxBase * taxRate // MEI handled separately
+
     const totalCost = platformFee + taxAmount + shipVal + otherTotal
-
-    // 净利润
     const netProfit = p - totalCost
-
-    // 利润率
     const profitMargin = (netProfit / p) * 100
 
     return {
@@ -323,376 +338,539 @@ export default function BrazilProfitCalculatorPage() {
       shopeeFee,
       tiktokFee,
     }
-  }, [price, rbt12, invoicePercent, shipping, otherCosts, platform])
-
-  const simplesRate = useMemo(() => {
-    const r = parseFloat(rbt12)
-    if (isNaN(r) || r <= 0) return null
-    return getSimplesRate(r)
-  }, [rbt12])
+  }, [price, rbt12, invoicePercent, shipping, otherCosts, platform, taxMode, effectiveTaxRate])
 
   useEffect(() => {
     if (result) setChangeId((id) => id + 1)
-  }, [result?.netProfit, result?.platformFee, result?.taxAmount, result?.shipVal, result?.otherTotal])
+  }, [result?.netProfit, result?.platformFee, result?.taxAmount, result?.totalCost])
+
+  /* ── 明细数据 ── */
+
+  const detailCategories = useMemo((): DetailCategory[] => {
+    if (!result) return []
+    const cats: DetailCategory[] = []
+
+    // 平台费用
+    const platformItems: { label: string; value: number }[] = []
+    if (platform === "shopee" && result.shopeeFee) {
+      platformItems.push({ label: `佣金 (${fmtPercent(result.shopeeFee.rate)})`, value: result.shopeeFee.commission })
+      platformItems.push({ label: "固定费", value: result.shopeeFee.fixed })
+    } else if (platform === "tiktok" && result.tiktokFee) {
+      platformItems.push({ label: "佣金 (6%)", value: result.tiktokFee.commission })
+      platformItems.push({ label: "固定费 (R$4/件)", value: result.tiktokFee.fixed })
+      platformItems.push({ label: "SFP 运费佣金 (6%)", value: result.tiktokFee.sfp })
+    }
+    cats.push({ label: "平台费用", total: result.platformFee, items: platformItems, defaultOpen: true })
+
+    // 税费
+    const taxItems: { label: string; value: number }[] = []
+    if (taxMode === "simples") {
+      const rateSource = useCustomTax ? `自定义 ${customTaxRate || "0"}%` : `Simples ${fmtPercent(result.taxRate)}`
+      taxItems.push({ label: `${rateSource} × 开票 ${invoicePercent || "0"}%`, value: result.taxAmount })
+    } else if (taxMode === "mei") {
+      taxItems.push({ label: `MEI 固定月费 ≈ R$ ${fmt(MEI_MONTHLY_FEE)}（反推不计入单件）`, value: 0 })
+    } else {
+      taxItems.push({ label: "零税模式（仅推演）", value: 0 })
+    }
+    cats.push({ label: "税费", total: result.taxAmount, items: taxItems, defaultOpen: true })
+
+    // 其他成本
+    const otherItems: { label: string; value: number }[] = []
+    if (result.shipVal > 0) otherItems.push({ label: "运费", value: result.shipVal })
+    otherCosts.forEach((c) => {
+      const amt = parseFloat(c.amount) || 0
+      if (amt > 0) otherItems.push({ label: c.name || "其他费用", value: amt })
+    })
+    if (otherItems.length > 0) {
+      cats.push({ label: "其他成本", total: result.shipVal + result.otherTotal, items: otherItems, defaultOpen: otherItems.length <= 2 })
+    }
+
+    return cats
+  }, [result, platform, taxMode, useCustomTax, customTaxRate, invoicePercent, otherCosts])
+
+  const detailSummary = useMemo(() => {
+    if (!result) return []
+    return [
+      { label: "总成本", value: result.totalCost },
+      { label: "净利润", value: result.netProfit, highlight: true },
+    ]
+  }, [result])
+
+  /* ── 税率显示 ── */
+
+  const taxRateDisplay = useMemo(() => {
+    if (taxMode === "zero") return "0%"
+    if (taxMode === "mei") return `R$ ${MEI_MONTHLY_FEE}/月`
+    if (useCustomTax && customTaxRate) return `${customTaxRate}%（自定义）`
+    if (effectiveTaxRate !== null) return `${fmtPercent(effectiveTaxRate)}`
+    return "4.00%（默认）"
+  }, [taxMode, useCustomTax, customTaxRate, effectiveTaxRate])
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-background to-muted/20">
-      <div className="mx-auto max-w-7xl px-4 py-8 space-y-6">
-        {/* 标题 */}
-        <div className="text-center space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">巴西电商利润计算器</h1>
-          <p className="text-sm text-muted-foreground">Shopee & TikTok Shop · Simples Nacional</p>
-        </div>
-
-        {/* 公司类型提醒 */}
-        <Card className="border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/10 p-4 max-w-3xl mx-auto">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            <div className="text-sm text-amber-800 dark:text-amber-200">
-              <p className="font-medium">仅适用于 Simples Nacional (CNPJ) 企业卖家</p>
-              <p className="mt-1 text-amber-700/80 dark:text-amber-300/70">
-                如您的公司类型为 CPF 个人、Lucro Presumido（核定利润）或 Lucro Real（实际利润），本工具计算结果不适用，请咨询会计师。
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        {/* 平台切换 */}
-        <div className="flex gap-2 p-1 bg-muted rounded-lg max-w-xs mx-auto">
-          <button
-            onClick={() => setPlatform("shopee")}
-            className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
-              platform === "shopee"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Shopee
-          </button>
-          <button
-            onClick={() => setPlatform("tiktok")}
-            className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
-              platform === "tiktok"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            TikTok Shop
-          </button>
-        </div>
-
-        {/* 主内容：左右两栏 */}
-        <div className={`grid gap-6 ${result ? "lg:grid-cols-2" : "max-w-xl mx-auto"}`}>
-          {/* 左栏：输入 */}
-          <div className="space-y-6">
-          <Card className="p-6 space-y-5">
-          {/* 商品售价 */}
-          <div className="flex items-center gap-3">
-            <Label htmlFor="price" className="w-40 shrink-0 text-sm font-medium flex items-center gap-1">
-              <DollarSign className="h-4 w-4" />
-              商品售价 (BRL)
-            </Label>
-            <Input
-              id="price"
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="例: 100.00"
-              className="flex-1"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-            />
+    <TooltipProvider delay={300}>
+      <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-background to-muted/20">
+        <div className="mx-auto max-w-7xl px-4 py-8 space-y-6">
+          {/* 标题 */}
+          <div className="text-center space-y-1">
+            <h1 className="text-2xl font-bold tracking-tight">巴西电商利润计算器</h1>
+            <p className="text-sm text-muted-foreground">Shopee & TikTok Shop · Simples Nacional</p>
           </div>
 
-          <Separator />
-
-          {/* 税务 */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold flex items-center gap-1.5">
-              <Landmark className="h-4 w-4" />
-              发票与税务 · Simples Nacional
-            </h3>
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <Label htmlFor="rbt12" className="w-40 shrink-0 text-sm">年营收 RBT12 (BRL)</Label>
-                <div className="flex-1">
-                  <Input
-                    id="rbt12"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="例: 250000"
-                    value={rbt12}
-                    onChange={(e) => setRbt12(e.target.value)}
-                  />
-                  {simplesRate !== null && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      适用税率: <span className="font-semibold text-foreground">{fmtPercent(simplesRate)}</span>
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Label htmlFor="invoice" className="w-40 shrink-0 text-sm">开票比例 (%)</Label>
-                <div className="flex-1">
-                  <Input
-                    id="invoice"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    placeholder="默认 100"
-                    value={invoicePercent}
-                    onChange={(e) => setInvoicePercent(e.target.value)}
-                  />
-                  {result && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      计税基数: <span className="font-semibold text-foreground">R$ {fmt(result.taxBase)}</span>
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* 其他成本 */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold flex items-center gap-1.5">
-              <Truck className="h-4 w-4" />
-              其他成本
-            </h3>
-
-            <div className="flex items-center gap-3">
-              <Label htmlFor="shipping" className="w-40 shrink-0 text-sm">运费 (BRL)</Label>
-              <Input
-                id="shipping"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="例: 15.00"
-                className="flex-1"
-                value={shipping}
-                onChange={(e) => setShipping(e.target.value)}
-              />
-            </div>
-
-            {otherCosts.map((cost) => (
-              <div key={cost.id} className="flex items-center gap-2">
-                <Input
-                  placeholder="费用名称"
-                  className="flex-1"
-                  value={cost.name}
-                  onChange={(e) => updateOtherCost(cost.id, "name", e.target.value)}
-                />
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="金额"
-                  className="w-28"
-                  value={cost.amount}
-                  onChange={(e) => updateOtherCost(cost.id, "amount", e.target.value)}
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => removeOtherCost(cost.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-
-            <Button variant="outline" size="sm" className="w-full" onClick={addOtherCost}>
-              <Plus className="h-4 w-4 mr-1.5" />
-              添加其他费用
-            </Button>
-          </div>
-        </Card>
-          </div>
-
-          {/* 右栏：结果 */}
-          {result && (
-            <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">
-            {/* 摘要卡片 */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <motion.div
-                key={`platform-${changeId}`}
-                initial={{ scale: 0.92, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: "spring", stiffness: 400, damping: 20 }}
-              >
-                <Card className="p-4 text-center space-y-1">
-                  <p className="text-xs text-muted-foreground">平台费用</p>
-                  <p className={`text-lg font-bold ${result.platformFee > 0 ? "text-red-600 dark:text-red-400" : ""}`}>
-                    - R$ <AnimatedNumber value={result.platformFee} />
-                  </p>
-                </Card>
-              </motion.div>
-              <motion.div
-                key={`tax-${changeId}`}
-                initial={{ scale: 0.92, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.05 }}
-              >
-                <Card className="p-4 text-center space-y-1">
-                  <p className="text-xs text-muted-foreground">税费 (Simples)</p>
-                  <p className={`text-lg font-bold ${result.taxAmount > 0 ? "text-red-600 dark:text-red-400" : ""}`}>
-                    - R$ <AnimatedNumber value={result.taxAmount} />
-                  </p>
-                </Card>
-              </motion.div>
-              <motion.div
-                key={`other-${changeId}`}
-                initial={{ scale: 0.92, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.1 }}
-              >
-                <Card className="p-4 text-center space-y-1">
-                  <p className="text-xs text-muted-foreground">其他成本</p>
-                  <p className={`text-lg font-bold ${(result.shipVal + result.otherTotal) > 0 ? "text-red-600 dark:text-red-400" : "text-foreground"}`}>
-                    - R$ <AnimatedNumber value={result.shipVal + result.otherTotal} />
-                  </p>
-                </Card>
-              </motion.div>
-              <motion.div
-                key={`profit-${changeId}`}
-                initial={{ scale: 0.92, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.15 }}
-              >
-                <Card className={`p-4 text-center space-y-1 border-2 ${result.netProfit >= 0 ? "border-green-500/30 bg-green-50/50 dark:bg-green-950/10" : "border-red-500/30 bg-red-50/50 dark:bg-red-950/10"}`}>
-                  <p className="text-xs text-muted-foreground">净利润</p>
-                  <p className={`text-lg font-bold ${result.netProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                    {result.netProfit >= 0 ? "+ " : "- "}R$ <AnimatedNumber value={Math.abs(result.netProfit)} />
-                  </p>
-                </Card>
-              </motion.div>
-            </div>
-
-            {/* 利润率条 */}
-            <motion.div
-              key={`bar-${changeId}`}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.2 }}
-            >
-              <Card className="p-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">利润率</span>
-                  <span className={`font-bold ${result.profitMargin >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {result.profitMargin >= 0 ? <TrendingUp className="inline h-4 w-4 mr-1" /> : <TrendingDown className="inline h-4 w-4 mr-1" />}
-                    {fmtPercent(result.profitMargin / 100)}
-                  </span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
-                  <motion.div
-                    className={`h-full rounded-full ${
-                      result.profitMargin >= 20 ? "bg-green-500"
-                      : result.profitMargin >= 0 ? "bg-amber-500"
-                      : "bg-red-500"
-                    }`}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.max(0, Math.min(100, (result.netProfit / result.price) * 100))}%` }}
-                    transition={{ duration: 0.6, ease: "easeOut" }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  每卖出一件该商品，净利润约 R$ {fmt(result.netProfit)}
+          {/* 公司类型提醒 */}
+          <Card className="border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/10 p-4 max-w-3xl mx-auto">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-sm text-amber-800 dark:text-amber-200">
+                <p className="font-medium">仅适用于 Simples Nacional (CNPJ) 企业卖家</p>
+                <p className="mt-1 text-amber-700/80 dark:text-amber-300/70">
+                  如您的公司类型为 CPF 个人、Lucro Presumido（核定利润）或 Lucro Real（实际利润），本工具计算结果不适用，请咨询会计师。
                 </p>
-              </Card>
-            </motion.div>
+              </div>
+            </div>
+          </Card>
 
-            {/* 明细（可折叠） */}
-            <CollapsibleDetail
-              platform={platform}
-              result={result}
-              invoicePercent={invoicePercent}
-              otherCosts={otherCosts}
-              fmt={fmt}
-              fmtPercent={fmtPercent}
-            />
+          {/* 平台切换 */}
+          <div className="flex gap-2 p-1 bg-muted rounded-lg max-w-xs mx-auto">
+            <button
+              onClick={() => setPlatform("shopee")}
+              className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
+                platform === "shopee"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Shopee
+            </button>
+            <button
+              onClick={() => setPlatform("tiktok")}
+              className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
+                platform === "tiktok"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              TikTok Shop
+            </button>
+          </div>
 
-
-            {/* TikTok SFP 提醒 */}
-            {platform === "tiktok" && (
-              <Card className="border-blue-500/20 bg-blue-50/50 dark:bg-blue-950/10 p-4">
-                <div className="flex items-start gap-3">
-                  <Package className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-                  <div className="text-sm text-blue-800 dark:text-blue-200">
-                    <p className="font-medium">关于 SFP 运费佣金</p>
-                    <p className="mt-1 text-blue-700/80 dark:text-blue-300/70">
-                      TikTok Shop SFP 运费补贴计划默认自动加入，收取 6% 运费佣金（封顶 R$ 50/件）。
-                      卖家同时享有平台运费券补贴，本工具未将补贴计入收益，实际利润可能略高于计算结果（保守估算）。
-                    </p>
-                  </div>
+          {/* 主内容：左右两栏 */}
+          <div className={`grid gap-6 ${result ? "lg:grid-cols-2" : "max-w-xl mx-auto"}`}>
+            {/* 左栏：输入 */}
+            <div className="space-y-6">
+              <Card className="p-6 space-y-5">
+                {/* 商品售价 */}
+                <div className="flex items-center gap-3">
+                  <Label htmlFor="price" className="w-40 shrink-0 text-sm font-medium flex items-center gap-1">
+                    <DollarSign className="h-4 w-4" />
+                    商品售价 (BRL)
+                    <InfoTip text="买家实际支付的金额。用于计算平台佣金和固定费的基数。" />
+                  </Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="例: 100.00"
+                    className="flex-1"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                  />
                 </div>
+
+                <Separator />
+
+                {/* 税务 */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                    <Landmark className="h-4 w-4" />
+                    发票与税务
+                  </h3>
+
+                  {/* 税制模式 */}
+                  <div className="flex items-center gap-3">
+                    <Label className="w-40 shrink-0 text-sm flex items-center gap-1">
+                      税制模式
+                      <InfoTip text="Simples Nacional: 按年营收阶梯税率。MEI: 小微个体户固定月费。零税: 仅用于推演极端场景（如对手不开发票）。" />
+                    </Label>
+                    <div className="flex gap-1 p-0.5 bg-muted rounded-md flex-1">
+                      {([
+                        ["simples", "Simples"],
+                        ["mei", "MEI"],
+                        ["zero", "零税"],
+                      ] as const).map(([mode, label]) => (
+                        <button
+                          key={mode}
+                          onClick={() => setTaxMode(mode)}
+                          className={`flex-1 py-1.5 text-xs font-medium rounded-sm transition-all ${
+                            taxMode === mode
+                              ? "bg-background text-foreground shadow-sm"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Simples 配置 */}
+                  {taxMode === "simples" && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <Label htmlFor="rbt12" className="w-40 shrink-0 text-sm flex items-center gap-1">
+                          年营收 RBT12 (BRL)
+                          <InfoTip text="过去12个月总营收。不确定时留空，默认按最低档 4.00% 计税（保守估算）。用于反推对手成本时也可直接自定义税率。" />
+                        </Label>
+                        <div className="flex-1">
+                          <Input
+                            id="rbt12"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="留空默认最低档 4.00%"
+                            value={rbt12}
+                            onChange={(e) => { setRbt12(e.target.value); setUseCustomTax(false) }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* 自定义税率 */}
+                      <div className="flex items-center gap-3">
+                        <div className="w-40 shrink-0" />
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={useCustomTax}
+                            onChange={(e) => setUseCustomTax(e.target.checked)}
+                            className="rounded"
+                          />
+                          自定义税率
+                        </label>
+                        {useCustomTax && (
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max="100"
+                              placeholder="4.00"
+                              className="w-20 h-8 text-xs"
+                              value={customTaxRate}
+                              onChange={(e) => setCustomTaxRate(e.target.value)}
+                            />
+                            <span className="text-xs text-muted-foreground">%</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {!useCustomTax && (
+                        <div className="flex items-center gap-3">
+                          <div className="w-40 shrink-0" />
+                          <p className="text-xs text-muted-foreground">
+                            适用税率: <span className="font-semibold text-foreground">{taxRateDisplay}</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* MEI 模式 */}
+                  {taxMode === "mei" && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-40 shrink-0" />
+                      <p className="text-xs text-muted-foreground">
+                        MEI 固定月费约 <span className="font-semibold text-foreground">R$ {MEI_MONTHLY_FEE}/月</span>，
+                        不计入单件税费。如需精确请手动填入其他费用。
+                      </p>
+                    </div>
+                  )}
+
+                  {/* 零税模式 */}
+                  {taxMode === "zero" && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-40 shrink-0" />
+                      <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        <span>零税仅用于推演极端场景（如对手完全不开发票），不代表合规建议。</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 开票比例（Simples / 零税 显示） */}
+                  {taxMode !== "mei" && (
+                    <div className="flex items-center gap-3">
+                      <Label htmlFor="invoice" className="w-40 shrink-0 text-sm flex items-center gap-1">
+                        开票比例 (%)
+                        <InfoTip text="实际开票金额占售价的比例。例如售价 100 但发票开 50，则填 50%。计税基数 = 售价 × 此比例。" />
+                      </Label>
+                      <div className="flex-1">
+                        <Input
+                          id="invoice"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          placeholder="默认 100"
+                          value={invoicePercent}
+                          onChange={(e) => setInvoicePercent(e.target.value)}
+                        />
+                        {result && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            计税基数: <span className="font-semibold text-foreground">R$ {fmt(result.taxBase)}</span>
+                             · 税金: <span className="font-semibold text-foreground">R$ {fmt(result.taxAmount)}</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* 其他成本 */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                    <Truck className="h-4 w-4" />
+                    其他成本
+                  </h3>
+
+                  <div className="flex items-center gap-3">
+                    <Label htmlFor="shipping" className="w-40 shrink-0 text-sm flex items-center gap-1">
+                      运费 (BRL)
+                      <InfoTip text="单件商品的物流成本。如使用平台官方物流，可参考运费补贴计划的实际支出。" />
+                    </Label>
+                    <Input
+                      id="shipping"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="例: 15.00"
+                      className="flex-1"
+                      value={shipping}
+                      onChange={(e) => setShipping(e.target.value)}
+                    />
+                  </div>
+
+                  {otherCosts.map((cost) => (
+                    <div key={cost.id} className="flex items-center gap-2">
+                      <Input
+                        placeholder="费用名称"
+                        className="flex-1"
+                        value={cost.name}
+                        onChange={(e) => updateOtherCost(cost.id, "name", e.target.value)}
+                      />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="金额"
+                        className="w-28"
+                        value={cost.amount}
+                        onChange={(e) => updateOtherCost(cost.id, "amount", e.target.value)}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeOtherCost(cost.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+
+                  <Button variant="outline" size="sm" className="w-full" onClick={addOtherCost}>
+                    <Plus className="h-4 w-4 mr-1.5" />
+                    添加其他费用
+                  </Button>
+                </div>
+              </Card>
+            </div>
+
+            {/* 右栏：结果 */}
+            {result && (
+              <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+                {/* 摘要卡片：平台费用 / 税费 / 总成本 / 净利润 */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <motion.div
+                    key={`platform-${changeId}`}
+                    initial={{ scale: 0.92, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                  >
+                    <Card className="p-4 text-center space-y-1">
+                      <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                        平台费用
+                        <InfoTip text="平台收取的佣金 + 固定费 + 交易费/SFP 等合计。Shopee 佣金已含交易费。" />
+                      </p>
+                      <p className={`text-lg font-bold ${result.platformFee > 0 ? "text-red-600 dark:text-red-400" : ""}`}>
+                        - R$ <AnimatedNumber value={result.platformFee} />
+                      </p>
+                    </Card>
+                  </motion.div>
+                  <motion.div
+                    key={`tax-${changeId}`}
+                    initial={{ scale: 0.92, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.05 }}
+                  >
+                    <Card className="p-4 text-center space-y-1">
+                      <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                        税费
+                        <InfoTip text={`税制: ${taxMode === "simples" ? "Simples Nacional" : taxMode === "mei" ? "MEI 固定月费" : "零税模式"}。计税基数 = 售价 × 开票比例。`} />
+                      </p>
+                      <p className={`text-lg font-bold ${result.taxAmount > 0 ? "text-red-600 dark:text-red-400" : ""}`}>
+                        - R$ <AnimatedNumber value={result.taxAmount} />
+                      </p>
+                    </Card>
+                  </motion.div>
+                  <motion.div
+                    key={`cost-${changeId}`}
+                    initial={{ scale: 0.92, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.1 }}
+                  >
+                    <Card className="p-4 text-center space-y-1">
+                      <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                        总成本
+                        <InfoTip text="平台费用 + 税费 + 运费 + 所有自定义费用的总和。" />
+                      </p>
+                      <p className="text-lg font-bold text-red-600 dark:text-red-400">
+                        - R$ <AnimatedNumber value={result.totalCost} />
+                      </p>
+                    </Card>
+                  </motion.div>
+                  <motion.div
+                    key={`profit-${changeId}`}
+                    initial={{ scale: 0.92, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 20, delay: 0.15 }}
+                  >
+                    <Card className={`p-4 text-center space-y-1 border-2 ${result.netProfit >= 0 ? "border-green-500/30 bg-green-50/50 dark:bg-green-950/10" : "border-red-500/30 bg-red-50/50 dark:bg-red-950/10"}`}>
+                      <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                        净利润
+                        <InfoTip text="售价 − 所有成本。正数绿色高亮，负数红色警告。" />
+                      </p>
+                      <p className={`text-lg font-bold ${result.netProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                        {result.netProfit >= 0 ? "+ " : "- "}R$ <AnimatedNumber value={Math.abs(result.netProfit)} />
+                      </p>
+                    </Card>
+                  </motion.div>
+                </div>
+
+                {/* 利润率条 */}
+                <motion.div
+                  key={`bar-${changeId}`}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.2 }}
+                >
+                  <Card className="p-4 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        利润率
+                        <InfoTip text="净利润 ÷ 售价。≥20% 绿色，0~20% 黄色，<0 红色。" />
+                      </span>
+                      <span className={`font-bold ${result.profitMargin >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        {result.profitMargin >= 0 ? <TrendingUp className="inline h-4 w-4 mr-1" /> : <TrendingDown className="inline h-4 w-4 mr-1" />}
+                        {fmtPercent(result.profitMargin / 100)}
+                      </span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
+                      <motion.div
+                        className={`h-full rounded-full ${
+                          result.profitMargin >= 20 ? "bg-green-500"
+                          : result.profitMargin >= 0 ? "bg-amber-500"
+                          : "bg-red-500"
+                        }`}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.max(0, Math.min(100, (result.netProfit / result.price) * 100))}%` }}
+                        transition={{ duration: 0.6, ease: "easeOut" }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      每卖出一件该商品，净利润约 R$ {fmt(result.netProfit)}
+                    </p>
+                  </Card>
+                </motion.div>
+
+                {/* 二级折叠明细 */}
+                <TwoLevelDetail categories={detailCategories} summary={detailSummary} />
+
+                {/* TikTok SFP 提醒 */}
+                {platform === "tiktok" && (
+                  <Card className="border-blue-500/20 bg-blue-50/50 dark:bg-blue-950/10 p-4">
+                    <div className="flex items-start gap-3">
+                      <Package className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                      <div className="text-sm text-blue-800 dark:text-blue-200">
+                        <p className="font-medium">关于 SFP 运费佣金</p>
+                        <p className="mt-1 text-blue-700/80 dark:text-blue-300/70">
+                          TikTok Shop SFP 运费补贴计划默认自动加入，收取 6% 运费佣金（封顶 R$ 50/件）。
+                          卖家同时享有平台运费券补贴，本工具未将补贴计入收益，实际利润可能略高于计算结果（保守估算）。
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+                )}
+              </div>
+            )}
+
+            {/* 空状态 */}
+            {!result && (
+              <Card className="p-12 text-center space-y-3">
+                <Calculator className="h-10 w-10 mx-auto text-muted-foreground/40" />
+                <p className="text-muted-foreground text-sm">输入商品售价后自动计算</p>
               </Card>
             )}
           </div>
-        )}
 
-        {/* 空状态 */}
-        {!result && (
-          <Card className="p-12 text-center space-y-3">
-            <Calculator className="h-10 w-10 mx-auto text-muted-foreground/40" />
-            <p className="text-muted-foreground text-sm">输入商品售价后自动计算</p>
+          {/* 参考链接 */}
+          <Card className="p-5 space-y-3 max-w-3xl mx-auto">
+            <h3 className="text-sm font-semibold flex items-center gap-1.5">
+              <ExternalLink className="h-4 w-4" />
+              参考来源
+            </h3>
+            <div className="space-y-1.5 text-sm">
+              <p>
+                <span className="font-medium">Shopee 官方：</span>
+                <a
+                  href="https://seller.br.shopee.cn/edu/article/26839/Comissao-para-vendedores-CNPJ-e-CPF-em-2026"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline ml-1"
+                >
+                  Comissão CNPJ/CPF 2026
+                </a>
+              </p>
+              <p>
+                <span className="font-medium">TikTok Shop：</span>
+                <a
+                  href="https://seller-br.tiktok.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline ml-1"
+                >
+                  Seller Center BR
+                </a>
+              </p>
+              <p>
+                <span className="font-medium">Simples Nacional：</span>
+                <a
+                  href="http://www8.receita.fazenda.gov.br/SimplesNacional/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline ml-1"
+                >
+                  Portal do Simples Nacional - Anexo I (Comércio)
+                </a>
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              费率更新日期：2026-03-01（Shopee）/ 2026-02-05（TikTok）。如有变动请以平台官方公告为准。
+            </p>
           </Card>
-        )}
-
         </div>
-
-        {/* 参考链接 */}
-        <Card className="p-5 space-y-3 max-w-3xl mx-auto">
-          <h3 className="text-sm font-semibold flex items-center gap-1.5">
-            <ExternalLink className="h-4 w-4" />
-            参考来源
-          </h3>
-          <div className="space-y-1.5 text-sm">
-            <p>
-              <span className="font-medium">Shopee 官方：</span>
-              <a
-                href="https://seller.br.shopee.cn/edu/article/26839/Comissao-para-vendedores-CNPJ-e-CPF-em-2026"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline ml-1"
-              >
-                Comissão CNPJ/CPF 2026
-              </a>
-            </p>
-            <p>
-              <span className="font-medium">TikTok Shop：</span>
-              <a
-                href="https://seller-br.tiktok.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline ml-1"
-              >
-                Seller Center BR
-              </a>
-            </p>
-            <p>
-              <span className="font-medium">Simples Nacional：</span>
-              <a
-                href="http://www8.receita.fazenda.gov.br/SimplesNacional/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline ml-1"
-              >
-                Portal do Simples Nacional - Anexo I (Comércio)
-              </a>
-            </p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            费率更新日期：2026-03-01（Shopee）/ 2026-02-05（TikTok）。如有变动请以平台官方公告为准。
-          </p>
-        </Card>
       </div>
-    </div>
+    </TooltipProvider>
   )
 }
