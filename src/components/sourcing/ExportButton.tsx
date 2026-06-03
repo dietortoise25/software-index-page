@@ -28,11 +28,11 @@ export default function ExportButton({ rows, disabled }: Props) {
     for (const r of rows) {
       lines.push([
         r.product_id, r.product_name, r.data_source, r.category_path,
-        r.shopee_price_brl, r.min_price_cny || "", r.best_1688_shop,
+        r.shopee_price_brl, r.best_1688?.price_cny || "", r.best_1688?.shop_name || "",
         r.total_cost_brl != null ? r.total_cost_brl.toFixed(2) : "",
         r.margin_brl != null ? r.margin_brl.toFixed(2) : "",
         r.margin_rate != null ? `${(r.margin_rate * 100).toFixed(1)}%` : "",
-        r.recommendation, r.image_url || "", r.best_1688_url,
+        r.recommendation, r.image_url || "", r.best_1688?.link || "",
       ].map(escapeCsv).join(","))
     }
 

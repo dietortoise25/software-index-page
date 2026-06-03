@@ -83,7 +83,8 @@ def _calc_cost(row: dict, cost_cfg: dict) -> dict:
     target = cost_cfg["target_margin_rate"]
     high = cost_cfg["high_margin_rate"]
 
-    price_cny = row.get("min_price_cny")
+    best_1688 = row.get("best_1688") or {}
+    price_cny = best_1688.get("price_cny")
     cost_cny = float(price_cny) if price_cny is not None else None
     cost_brl = (cost_cny / rate) if cost_cny is not None else None
     total_cost = (cost_brl + freight + clearance + other) if cost_brl is not None else None
@@ -130,11 +131,44 @@ def _search_one(prod: dict, page_size: int, same_style_only: bool):
         return pid, name, [], str(e)[:120]
 
 
+def _pick_candidate(c: dict) -> dict:
+    """提取单个 1688 候选的全部字段"""
+    prov = c.get("providerInfo") or {}
+    purch = c.get("purchaseInfos") or []
+    return {
+        "title": c.get("title", ""),
+        "item_id": c.get("itemId", ""),
+        "price_cny": c.get("itemPrice", ""),
+        "link": c.get("link", ""),
+        "detail_url": c.get("offerDetailUrl", ""),
+        "image_url": c.get("imageUrl", ""),
+        "sales": c.get("sales", ""),
+        "sales_num": c.get("salesNum", 0),
+        "shop_name": prov.get("companyName", ""),
+        "shop_url": prov.get("factoryUrl", ""),
+        "shop_member_id": prov.get("memberId", ""),
+        "shop_login_id": prov.get("loginId", ""),
+        "shop_low_resp": prov.get("isLowRespRate", False),
+        "min_order": purch[0].get("value", "") if purch else "",
+        "offer_tags": c.get("offerTags", []),
+        "purchase_tags": c.get("purchaseTags", []),
+        "purchase_infos": purch,
+        "ai_attentions": c.get("aiAttentions", []),
+        "core_attributes": c.get("coreAttributes", []),
+        "sales_infos": c.get("salesInfos", []),
+        "ship_infos": c.get("shipInfos", []),
+        "large_image_base_infos": c.get("largeImageBaseInfos", []),
+        "large_image_extra_infos": c.get("largeImageExtraInfos", []),
+        "provider_tags": prov.get("providerTags", []),
+        "provider_services": c.get("providerServices", []),
+        "provider_custom_tags": c.get("providerKjCustomTags", []),
+    }
+
+
 def _build_row(prod: dict, cands: list, cost_cfg: dict) -> dict:
     """构建单产品分析行"""
     pid = prod["product_id"]
     best = cands[0] if cands else {}
-    infos = best.get("purchaseInfos", [{}])
 
     row = {
         "product_id": pid,
@@ -144,26 +178,8 @@ def _build_row(prod: dict, cands: list, cost_cfg: dict) -> dict:
         "shopee_price_brl": str(prod.get("shopee_price_brl", "")),
         "image_url": prod.get("image_url", ""),
         "shopee_monthly_sales": prod.get("shopee_monthly_sales", ""),
-        "min_price_cny": best.get("itemPrice"),
-        "best_1688_title": best.get("title", ""),
-        "best_1688_url": best.get("link", ""),
-        "best_1688_shop": (best.get("providerInfo") or {}).get("companyName", ""),
-        "min_order_qty": infos[0].get("value", ""),
-        "best_1688_sales": best.get("sales", ""),
-        "best_1688_tags": best.get("offerTags", []),
-        "candidates": [
-            {
-                "title": c.get("title", ""),
-                "price_cny": c.get("itemPrice", ""),
-                "link": c.get("link", ""),
-                "sales": c.get("sales", ""),
-                "shop_name": (c.get("providerInfo") or {}).get("companyName", ""),
-                "min_order": (c.get("purchaseInfos") or [{}])[0].get("value", ""),
-                "offer_tags": c.get("offerTags", []),
-                "image_url": c.get("imageUrl", ""),
-            }
-            for c in cands
-        ],
+        "best_1688": _pick_candidate(best) if best else None,
+        "candidates": [_pick_candidate(c) for c in cands],
         "shopee_price_num": _parse_shopee_price(prod.get("shopee_price_brl")),
         "has_1688_data": len(cands) > 0,
     }

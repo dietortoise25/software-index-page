@@ -15,7 +15,7 @@ function fmtBrl(v: number | null) {
   return `R$ ${v.toFixed(2)}`
 }
 
-function fmtCny(v: string | null) {
+function fmtCny(v: string | null | undefined) {
   if (!v) return "-"
   return `¥${v}`
 }
@@ -51,7 +51,7 @@ function Row({ row }: { row: SourcingRow }) {
           </div>
         </td>
         <td className="py-2 px-2 text-sm text-right">{row.shopee_price_brl}</td>
-        <td className="py-2 px-2 text-sm text-right font-medium">{fmtCny(row.min_price_cny)}</td>
+        <td className="py-2 px-2 text-sm text-right font-medium">{fmtCny(row.best_1688?.price_cny)}</td>
         <td className="py-2 px-2 text-sm text-right">{fmtBrl(row.total_cost_brl)}</td>
         <td className="py-2 px-2 text-sm text-right">{fmtBrl(row.margin_brl)}</td>
         <td className="py-2 px-2 text-sm text-right">{fmtPct(row.margin_rate)}</td>

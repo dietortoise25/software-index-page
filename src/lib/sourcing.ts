@@ -6,15 +6,49 @@
  *   for await (const ev of analyzeStream(formData)) { ... }
  */
 
+export interface ProviderInfo {
+  companyName?: string
+  factoryUrl?: string
+  memberId?: string
+  loginId?: string
+  isLowRespRate?: boolean
+  providerTags?: { tagCode: string; tagName: string; tagStyle: string }[]
+}
+
+export interface PurchaseInfo {
+  code: string
+  label: string
+  value: string
+  originValue?: number
+}
+
 export interface Candidate {
   title: string
+  item_id: string
   price_cny: string
   link: string
+  detail_url: string
+  image_url: string
   sales: string
+  sales_num: number
   shop_name: string
+  shop_url: string
+  shop_member_id: string
+  shop_login_id: string
+  shop_low_resp: boolean
   min_order: string
   offer_tags: string[]
-  image_url: string
+  purchase_tags: string[]
+  purchase_infos: PurchaseInfo[]
+  ai_attentions: string[]
+  core_attributes: { label: string; value: string }[]
+  sales_infos: { code: string; label: string; value: string; originValue?: number }[]
+  ship_infos: { code: string; label: string; value: string }[]
+  large_image_base_infos: { code: string; label: string; value: string; originValue?: number }[]
+  large_image_extra_infos: { code: string; label: string; value: string; originValue?: number }[]
+  provider_tags: { tagCode: string; tagName: string; tagStyle: string }[]
+  provider_services: { code: string; label: string; value: string; originValue?: number }[]
+  provider_custom_tags: string[]
 }
 
 export interface SourcingRow {
@@ -25,13 +59,7 @@ export interface SourcingRow {
   shopee_price_brl: string
   image_url: string
   shopee_monthly_sales: string
-  min_price_cny: string | null
-  best_1688_title: string
-  best_1688_url: string
-  best_1688_shop: string
-  min_order_qty: string
-  best_1688_sales: string
-  best_1688_tags: string[]
+  best_1688: Candidate | null
   candidates: Candidate[]
   shopee_price_num: number | null
   has_1688_data: boolean
