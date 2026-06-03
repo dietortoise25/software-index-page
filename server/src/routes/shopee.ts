@@ -11,8 +11,6 @@ router.all("/*", (req, res) => {
     res.status(429).json({ detail: "请求过于频繁，请稍后再试" }); return
   }
   const targetUrl = new URL(req.originalUrl.replace("/api/shopee", "/api"), TARGET)
-  const body = ["GET", "HEAD"].includes(req.method) ? undefined : req
-
   const proxyReq = http.request(
     targetUrl,
     { method: req.method, headers: { ...req.headers, host: targetUrl.host } },
@@ -29,7 +27,15 @@ router.all("/*", (req, res) => {
     }
   })
 
-  if (body) {
+  // express.json() 已解析 body，pipe 会发空流 → 手动写入
+  const isGetHead = ["GET", "HEAD"].includes(req.method)
+  if (!isGetHead && req.body && Object.keys(req.body).length > 0) {
+    const bodyStr = JSON.stringify(req.body)
+    proxyReq.setHeader("Content-Type", "application/json")
+    proxyReq.setHeader("Content-Length", String(Buffer.byteLength(bodyStr)))
+    proxyReq.write(bodyStr)
+    proxyReq.end()
+  } else if (!isGetHead) {
     req.pipe(proxyReq)
   } else {
     proxyReq.end()
