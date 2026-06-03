@@ -118,14 +118,15 @@ def _search_one(prod: dict, page_size: int, same_style_only: bool):
     """单个产品搜图，返回 (pid, candidates_list, error_str)"""
     pid = prod["product_id"]
     img = prod.get("image_url", "")
+    name = str(prod.get("product_name", ""))[:40]
     if not img or pd.isna(img):
-        return pid, [], "no image_url"
+        return pid, name, [], "no image_url"
     try:
         offers, _ = search_by_image(str(img), page_size=page_size, same_style_only=same_style_only)
-        return pid, offers, None
+        return pid, name, offers, None
     except Exception as e:
         logger.warning(f"[search] {pid} 失败: {e}")
-        return pid, [], str(e)[:120]
+        return pid, name, [], str(e)[:120]
 
 
 def _build_row(prod: dict, cands: list, cost_cfg: dict) -> dict:
@@ -235,7 +236,7 @@ async def sourcing_search(
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(_search_one, p, page_size, same_style_only): p for p in products}
         for fut in as_completed(futures):
-            pid, cands, err = fut.result()
+            pid, _name, cands, err = fut.result()
             results.append({
                 "product_id": pid,
                 "candidates": cands,
@@ -356,14 +357,14 @@ async def sourcing_analyze_stream(
                 fut_map[fut] = p
 
             for fut in asyncio.as_completed(fut_map):
-                pid, cands, err = await fut
+                pid, name, cands, err = await fut
                 done += 1
                 candidates_map[pid] = cands
                 yield _sse("progress", {
                     "current": done,
                     "total": total,
                     "product_id": pid,
-                    "product_name": str(fut_map[fut].get("product_name", ""))[:40],
+                    "product_name": name,
                     "candidates_count": len(cands),
                     "error": err,
                 })
