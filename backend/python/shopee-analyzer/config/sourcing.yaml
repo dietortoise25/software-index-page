@@ -10,7 +10,7 @@ search:
   page_size: 10
   same_style_only: true
 cost:
-  cny_per_brl: 1.7
+  cny_per_brl: 1.35
   freight_brl: 5.0
   clearance_brl: 2.0
   other_brl: 1.0

@@ -41,7 +41,7 @@ interface State {
 }
 
 const initialCost: CostParams = {
-  cny_per_brl: 1.7, freight_brl: 5, clearance_brl: 2,
+  cny_per_brl: 1.35, freight_brl: 5, clearance_brl: 2,
   other_brl: 1, target_margin_rate: 0.15, high_margin_rate: 0.30,
 }
 

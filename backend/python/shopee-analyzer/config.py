@@ -25,7 +25,7 @@ _DEFAULTS: dict[str, Any] = {
         "same_style_only": True,
     },
     "cost": {
-        "cny_per_brl": 1.7,
+        "cny_per_brl": 1.35,
         "freight_brl": 5.0,
         "clearance_brl": 2.0,
         "other_brl": 1.0,

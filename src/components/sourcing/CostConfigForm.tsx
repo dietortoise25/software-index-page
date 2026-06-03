@@ -15,7 +15,7 @@ interface CostParams {
 }
 
 const DEFAULTS: CostParams = {
-  cny_per_brl: 1.7,
+  cny_per_brl: 1.35,
   freight_brl: 5.0,
   clearance_brl: 2.0,
   other_brl: 1.0,
@@ -84,7 +84,7 @@ export default function CostConfigForm({ values, onChange, disabled }: Props) {
     <div className="space-y-3">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div>
-          <Label className="text-xs">汇率 CNY/BRL</Label>
+          <Label className="text-xs">汇率 (1 BRL = ? CNY)</Label>
           <Input
             type="number" step="0.01" min="0"
             value={values.cny_per_brl}
