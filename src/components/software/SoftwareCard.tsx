@@ -9,6 +9,7 @@ import {
   Settings2,
   Network,
   RefreshCw,
+  Scale,
   type LucideIcon,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -24,6 +25,7 @@ const iconMap: Record<string, LucideIcon> = {
   Settings2,
   Network,
   RefreshCw,
+  Scale,
 }
 
 interface SoftwareCardProps {

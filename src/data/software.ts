@@ -268,4 +268,28 @@ export const softwareList: Software[] = [
       },
     ],
   },
+  {
+    id: "sourcing-tool",
+    name: "选品比价",
+    description: "Shopee 巴西站商品上传 Excel → 1688 以图搜同款货源 → 自动成本利润计算 → 推荐分级",
+    iconName: "Scale",
+    category: "Web 工具",
+    versions: [
+      {
+        version: "1.0.0",
+        releaseDate: "2026-06-03",
+        isLatest: true,
+        changelog: [
+          "多文件上传：支持多店铺 Excel 同时导入，自动标注数据来源",
+          "以图搜货：1688 游客态 API，商品主图搜索同款货源",
+          "SSE 实时进度：逐个产品推送搜索结果，不用等待全量完成",
+          "成本利润计算：汇率 + 运费 + 清关费 + 杂费，自动算落地成本和利润率",
+          "四色推荐分级：推荐(≥30%) / 可考虑(≥15%) / 预警 / 待补全",
+          "成本配置持久化：保存到服务器，下次打开自动加载",
+          "Excel 导出：汇总决策表 + 候选明细表双 Sheet 下载",
+        ],
+        workbenchUrl: "/sourcing-tool",
+      },
+    ],
+  },
 ]

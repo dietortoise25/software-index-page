@@ -1,58 +1,49 @@
-# PRD：新闻汇集多新闻源集成
+# PRD: 选品比价工具
 
 ## 产品定位
 
-为"新闻汇集"模块增加多搜索源并行采集能力和定时推送开关，让每条配置可独立选择新闻来源并控制是否参与定时调度。
+跨境电商选品比价 Web 工具，帮助运营从 Shopee 店铺导出数据后，自动在 1688 找到同款货源，计算含税含运费的落地成本和利润率，给出推荐/预警分级。
 
 ## 核心用户旅程
 
 ```mermaid
-flowchart TD
-    A[进入新闻汇集页] --> B{已有配置?}
-    B -->|无| C[新建配置]
-    B -->|有| D[选择配置卡片]
-    C --> E[填写配置表单]
-    D --> E
-    E --> F[选择新闻源<br/>☑ Tavily ☑ Jina搜索 ☑ Jina深度]
-    E --> G[设置是否定时触发<br/>开关 ON/OFF]
-    E --> H[设置其他字段<br/>cron/接收者/搜索数]
-    H --> I[保存配置]
-    I --> J{enabled=true?}
-    J -->|是| K[cron 注册该配置的定时任务]
-    J -->|否| L[cron 跳过该配置]
-    J -->|false| M[手动执行按钮仍可用]
-    K --> N[每天 cron 时间到]
-    N --> O[按 sources 并行搜索]
-    O --> P[按 URL 去重合并]
-    P --> Q[LLM 摘要]
-    Q --> R[飞书推送卡片]
+flowchart LR
+    A[📥 上传Shopee Excel] --> B[🔍 1688以图搜货]
+    B --> C[💰 成本利润计算]
+    C --> D[📊 结果分级展示]
+    D --> E[📎 导出Excel报告]
 ```
 
 ## 功能范围
 
 ### 做什么
-- 新增 `enabled` 字段：控制 cron 调度，**不影响手动执行**（disabled 时按钮仍可用方便测试）
-- 新增 `sources` 字段：多选新闻源，三个选项：
-  - `tavily` — Tavily 搜索（现有，API key 独立）
-  - `jina_search` — Jina Search API (`s.jina.ai`) 搜索
-  - `jina_deep` — Jina Search 搜索 URL → Jina Reader (`r.jina.ai`) 逐篇全文，并发限制 5
-- 集成 Jina Search + Jina Reader API，各自独立 API key（`JINA_API_KEY`）
-- 工作流改为按 sources 并行搜索 → URL 去重合并 → LLM 摘要
-- `/news-cron-status` 端点返回各源 API key 配置状态（`configured`/`missing`）
-- 前端配置卡片显示启用/禁用状态，source 未配 key 时显示 ⚠️
+
+| # | 功能 | 说明 |
+|---|------|------|
+| F1 | Excel 上传解析 | 拖拽上传 Shopee 商品导出文件，校验列名，预览产品数 |
+| F2 | 实时搜货进度 | SSE 流式展示每个产品的 1688 搜货进度条 |
+| F3 | 候选商品展示 | 卡片式展示每个产品的 1688 候选列表（价格/销量/店铺/标签） |
+| F4 | 成本利润计算 | 输入汇率/运费/清关费/杂费 → 自动计算利润与利润率 |
+| F5 | 推荐分级 | 推荐(绿)/可考虑(黄)/预警(红)/待补全(灰) 四色标签 |
+| F6 | 配置持久化 | 成本参数保存到服务器 YAML，下次打开自动填充 |
+| F7 | SSE 流式分析 | 全流程 SSE 实时推送，不用等全部完成才看结果 |
+| F8 | 结果导出 | 分析结果汇总表 + 候选明细表，一键下载 Excel |
+| F9 | 工具入口 | 注册到 software.ts，路由 `/sourcing-tool`，Footer 导航可见 |
 
 ### 不做什么
-- 不改变飞书卡片格式
-- 不改变 LLM 摘要 prompt
-- 不改变手动执行的 SSE 流式响应格式
-- 不改动 Tavily 现有逻辑
-- 不做新闻源的权重/优先级排序
+
+- 不做 1688 账号登录（使用游客态 token，后端已实现）
+- 不做商品加入购物车/下单采购（纯比价分析）
+- 不做历史记录持久化（每次分析独立，结果不存库）
+- 不做多店铺对比（单次单文件上传）
 
 ## 非功能需求
 
-- **向后兼容**：旧配置（无 enabled/sources 字段）默认 `enabled=true`, `sources=["tavily"]`
-- **sources 空数组兜底**：遇空或缺失时回退 `["tavily"]`，log warning
-- **源独立容错**：单个源失败不影响其他源（`Promise.allSettled`）
-- **并发控制**：`jina_deep` 的 `readUrl()` 阶段用 `p-limit` 限制 5 并发
-- **API Key 隔离**：Tavily (`TAVILY_API_KEY`) 和 Jina (`JINA_API_KEY`) 独立，各自可选配
-- **日志可观测**：搜索阶段前缀 `[tavily]` / `[jina_search]` / `[jina_deep]`
+| 维度 | 要求 |
+|------|------|
+| 性能 | SSE 流式推送，首个结果 <10s，全量 <60s（20产品） |
+| 文件限制 | 10MB max，仅 .xlsx/.xls |
+| 并发 | 6 线程并发搜图（可通过配置调整） |
+| 兼容 | Chrome/Edge/Firefox 最近 2 个大版本 |
+| 安全 | 文件上传走 Express proxy 限频（60次/分钟） |
+| 技术栈 | 与项目一致：React 19 + TypeScript + Tailwind v4 + shadcn/ui + lucide-react |

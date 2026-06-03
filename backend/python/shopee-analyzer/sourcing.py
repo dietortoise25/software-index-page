@@ -14,7 +14,7 @@ import logging
 import traceback
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Optional
+from typing import List, Optional
 
 import pandas as pd
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
@@ -71,14 +71,6 @@ def _parse_shopee_price(val) -> Optional[float]:
         return float(parts[0].replace(",", ""))
     except (ValueError, IndexError):
         return None
-
-
-def _extract_fields(df: pd.DataFrame, col_map: dict) -> pd.DataFrame:
-    """重命名已有列，只保留能映射的"""
-    available = {c: col_map[c] for c in col_map if c in df.columns}
-    if not available:
-        raise ValueError(f"Excel 列名不匹配，期望: {list(col_map.keys())}")
-    return df[list(available.keys())].rename(columns=available)
 
 
 def _calc_cost(row: dict, cost_cfg: dict) -> dict:
@@ -180,40 +172,62 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {_json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-def _check_file(filename: str | None, content: bytes, max_mb: int):
-    if not filename or not filename.lower().endswith((".xlsx", ".xls")):
-        raise HTTPException(400, "请上传 .xlsx 或 .xls 文件")
-    if len(content) > max_mb * 1024 * 1024:
-        raise HTTPException(400, f"文件超过{max_mb}MB限制")
-    if len(content) == 0:
-        raise HTTPException(400, "文件为空")
+def _check_files(files: list, max_mb: int):
+    """校验上传文件列表"""
+    if not files:
+        raise HTTPException(400, "请至少上传一个文件")
+    total_size = 0
+    for f in files:
+        fname = f.filename or ""
+        if not fname.lower().endswith((".xlsx", ".xls")):
+            raise HTTPException(400, f"'{fname}' 不是 Excel 文件，请上传 .xlsx 或 .xls")
+    for f in files:
+        f.file.seek(0, 2)
+        total_size += f.file.tell()
+        f.file.seek(0)
+    if total_size > max_mb * 1024 * 1024:
+        raise HTTPException(400, f"文件总大小超过 {max_mb}MB 限制")
+
+
+def _read_files(files: list, col_map: dict) -> pd.DataFrame:
+    """读取多个 Excel 并合并，文件名作为数据来源标签"""
+    frames = []
+    for f in files:
+        f.file.seek(0)
+        content = f.file.read()
+        if len(content) == 0:
+            raise HTTPException(400, f"'{f.filename}' 文件为空")
+        df_src = pd.read_excel(BytesIO(content))
+        available = {c: col_map[c] for c in col_map if c in df_src.columns}
+        if not available:
+            raise HTTPException(400,
+                f"'{f.filename}' 列名不匹配，期望: {list(col_map.keys())}")
+        df_src = df_src[list(available.keys())].rename(columns=available)
+        df_src["data_source"] = f.filename or "unknown"
+        frames.append(df_src)
+    df = pd.concat(frames, ignore_index=True)
+    df["product_id"] = df["product_id"].astype(str)
+    return df
 
 
 # ========== 业务端点 ==========
 
 @router.post("/search")
 async def sourcing_search(
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     page_size: int = Form(0),
     same_style_only: bool = Form(True),
 ):
-    """上传 Shopee Excel，批量以图搜货，返回候选商品（不做成本计算）"""
+    """上传多个 Shopee Excel，批量以图搜货，返回候选商品（不做成本计算）"""
     cfg = _cfg()
     sc = cfg["search"]
     if page_size <= 0:
         page_size = sc["page_size"]
 
-    content = await file.read()
-    _check_file(file.filename, content, cfg["limits"]["max_file_size_mb"])
-
-    try:
-        df = _extract_fields(pd.read_excel(BytesIO(content)), cfg["columns"])
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-
-    df["product_id"] = df["product_id"].astype(str)
+    _check_files(files, cfg["limits"]["max_file_size_mb"])
+    df = _read_files(files, cfg["columns"])
     products = df.to_dict(orient="records")
-    logger.info(f"[search] {len(products)} 个产品")
+    logger.info(f"[search] {len(files)} 个文件, {len(products)} 个产品")
 
     results = []
     max_workers = sc["max_concurrency"]
@@ -238,7 +252,7 @@ async def sourcing_search(
 
 @router.post("/analyze")
 async def sourcing_analyze(
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     page_size: int = Form(0),
     same_style_only: bool = Form(True),
     cny_per_brl: float = Form(0),
@@ -248,23 +262,16 @@ async def sourcing_analyze(
     target_margin_rate: float = Form(-1),
     high_margin_rate: float = Form(-1),
 ):
-    """上传 Shopee Excel → 搜图 + 成本计算 + 推荐"""
+    """上传多个 Shopee Excel → 搜图 + 成本计算 + 推荐"""
     cfg = _cfg()
     sc = cfg["search"]
     if page_size <= 0:
         page_size = sc["page_size"]
 
-    content = await file.read()
-    _check_file(file.filename, content, cfg["limits"]["max_file_size_mb"])
-
-    try:
-        df = _extract_fields(pd.read_excel(BytesIO(content)), cfg["columns"])
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-
-    df["product_id"] = df["product_id"].astype(str)
+    _check_files(files, cfg["limits"]["max_file_size_mb"])
+    df = _read_files(files, cfg["columns"])
     products = df.to_dict(orient="records")
-    logger.info(f"[analyze] {len(products)} 个产品")
+    logger.info(f"[analyze] {len(files)} 个文件, {len(products)} 个产品")
 
     # 成本参数：传了就用传的，没传就用配置默认值
     overrides = {}
@@ -301,7 +308,7 @@ async def sourcing_analyze(
 
 @router.post("/analyze-stream")
 async def sourcing_analyze_stream(
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     page_size: int = Form(0),
     same_style_only: bool = Form(True),
     cny_per_brl: float = Form(0),
@@ -317,19 +324,12 @@ async def sourcing_analyze_stream(
     if page_size <= 0:
         page_size = sc["page_size"]
 
-    content = await file.read()
-    _check_file(file.filename, content, cfg["limits"]["max_file_size_mb"])
-
-    try:
-        df = _extract_fields(pd.read_excel(BytesIO(content)), cfg["columns"])
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-
-    df["product_id"] = df["product_id"].astype(str)
+    _check_files(files, cfg["limits"]["max_file_size_mb"])
+    df = _read_files(files, cfg["columns"])
     products = df.to_dict(orient="records")
     total = len(products)
     max_workers = sc["max_concurrency"]
-    logger.info(f"[stream] {total} 个产品")
+    logger.info(f"[stream] {len(files)} 个文件, {total} 个产品")
 
     overrides = {}
     if cny_per_brl > 0: overrides["cny_per_brl"] = cny_per_brl
