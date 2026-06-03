@@ -16,6 +16,7 @@ from metrics.ad_metrics import compute_ad_summary
 from metrics.cross_metrics import compute_product_from_orders
 from diagnose import load_rules, run_diagnose, CONFIG_PATH
 from simulate import run_simulation
+from aibuy_client import search_by_image
 
 logging.basicConfig(
     level=logging.INFO,
@@ -169,6 +170,20 @@ async def simulate(body: dict):
         result = run_simulation(body.get("ad_metrics", {}), pct)
         return JSONResponse(result)
     except Exception:
+        raise HTTPException(500, traceback.format_exc())
+
+
+@app.post("/api/search-image")
+async def search_image(body: dict):
+    """以图搜货：传入图片 URL，返回 1688 候选商品"""
+    image_url = body.get("image_url", "")
+    if not image_url:
+        raise HTTPException(400, "缺少 image_url 参数")
+    try:
+        offers, total = search_by_image(image_url, page_size=body.get("page_size", 10))
+        return {"offers": offers, "total": total}
+    except Exception:
+        logger.exception("图搜失败")
         raise HTTPException(500, traceback.format_exc())
 
 
