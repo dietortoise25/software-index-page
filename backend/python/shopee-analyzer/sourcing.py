@@ -20,7 +20,7 @@ import pandas as pd
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from aibuy_client import search_by_image, reset_session, configure as configure_aibuy
+from aibuy_client import search_by_image, reset_session, configure as configure_aibuy, warmup_session
 from config import load_sourcing_config, save_sourcing_config, reload_sourcing_config, deep_merge
 
 logger = logging.getLogger("sourcing")
@@ -54,6 +54,7 @@ def _cost_cfg_from(cfg: dict, overrides: dict | None = None) -> dict:
 def _init_api_config():
     cfg = _cfg()
     configure_aibuy(cfg["api"])
+    warmup_session()
 
 
 _init_api_config()
@@ -409,6 +410,7 @@ async def update_config(body: dict):
         merged = deep_merge(current.copy(), partial)
         save_sourcing_config(merged)
         configure_aibuy(merged.get("api", {}))
+        warmup_session()
         logger.info("[config] 配置已更新")
         return {"status": "ok", "config": merged}
     except Exception:
@@ -421,6 +423,7 @@ async def reload_config():
     """强制从 YAML 重新加载配置（清除缓存）"""
     cfg = reload_sourcing_config()
     configure_aibuy(cfg["api"])
+    warmup_session()
     return {"status": "ok", "config": cfg}
 
 

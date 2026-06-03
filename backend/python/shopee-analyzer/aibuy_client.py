@@ -10,11 +10,15 @@
 import json
 import base64
 import hashlib
+import logging
+import threading
 import time
 import urllib.request
 import urllib.parse
 import http.cookiejar
 from typing import Optional, Tuple, List, Dict, Any
+
+logger = logging.getLogger("aibuy")
 
 H5API = "https://h5api.m.1688.com"
 APP_KEY = "12574478"
@@ -28,6 +32,7 @@ _jar: Optional[http.cookiejar.CookieJar] = None
 _cs: str = ""
 _tk: str = ""
 _api_config: dict = {}
+_lock = threading.Lock()
 
 
 def configure(api_config: dict):
@@ -42,18 +47,10 @@ def configure(api_config: dict):
     _PLATFORM = api_config.get("platform", _PLATFORM)
 
 
-def get_session() -> Tuple[str, str]:
-    """
-    获取游客 session（纯 HTTP，无需浏览器）。
-    返回 (cookie_string, mtop_token)。
-    Session 有效期 ~5400 秒，内部自动缓存。
-    """
-    global _jar, _cs, _tk
-    if _tk:
-        return _cs, _tk
-
-    _jar = http.cookiejar.CookieJar()
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(_jar))
+def _do_fetch_token() -> Tuple[str, str]:
+    """实际发起 HTTP 请求获取游客 token（内部用）"""
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
     url = f"{H5API}/h5/mtop.1688.pc.plugin.safe.heartbeat.key.get/1.0/"
     url += f"?jsv=2.7.2&appKey={APP_KEY}"
@@ -64,14 +61,43 @@ def get_session() -> Tuple[str, str]:
     try:
         opener.open(req, timeout=10)
     except Exception:
-        pass  # 服务端 Set-Cookie 已经下发
+        pass
 
-    _cs = "; ".join(f"{c.name}={c.value}" for c in _jar)
-    for c in _jar:
+    cs = "; ".join(f"{c.name}={c.value}" for c in jar)
+    tk = ""
+    for c in jar:
         if c.name == "_m_h5_tk":
-            _tk = c.value.split("_")[0]
+            tk = c.value.split("_")[0]
             break
-    return _cs, _tk
+    return cs, tk
+
+
+def get_session() -> Tuple[str, str]:
+    """
+    获取游客 session（线程安全）。
+    返回 (cookie_string, mtop_token)。
+    Session 有效期 ~5400 秒，内部自动缓存。
+    """
+    global _jar, _cs, _tk
+    if _tk:
+        return _cs, _tk
+
+    with _lock:
+        if _tk:
+            return _cs, _tk
+        _cs, _tk = _do_fetch_token()
+        logger.info(f"1688 session 已获取, token={_tk[:16]}...")
+        return _cs, _tk
+
+
+def warmup_session():
+    """预热 1688 token（服务启动后调用，避免并发竞态）"""
+    cs, tk = get_session()
+    if tk:
+        logger.info(f"1688 session 预热完成, token={tk[:16]}...")
+    else:
+        logger.warning("1688 session 预热失败，后续请求将自动重试")
+    return cs, tk
 
 
 def reset_session():
@@ -158,14 +184,24 @@ def search_by_image(
     mime = _detect_mime(data)
     b64 = f"data:{mime};base64," + base64.b64encode(data).decode()
 
-    # 3. 上传
-    r = _mtop_post("mtop.com.alibaba.global.select.aibuy.image.upload/1.0/", {
-        "bizType": _BIZ_TYPE,
-        "customerId": _CUSTOMER_ID,
-        "language": _LANGUAGE,
-        "currency": _CURRENCY,
-        "imageBase64": b64,
-    })
+    # 3. 上传 (token 过期时自动重试一次)
+    for attempt in (1, 2):
+        r = _mtop_post("mtop.com.alibaba.global.select.aibuy.image.upload/1.0/", {
+            "bizType": _BIZ_TYPE,
+            "customerId": _CUSTOMER_ID,
+            "language": _LANGUAGE,
+            "currency": _CURRENCY,
+            "imageBase64": b64,
+        })
+        ret = r.get("ret", [])
+        ret_str = str(ret) if ret else ""
+        if "FAIL_SYS_TOKEN_EMPTY" in ret_str or "TOKEN" in ret_str:
+            if attempt == 1:
+                logger.warning("1688 token 失效，刷新后重试...")
+                reset_session()
+                continue
+        break
+
     iu = r.get("data", {}).get("result", {}).get("imageUrl")
     if not iu:
         raise RuntimeError(f"upload failed: {json.dumps(r, ensure_ascii=False)[:300]}")
