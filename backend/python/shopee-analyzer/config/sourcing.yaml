@@ -1,0 +1,29 @@
+api:
+  app_key: "12574478"
+  customer_id: "wangxiaowang"
+  biz_type: "ERP"
+  language: "zh"
+  currency: "CNY"
+  platform: "1688"
+search:
+  max_concurrency: 6
+  page_size: 10
+  same_style_only: true
+cost:
+  cny_per_brl: 1.7
+  freight_brl: 5.0
+  clearance_brl: 2.0
+  other_brl: 1.0
+thresholds:
+  target_margin_rate: 0.15
+  high_margin_rate: 0.30
+limits:
+  max_file_size_mb: 10
+columns:
+  产品ID: product_id
+  产品名称: product_name
+  产品主图: image_url
+  价格: shopee_price_brl
+  类目路径: category_path
+  月销量: shopee_monthly_sales
+  数据来源: data_source

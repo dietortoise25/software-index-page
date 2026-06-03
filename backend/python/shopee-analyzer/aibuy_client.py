@@ -18,9 +18,28 @@ from typing import Optional, Tuple, List, Dict, Any
 
 H5API = "https://h5api.m.1688.com"
 APP_KEY = "12574478"
+_CUSTOMER_ID = "wangxiaowang"
+_BIZ_TYPE = "ERP"
+_LANGUAGE = "zh"
+_CURRENCY = "CNY"
+_PLATFORM = "1688"
+
 _jar: Optional[http.cookiejar.CookieJar] = None
 _cs: str = ""
 _tk: str = ""
+_api_config: dict = {}
+
+
+def configure(api_config: dict):
+    """注入 1688 API 配置（从 YAML 读取后调用）"""
+    global APP_KEY, _CUSTOMER_ID, _BIZ_TYPE, _LANGUAGE, _CURRENCY, _PLATFORM, _api_config
+    _api_config = api_config
+    APP_KEY = api_config.get("app_key", APP_KEY)
+    _CUSTOMER_ID = api_config.get("customer_id", _CUSTOMER_ID)
+    _BIZ_TYPE = api_config.get("biz_type", _BIZ_TYPE)
+    _LANGUAGE = api_config.get("language", _LANGUAGE)
+    _CURRENCY = api_config.get("currency", _CURRENCY)
+    _PLATFORM = api_config.get("platform", _PLATFORM)
 
 
 def get_session() -> Tuple[str, str]:
@@ -141,10 +160,10 @@ def search_by_image(
 
     # 3. 上传
     r = _mtop_post("mtop.com.alibaba.global.select.aibuy.image.upload/1.0/", {
-        "bizType": "ERP",
-        "customerId": "wangxiaowang",
-        "language": "zh",
-        "currency": "CNY",
+        "bizType": _BIZ_TYPE,
+        "customerId": _CUSTOMER_ID,
+        "language": _LANGUAGE,
+        "currency": _CURRENCY,
         "imageBase64": b64,
     })
     iu = r.get("data", {}).get("result", {}).get("imageUrl")
@@ -153,11 +172,11 @@ def search_by_image(
 
     # 4. 搜索
     r = _mtop_get("mtop.com.alibaba.global.select.aibuy.image.search/1.0/", {
-        "bizType": "ERP",
-        "customerId": "wangxiaowang",
-        "language": "zh",
-        "currency": "CNY",
-        "platform": "1688",
+        "bizType": _BIZ_TYPE,
+        "customerId": _CUSTOMER_ID,
+        "language": _LANGUAGE,
+        "currency": _CURRENCY,
+        "platform": _PLATFORM,
         "beginPage": page,
         "pageSize": page_size,
         "imageUrl": iu,

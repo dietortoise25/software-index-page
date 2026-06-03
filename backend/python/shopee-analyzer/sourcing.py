@@ -1,8 +1,12 @@
 """
 选品比价 API 路由 — 上传 Shopee Excel，批量以图搜货 + 成本计算
 
-前端调用: POST /api/shopee/sourcing/search
-          POST /api/shopee/sourcing/analyze
+前端调用:
+  POST  /api/shopee/sourcing/search          批量搜图
+  POST  /api/shopee/sourcing/analyze         搜图 + 成本计算
+  POST  /api/shopee/sourcing/analyze-stream  SSE 流式版
+  GET   /api/shopee/sourcing/config          读取配置
+  PUT   /api/shopee/sourcing/config          更新配置
 """
 import asyncio
 import json as _json
@@ -16,36 +20,46 @@ import pandas as pd
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from aibuy_client import search_by_image, reset_session
+from aibuy_client import search_by_image, reset_session, configure as configure_aibuy
+from config import load_sourcing_config, save_sourcing_config, reload_sourcing_config, deep_merge
 
 logger = logging.getLogger("sourcing")
 
 router = APIRouter(prefix="/api/sourcing", tags=["sourcing"])
 
-MAX_FILE_SIZE = 10 * 1024 * 1024
-MAX_CONCURRENCY = 6
 
-# Excel 列名映射（中文 → 英文）
-COL_MAP = {
-    "产品ID": "product_id",
-    "产品名称": "product_name",
-    "产品主图": "image_url",
-    "价格": "shopee_price_brl",
-    "类目路径": "category_path",
-    "月销量": "shopee_monthly_sales",
-    "数据来源": "data_source",
-}
+def _cfg():
+    """快捷读取配置（内存缓存，YAML 变更后自动刷新）"""
+    return load_sourcing_config()
 
-# 默认成本参数
-DEFAULT_COST = {
-    "cny_per_brl": 1.7,
-    "freight_brl": 5.0,
-    "clearance_brl": 2.0,
-    "other_brl": 1.0,
-    "target_margin_rate": 0.15,
-    "high_margin_rate": 0.30,
-}
 
+def _cost_cfg_from(cfg: dict, overrides: dict | None = None) -> dict:
+    """从配置字典提取成本计算参数，支持端点参数覆盖"""
+    c = cfg["cost"]
+    t = cfg["thresholds"]
+    result = {
+        "cny_per_brl": c["cny_per_brl"],
+        "freight_brl": c["freight_brl"],
+        "clearance_brl": c["clearance_brl"],
+        "other_brl": c["other_brl"],
+        "target_margin_rate": t["target_margin_rate"],
+        "high_margin_rate": t["high_margin_rate"],
+    }
+    if overrides:
+        result.update(overrides)
+    return result
+
+
+# ========== 启动时注入 aibuy_client 配置 ==========
+def _init_api_config():
+    cfg = _cfg()
+    configure_aibuy(cfg["api"])
+
+
+_init_api_config()
+
+
+# ========== 工具函数 ==========
 
 def _parse_shopee_price(val) -> Optional[float]:
     """R$ 19,90 → 19.9"""
@@ -59,16 +73,16 @@ def _parse_shopee_price(val) -> Optional[float]:
         return None
 
 
-def _extract_fields(df: pd.DataFrame) -> pd.DataFrame:
+def _extract_fields(df: pd.DataFrame, col_map: dict) -> pd.DataFrame:
     """重命名已有列，只保留能映射的"""
-    available = {c: COL_MAP[c] for c in COL_MAP if c in df.columns}
+    available = {c: col_map[c] for c in col_map if c in df.columns}
     if not available:
-        raise ValueError(f"Excel 列名不匹配，期望: {list(COL_MAP.keys())}")
+        raise ValueError(f"Excel 列名不匹配，期望: {list(col_map.keys())}")
     return df[list(available.keys())].rename(columns=available)
 
 
-def _calc_cost(row, cost_cfg: dict) -> dict:
-    """单行成本计算，返回可选字段 dict"""
+def _calc_cost(row: dict, cost_cfg: dict) -> dict:
+    """单行成本计算"""
     rate = cost_cfg["cny_per_brl"]
     freight = cost_cfg["freight_brl"]
     clearance = cost_cfg["clearance_brl"]
@@ -162,33 +176,49 @@ def _build_row(prod: dict, cands: list, cost_cfg: dict) -> dict:
     return row
 
 
+def _sse(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {_json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _check_file(filename: str | None, content: bytes, max_mb: int):
+    if not filename or not filename.lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(400, "请上传 .xlsx 或 .xls 文件")
+    if len(content) > max_mb * 1024 * 1024:
+        raise HTTPException(400, f"文件超过{max_mb}MB限制")
+    if len(content) == 0:
+        raise HTTPException(400, "文件为空")
+
+
+# ========== 业务端点 ==========
+
 @router.post("/search")
 async def sourcing_search(
     file: UploadFile = File(...),
-    page_size: int = Form(10),
+    page_size: int = Form(0),
     same_style_only: bool = Form(True),
 ):
     """上传 Shopee Excel，批量以图搜货，返回候选商品（不做成本计算）"""
-    filename = file.filename or ""
-    logger.info(f"[search] 收到: {filename}")
-    if not filename.lower().endswith((".xlsx", ".xls")):
-        raise HTTPException(400, "请上传 .xlsx 或 .xls 文件")
+    cfg = _cfg()
+    sc = cfg["search"]
+    if page_size <= 0:
+        page_size = sc["page_size"]
+
     content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(400, "文件超过10MB限制")
+    _check_file(file.filename, content, cfg["limits"]["max_file_size_mb"])
 
     try:
-        df = _extract_fields(pd.read_excel(BytesIO(content)))
+        df = _extract_fields(pd.read_excel(BytesIO(content)), cfg["columns"])
     except ValueError as e:
         raise HTTPException(400, str(e))
 
     df["product_id"] = df["product_id"].astype(str)
     products = df.to_dict(orient="records")
-    logger.info(f"[search] {len(products)} 个产品, 开始搜图...")
+    logger.info(f"[search] {len(products)} 个产品")
 
     results = []
+    max_workers = sc["max_concurrency"]
 
-    with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY) as ex:
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(_search_one, p, page_size, same_style_only): p for p in products}
         for fut in as_completed(futures):
             pid, cands, err = fut.result()
@@ -199,7 +229,9 @@ async def sourcing_search(
                 "error": err,
             })
 
-    results.sort(key=lambda r: products.index(next(p for p in products if p["product_id"] == r["product_id"])))
+    results.sort(key=lambda r: next(
+        i for i, p in enumerate(products) if p["product_id"] == r["product_id"]
+    ))
 
     return {"products": products, "results": results}
 
@@ -207,26 +239,26 @@ async def sourcing_search(
 @router.post("/analyze")
 async def sourcing_analyze(
     file: UploadFile = File(...),
-    page_size: int = Form(10),
+    page_size: int = Form(0),
     same_style_only: bool = Form(True),
-    cny_per_brl: float = Form(1.7),
-    freight_brl: float = Form(5.0),
-    clearance_brl: float = Form(2.0),
-    other_brl: float = Form(1.0),
-    target_margin_rate: float = Form(0.15),
-    high_margin_rate: float = Form(0.30),
+    cny_per_brl: float = Form(0),
+    freight_brl: float = Form(-1),
+    clearance_brl: float = Form(-1),
+    other_brl: float = Form(-1),
+    target_margin_rate: float = Form(-1),
+    high_margin_rate: float = Form(-1),
 ):
-    """上传 Shopee Excel → 搜图 + 成本计算 + 推荐，返回完整分析结果"""
-    filename = file.filename or ""
-    logger.info(f"[analyze] 收到: {filename}")
-    if not filename.lower().endswith((".xlsx", ".xls")):
-        raise HTTPException(400, "请上传 .xlsx 或 .xls 文件")
+    """上传 Shopee Excel → 搜图 + 成本计算 + 推荐"""
+    cfg = _cfg()
+    sc = cfg["search"]
+    if page_size <= 0:
+        page_size = sc["page_size"]
+
     content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(400, "文件超过10MB限制")
+    _check_file(file.filename, content, cfg["limits"]["max_file_size_mb"])
 
     try:
-        df = _extract_fields(pd.read_excel(BytesIO(content)))
+        df = _extract_fields(pd.read_excel(BytesIO(content)), cfg["columns"])
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -234,30 +266,26 @@ async def sourcing_analyze(
     products = df.to_dict(orient="records")
     logger.info(f"[analyze] {len(products)} 个产品")
 
-    cost_cfg = {
-        "cny_per_brl": cny_per_brl,
-        "freight_brl": freight_brl,
-        "clearance_brl": clearance_brl,
-        "other_brl": other_brl,
-        "target_margin_rate": target_margin_rate,
-        "high_margin_rate": high_margin_rate,
-    }
+    # 成本参数：传了就用传的，没传就用配置默认值
+    overrides = {}
+    if cny_per_brl > 0: overrides["cny_per_brl"] = cny_per_brl
+    if freight_brl >= 0: overrides["freight_brl"] = freight_brl
+    if clearance_brl >= 0: overrides["clearance_brl"] = clearance_brl
+    if other_brl >= 0: overrides["other_brl"] = other_brl
+    if target_margin_rate >= 0: overrides["target_margin_rate"] = target_margin_rate
+    if high_margin_rate >= 0: overrides["high_margin_rate"] = high_margin_rate
+    cost_cfg = _cost_cfg_from(cfg, overrides if overrides else None)
 
-    # 并发搜图
     candidates_map = {}
+    max_workers = sc["max_concurrency"]
 
-    with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY) as ex:
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(_search_one, p, page_size, same_style_only): p for p in products}
         for fut in as_completed(futures):
             pid, cands, _ = fut.result()
             candidates_map[pid] = cands
 
-    # 构建分析行
-    rows = []
-    for prod in products:
-        pid = prod["product_id"]
-        cands = candidates_map.get(pid, [])
-        rows.append(_build_row(prod, cands, cost_cfg))
+    rows = [_build_row(prod, candidates_map.get(prod["product_id"], []), cost_cfg) for prod in products]
 
     summary = {
         "total_products": len(rows),
@@ -271,74 +299,66 @@ async def sourcing_analyze(
     return {"summary": summary, "rows": rows, "cost_config": cost_cfg}
 
 
-def _sse(event: str, data: dict) -> str:
-    """构建 SSE 事件帧"""
-    return f"event: {event}\ndata: {_json.dumps(data, ensure_ascii=False)}\n\n"
-
-
 @router.post("/analyze-stream")
 async def sourcing_analyze_stream(
     file: UploadFile = File(...),
-    page_size: int = Form(10),
+    page_size: int = Form(0),
     same_style_only: bool = Form(True),
-    cny_per_brl: float = Form(1.7),
-    freight_brl: float = Form(5.0),
-    clearance_brl: float = Form(2.0),
-    other_brl: float = Form(1.0),
-    target_margin_rate: float = Form(0.15),
-    high_margin_rate: float = Form(0.30),
+    cny_per_brl: float = Form(0),
+    freight_brl: float = Form(-1),
+    clearance_brl: float = Form(-1),
+    other_brl: float = Form(-1),
+    target_margin_rate: float = Form(-1),
+    high_margin_rate: float = Form(-1),
 ):
-    """SSE 流式版 analyze — 实时推送每个产品的搜索进度 + 成本计算结果"""
-    filename = file.filename or ""
-    logger.info(f"[stream] 收到: {filename}")
-    if not filename.lower().endswith((".xlsx", ".xls")):
-        raise HTTPException(400, "请上传 .xlsx 或 .xls 文件")
+    """SSE 流式版 — 实时推送每个产品的搜索进度 + 成本计算结果"""
+    cfg = _cfg()
+    sc = cfg["search"]
+    if page_size <= 0:
+        page_size = sc["page_size"]
+
     content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(400, "文件超过10MB限制")
+    _check_file(file.filename, content, cfg["limits"]["max_file_size_mb"])
 
     try:
-        df = _extract_fields(pd.read_excel(BytesIO(content)))
+        df = _extract_fields(pd.read_excel(BytesIO(content)), cfg["columns"])
     except ValueError as e:
         raise HTTPException(400, str(e))
 
     df["product_id"] = df["product_id"].astype(str)
     products = df.to_dict(orient="records")
     total = len(products)
+    max_workers = sc["max_concurrency"]
     logger.info(f"[stream] {total} 个产品")
 
-    cost_cfg = {
-        "cny_per_brl": cny_per_brl,
-        "freight_brl": freight_brl,
-        "clearance_brl": clearance_brl,
-        "other_brl": other_brl,
-        "target_margin_rate": target_margin_rate,
-        "high_margin_rate": high_margin_rate,
-    }
+    overrides = {}
+    if cny_per_brl > 0: overrides["cny_per_brl"] = cny_per_brl
+    if freight_brl >= 0: overrides["freight_brl"] = freight_brl
+    if clearance_brl >= 0: overrides["clearance_brl"] = clearance_brl
+    if other_brl >= 0: overrides["other_brl"] = other_brl
+    if target_margin_rate >= 0: overrides["target_margin_rate"] = target_margin_rate
+    if high_margin_rate >= 0: overrides["high_margin_rate"] = high_margin_rate
+    cost_cfg = _cost_cfg_from(cfg, overrides if overrides else None)
 
     async def generate():
         yield _sse("phase", {"phase": "parsing", "message": f"已解析 {total} 个产品"})
-        yield _sse("start", {"total": total, "message": f"开始并发搜图 ({MAX_CONCURRENCY} 线程)"})
+        yield _sse("start", {"total": total, "message": f"开始并发搜图 ({max_workers} 线程)"})
 
-        # 在独立线程池中跑阻塞搜图，不阻塞 event loop
         loop = asyncio.get_event_loop()
-        executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENCY)
+        executor = ThreadPoolExecutor(max_workers=max_workers)
         candidates_map = {}
         done = 0
 
         try:
-            # 提交所有任务
             fut_map = {}
             for p in products:
                 fut = loop.run_in_executor(executor, _search_one, p, page_size, same_style_only)
                 fut_map[fut] = p
 
-            # 逐个完成时推送进度
             for fut in asyncio.as_completed(fut_map):
                 pid, cands, err = await fut
                 done += 1
                 candidates_map[pid] = cands
-
                 yield _sse("progress", {
                     "current": done,
                     "total": total,
@@ -352,12 +372,7 @@ async def sourcing_analyze_stream(
 
         yield _sse("phase", {"phase": "costing", "message": "成本计算中..."})
 
-        # 构建结果
-        rows = []
-        for prod in products:
-            pid = prod["product_id"]
-            cands = candidates_map.get(pid, [])
-            rows.append(_build_row(prod, cands, cost_cfg))
+        rows = [_build_row(prod, candidates_map.get(prod["product_id"], []), cost_cfg) for prod in products]
 
         summary = {
             "total_products": len(rows),
@@ -368,14 +383,44 @@ async def sourcing_analyze_stream(
             "incomplete": sum(1 for r in rows if r["recommendation"] == "待补全"),
         }
 
-        yield _sse("complete", {
-            "summary": summary,
-            "rows": rows,
-            "cost_config": cost_cfg,
-        })
+        yield _sse("complete", {"summary": summary, "rows": rows, "cost_config": cost_cfg})
 
     return StreamingResponse(generate(), media_type="text/event-stream",
                              headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"})
+
+
+# ========== 配置 CRUD ==========
+
+@router.get("/config")
+async def get_config():
+    """读取选品全局配置"""
+    return {"config": _cfg()}
+
+
+@router.put("/config")
+async def update_config(body: dict):
+    """更新选品全局配置（合并写入 YAML，热生效）"""
+    partial = body.get("config", {})
+    if not partial:
+        raise HTTPException(400, "缺少 config 字段")
+    try:
+        current = _cfg()
+        merged = deep_merge(current.copy(), partial)
+        save_sourcing_config(merged)
+        configure_aibuy(merged.get("api", {}))
+        logger.info("[config] 配置已更新")
+        return {"status": "ok", "config": merged}
+    except Exception:
+        logger.exception("[config] 保存失败")
+        raise HTTPException(500, traceback.format_exc())
+
+
+@router.post("/config/reload")
+async def reload_config():
+    """强制从 YAML 重新加载配置（清除缓存）"""
+    cfg = reload_sourcing_config()
+    configure_aibuy(cfg["api"])
+    return {"status": "ok", "config": cfg}
 
 
 @router.post("/refresh-session")
