@@ -39,11 +39,16 @@ function Row({ row }: { row: SourcingRow }) {
         onClick={() => setExpanded(!expanded)}
       >
         <td className="py-2 px-3 text-sm">
-          <div className="flex items-center gap-1">
-            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            <span className="truncate max-w-[140px]">{row.product_name}</span>
+          <div className="flex items-center gap-2">
+            {expanded ? <ChevronDown size={14} className="shrink-0" /> : <ChevronRight size={14} className="shrink-0" />}
+            {row.image_url && (
+              <img src={row.image_url} alt="" className="w-10 h-10 rounded object-cover border shrink-0" />
+            )}
+            <div className="min-w-0">
+              <span className="truncate block">{row.product_name}</span>
+              <div className="text-[10px] text-muted-foreground">{row.data_source}</div>
+            </div>
           </div>
-          <div className="text-[10px] text-muted-foreground mt-0.5">{row.data_source}</div>
         </td>
         <td className="py-2 px-2 text-sm text-right">{row.shopee_price_brl}</td>
         <td className="py-2 px-2 text-sm text-right font-medium">{fmtCny(row.min_price_cny)}</td>
@@ -64,8 +69,11 @@ function Row({ row }: { row: SourcingRow }) {
             ) : (
               <div className="space-y-2">
                 {row.candidates.map((c, i) => (
-                  <div key={i} className="flex items-start justify-between rounded-md border bg-background p-3 text-sm gap-2">
-                    <div className="min-w-0">
+                  <div key={i} className="flex items-start justify-between rounded-md border bg-background p-3 text-sm gap-3">
+                    {c.image_url && (
+                      <img src={c.image_url} alt="" className="w-16 h-16 rounded border object-cover shrink-0" />
+                    )}
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <span className="font-medium truncate">{c.title}</span>
                         {i === 0 && (

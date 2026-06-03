@@ -20,7 +20,7 @@ export default function ExportButton({ rows, disabled }: Props) {
     const headers = [
       "产品ID", "产品名称", "数据来源", "类目",
       "Shopee售价", "1688最低价(¥)", "1688供应商",
-      "落地成本(R$)", "利润(R$)", "利润率", "推荐", "1688链接",
+      "落地成本(R$)", "利润(R$)", "利润率", "推荐", "Shopee图片", "1688链接",
     ]
     const lines: string[] = []
     lines.push("﻿" + headers.map(escapeCsv).join(","))
@@ -32,7 +32,7 @@ export default function ExportButton({ rows, disabled }: Props) {
         r.total_cost_brl != null ? r.total_cost_brl.toFixed(2) : "",
         r.margin_brl != null ? r.margin_brl.toFixed(2) : "",
         r.margin_rate != null ? `${(r.margin_rate * 100).toFixed(1)}%` : "",
-        r.recommendation, r.best_1688_url,
+        r.recommendation, r.image_url || "", r.best_1688_url,
       ].map(escapeCsv).join(","))
     }
 
@@ -40,7 +40,7 @@ export default function ExportButton({ rows, disabled }: Props) {
     lines.push("")
     lines.push("--- 1688候选明细 ---")
     lines.push("﻿" + [
-      "产品ID", "产品名称", "候选排名", "1688标题", "价格(¥)", "销量", "店铺", "起批量", "标签", "链接",
+      "产品ID", "产品名称", "候选排名", "1688标题", "价格(¥)", "销量", "店铺", "起批量", "标签", "链接", "图片",
     ].map(escapeCsv).join(","))
 
     for (const r of rows) {
@@ -48,7 +48,7 @@ export default function ExportButton({ rows, disabled }: Props) {
         const c = r.candidates[i]
         lines.push([
           r.product_id, r.product_name, String(i + 1), c.title, c.price_cny,
-          c.sales, c.shop_name, c.min_order, (c.offer_tags || []).join(" / "), c.link,
+          c.sales, c.shop_name, c.min_order, (c.offer_tags || []).join(" / "), c.link, c.image_url || "",
         ].map(escapeCsv).join(","))
       }
     }

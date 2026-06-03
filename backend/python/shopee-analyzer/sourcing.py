@@ -160,6 +160,7 @@ def _build_row(prod: dict, cands: list, cost_cfg: dict) -> dict:
                 "shop_name": (c.get("providerInfo") or {}).get("companyName", ""),
                 "min_order": (c.get("purchaseInfos") or [{}])[0].get("value", ""),
                 "offer_tags": c.get("offerTags", []),
+                "image_url": c.get("imageUrl", ""),
             }
             for c in cands
         ],

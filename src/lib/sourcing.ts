@@ -14,6 +14,7 @@ export interface Candidate {
   shop_name: string
   min_order: string
   offer_tags: string[]
+  image_url: string
 }
 
 export interface SourcingRow {
