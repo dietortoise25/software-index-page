@@ -17,6 +17,7 @@ from metrics.cross_metrics import compute_product_from_orders
 from diagnose import load_rules, run_diagnose, CONFIG_PATH
 from simulate import run_simulation
 from aibuy_client import search_by_image
+from sourcing import router as sourcing_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,6 +34,7 @@ app = FastAPI(
 )
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.include_router(sourcing_router)
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
