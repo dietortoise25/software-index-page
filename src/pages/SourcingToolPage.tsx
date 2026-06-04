@@ -3,7 +3,7 @@ import { Scale, Rocket } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import FileDropzone from "@/components/sourcing/FileDropzone"
-import CostConfigForm from "@/components/sourcing/CostConfigForm"
+import CostConfigForm, { type CostParams } from "@/components/sourcing/CostConfigForm"
 import ProgressPanel from "@/components/sourcing/ProgressPanel"
 import ResultTable from "@/components/sourcing/ResultTable"
 import SummaryBar from "@/components/sourcing/SummaryBar"
@@ -22,11 +22,6 @@ interface ProductStatus {
   candidates_count?: number; error?: string
 }
 
-interface CostParams {
-  cny_per_brl: number; freight_brl: number; clearance_brl: number
-  other_brl: number; target_margin_rate: number; high_margin_rate: number
-}
-
 interface State {
   phase: Phase
   files: FileEntry[]
@@ -41,8 +36,8 @@ interface State {
 }
 
 const initialCost: CostParams = {
-  cny_per_brl: 1.35, freight_brl: 5, clearance_brl: 2,
-  other_brl: 1, target_margin_rate: 0.15, high_margin_rate: 0.30,
+  cny_per_brl: 1.35, cost_multiplier: 1.3,
+  target_margin_rate: 0.15, high_margin_rate: 0.30,
 }
 
 const initialState: State = {
@@ -131,9 +126,7 @@ export default function SourcingToolPage() {
     formData.append("page_size", "10")
     formData.append("same_style_only", "true")
     formData.append("cny_per_brl", String(s.cost.cny_per_brl))
-    formData.append("freight_brl", String(s.cost.freight_brl))
-    formData.append("clearance_brl", String(s.cost.clearance_brl))
-    formData.append("other_brl", String(s.cost.other_brl))
+    formData.append("cost_multiplier", String(s.cost.cost_multiplier))
     formData.append("target_margin_rate", String(s.cost.target_margin_rate))
     formData.append("high_margin_rate", String(s.cost.high_margin_rate))
 

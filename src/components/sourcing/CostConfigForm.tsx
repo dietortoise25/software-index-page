@@ -5,20 +5,16 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { fetchConfig, saveConfig } from "@/lib/sourcing"
 
-interface CostParams {
+export interface CostParams {
   cny_per_brl: number
-  freight_brl: number
-  clearance_brl: number
-  other_brl: number
+  cost_multiplier: number
   target_margin_rate: number
   high_margin_rate: number
 }
 
 const DEFAULTS: CostParams = {
   cny_per_brl: 1.35,
-  freight_brl: 5.0,
-  clearance_brl: 2.0,
-  other_brl: 1.0,
+  cost_multiplier: 1.3,
   target_margin_rate: 0.15,
   high_margin_rate: 0.30,
 }
@@ -38,14 +34,12 @@ export default function CostConfigForm({ values, onChange, disabled }: Props) {
       .then((cfg) => {
         onChange({
           cny_per_brl: cfg.cost.cny_per_brl,
-          freight_brl: cfg.cost.freight_brl,
-          clearance_brl: cfg.cost.clearance_brl,
-          other_brl: cfg.cost.other_brl,
+          cost_multiplier: cfg.cost.cost_multiplier,
           target_margin_rate: cfg.thresholds.target_margin_rate,
           high_margin_rate: cfg.thresholds.high_margin_rate,
         })
       })
-      .catch(() => { /* 静默使用默认值 */ })
+      .catch(() => { /* use defaults */ })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = (k: keyof CostParams, v: string) => {
@@ -60,9 +54,7 @@ export default function CostConfigForm({ values, onChange, disabled }: Props) {
       await saveConfig({
         cost: {
           cny_per_brl: values.cny_per_brl,
-          freight_brl: values.freight_brl,
-          clearance_brl: values.clearance_brl,
-          other_brl: values.other_brl,
+          cost_multiplier: values.cost_multiplier,
         },
         thresholds: {
           target_margin_rate: values.target_margin_rate,
@@ -93,35 +85,14 @@ export default function CostConfigForm({ values, onChange, disabled }: Props) {
           />
         </div>
         <div>
-          <Label className="text-xs">运费 R$</Label>
+          <Label className="text-xs">成本倍率</Label>
           <Input
-            type="number" step="0.01" min="0"
-            value={values.freight_brl}
-            onChange={(e) => update("freight_brl", e.target.value)}
+            type="number" step="0.01" min="1"
+            value={values.cost_multiplier}
+            onChange={(e) => update("cost_multiplier", e.target.value)}
             disabled={disabled}
           />
         </div>
-        <div>
-          <Label className="text-xs">清关费 R$</Label>
-          <Input
-            type="number" step="0.01" min="0"
-            value={values.clearance_brl}
-            onChange={(e) => update("clearance_brl", e.target.value)}
-            disabled={disabled}
-          />
-        </div>
-        <div>
-          <Label className="text-xs">杂费 R$</Label>
-          <Input
-            type="number" step="0.01" min="0"
-            value={values.other_brl}
-            onChange={(e) => update("other_brl", e.target.value)}
-            disabled={disabled}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
         <div>
           <Label className="text-xs">推荐阈值 (%)</Label>
           <Input

@@ -65,9 +65,7 @@ export interface SourcingRow {
   has_1688_data: boolean
   cost_cny: number | null
   cost_brl: number | null
-  freight_brl: number
-  clearance_brl: number
-  other_brl: number
+  cost_multiplier: number
   total_cost_brl: number | null
   margin_brl: number | null
   margin_rate: number | null
@@ -86,7 +84,7 @@ export interface SourcingSummary {
 export interface SourcingConfig {
   api: Record<string, string>
   search: { max_concurrency: number; page_size: number; same_style_only: boolean }
-  cost: { cny_per_brl: number; freight_brl: number; clearance_brl: number; other_brl: number }
+  cost: { cny_per_brl: number; cost_multiplier: number }
   thresholds: { target_margin_rate: number; high_margin_rate: number }
   limits: { max_file_size_mb: number }
   columns: Record<string, string>

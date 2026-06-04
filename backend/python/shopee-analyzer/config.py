@@ -26,9 +26,7 @@ _DEFAULTS: dict[str, Any] = {
     },
     "cost": {
         "cny_per_brl": 1.35,
-        "freight_brl": 5.0,
-        "clearance_brl": 2.0,
-        "other_brl": 1.0,
+        "cost_multiplier": 1.3,
     },
     "thresholds": {
         "target_margin_rate": 0.15,

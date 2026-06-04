@@ -39,9 +39,7 @@ def _cost_cfg_from(cfg: dict, overrides: dict | None = None) -> dict:
     t = cfg["thresholds"]
     result = {
         "cny_per_brl": c["cny_per_brl"],
-        "freight_brl": c["freight_brl"],
-        "clearance_brl": c["clearance_brl"],
-        "other_brl": c["other_brl"],
+        "cost_multiplier": c["cost_multiplier"],
         "target_margin_rate": t["target_margin_rate"],
         "high_margin_rate": t["high_margin_rate"],
     }
@@ -75,22 +73,19 @@ def _parse_shopee_price(val) -> Optional[float]:
 
 
 def _calc_cost(row: dict, cost_cfg: dict) -> dict:
-    """单行成本计算"""
+    """采购成本 = 1688价CNY ÷ 汇率 × 倍率"""
     rate = cost_cfg["cny_per_brl"]
-    freight = cost_cfg["freight_brl"]
-    clearance = cost_cfg["clearance_brl"]
-    other = cost_cfg["other_brl"]
+    mult = cost_cfg["cost_multiplier"]
     target = cost_cfg["target_margin_rate"]
     high = cost_cfg["high_margin_rate"]
 
     best_1688 = row.get("best_1688") or {}
     price_cny = best_1688.get("price_cny")
     cost_cny = float(price_cny) if price_cny is not None else None
-    cost_brl = (cost_cny / rate) if cost_cny is not None else None
-    total_cost = (cost_brl + freight + clearance + other) if cost_brl is not None else None
+    cost_brl = (cost_cny / rate * mult) if cost_cny is not None else None
 
     shopee_price = row.get("shopee_price_num")
-    margin_brl = (shopee_price - total_cost) if (shopee_price is not None and total_cost is not None) else None
+    margin_brl = (shopee_price - cost_brl) if (shopee_price is not None and cost_brl is not None) else None
     margin_rate = (margin_brl / shopee_price) if (shopee_price and margin_brl is not None) else None
 
     if shopee_price is None or cost_cny is None:
@@ -105,10 +100,8 @@ def _calc_cost(row: dict, cost_cfg: dict) -> dict:
     return {
         "cost_cny": round(cost_cny, 2) if cost_cny else None,
         "cost_brl": round(cost_brl, 2) if cost_brl else None,
-        "freight_brl": freight,
-        "clearance_brl": clearance,
-        "other_brl": other,
-        "total_cost_brl": round(total_cost, 2) if total_cost else None,
+        "cost_multiplier": mult,
+        "total_cost_brl": round(cost_brl, 2) if cost_brl else None,
         "shopee_price_num": shopee_price,
         "margin_brl": round(margin_brl, 2) if margin_brl is not None else None,
         "margin_rate": round(margin_rate, 4) if margin_rate is not None else None,
@@ -275,9 +268,7 @@ async def sourcing_analyze(
     page_size: int = Form(0),
     same_style_only: bool = Form(True),
     cny_per_brl: float = Form(0),
-    freight_brl: float = Form(-1),
-    clearance_brl: float = Form(-1),
-    other_brl: float = Form(-1),
+    cost_multiplier: float = Form(-1),
     target_margin_rate: float = Form(-1),
     high_margin_rate: float = Form(-1),
 ):
@@ -295,9 +286,7 @@ async def sourcing_analyze(
     # 成本参数：传了就用传的，没传就用配置默认值
     overrides = {}
     if cny_per_brl > 0: overrides["cny_per_brl"] = cny_per_brl
-    if freight_brl >= 0: overrides["freight_brl"] = freight_brl
-    if clearance_brl >= 0: overrides["clearance_brl"] = clearance_brl
-    if other_brl >= 0: overrides["other_brl"] = other_brl
+    if cost_multiplier >= 0: overrides["cost_multiplier"] = cost_multiplier
     if target_margin_rate >= 0: overrides["target_margin_rate"] = target_margin_rate
     if high_margin_rate >= 0: overrides["high_margin_rate"] = high_margin_rate
     cost_cfg = _cost_cfg_from(cfg, overrides if overrides else None)
@@ -331,9 +320,7 @@ async def sourcing_analyze_stream(
     page_size: int = Form(0),
     same_style_only: bool = Form(True),
     cny_per_brl: float = Form(0),
-    freight_brl: float = Form(-1),
-    clearance_brl: float = Form(-1),
-    other_brl: float = Form(-1),
+    cost_multiplier: float = Form(-1),
     target_margin_rate: float = Form(-1),
     high_margin_rate: float = Form(-1),
 ):
@@ -352,9 +339,7 @@ async def sourcing_analyze_stream(
 
     overrides = {}
     if cny_per_brl > 0: overrides["cny_per_brl"] = cny_per_brl
-    if freight_brl >= 0: overrides["freight_brl"] = freight_brl
-    if clearance_brl >= 0: overrides["clearance_brl"] = clearance_brl
-    if other_brl >= 0: overrides["other_brl"] = other_brl
+    if cost_multiplier >= 0: overrides["cost_multiplier"] = cost_multiplier
     if target_margin_rate >= 0: overrides["target_margin_rate"] = target_margin_rate
     if high_margin_rate >= 0: overrides["high_margin_rate"] = high_margin_rate
     cost_cfg = _cost_cfg_from(cfg, overrides if overrides else None)
