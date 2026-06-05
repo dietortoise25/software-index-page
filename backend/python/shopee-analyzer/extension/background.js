@@ -53,7 +53,10 @@ function slimCookie(full) {
 }
 
 async function collectCookies() {
-  const domains = [".1688.com", "h5api.m.1688.com", "detail.1688.com", ".taobao.com"];
+  const domains = [
+    ".1688.com", "h5api.m.1688.com", "detail.1688.com", ".taobao.com",
+    "3352cn.tferp.top", "3352cn-api.tferp.top", ".tferp.top",  // ★ tferp
+  ];
   let all = [];
   for (const domain of domains) {
     try { all = all.concat(await chrome.cookies.getAll({ domain })); } catch(e) {}
@@ -62,10 +65,31 @@ async function collectCookies() {
 }
 
 // ========== 单个 SKU 查询 ==========
+let _diagDone = false;
+
+async function refreshToken() {
+  try {
+    await fetch("https://h5api.m.1688.com/h5/mtop.1688.pc.plugin.safe.heartbeat.key.get/1.0/?jsv=2.7.2&appKey=12574478", {
+      credentials: "include",
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", Referer: "https://www.1688.com/" },
+    });
+    logRun("heartbeat sent");
+    await new Promise(r => setTimeout(r, 500)); // 等 cookie 落盘
+  } catch(e) { logRun("heartbeat failed: " + e.message); }
+}
+
 async function queryOne(offerId, cookie, token) {
   const d = JSON.stringify({ offerId, useCase: "1688detail", bizScene: "pcod", urlParam: "actionType=dxOrder&sk=consign" });
   const t = Date.now();
   const sign = md5(`${token}&${t}&${APP_KEY}&${d}`);
+
+  // 第一个查询：打印诊断信息
+  if (!_diagDone) {
+    _diagDone = true;
+    logRun(`DIAG token=${token.substring(0,16)}... sign=${sign.substring(0,16)}...`);
+    logRun(`DIAG cookie_len=${cookie.length} cookie_keys=${cookie.split(';').map(p=>p.split('=')[0]).join(',')}`);
+  }
+
   const params = new URLSearchParams({ jsv: "2.7.2", appKey: APP_KEY, t: String(t), sign, api: "mtop.1688.wosc.queryOfferSkuSelectorModel", v: "1.0", type: "originaljson", timeout: "20000", dataType: "jsonp" });
 
   try {
@@ -101,6 +125,7 @@ async function queryOne(offerId, cookie, token) {
 
 // ========== 批量 → POST 后端 ==========
 async function skuBatch(offerIds, backendUrl, analysisId) {
+  await refreshToken();
   const fullCookie = await collectCookies();
   if (!fullCookie) return { ok: false, error: "no 1688 cookies" };
   const cookie = slimCookie(fullCookie);
