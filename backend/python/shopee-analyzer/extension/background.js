@@ -114,6 +114,8 @@ async function skuBatch(offerIds, backendUrl, analysisId) {
     while (queue.length > 0) {
       const oid = queue.shift();
       const r = await queryOne(oid, cookie, token);
+      if (r.sku_count > 0) logRun(`SKU ${oid}: ${r.sku_count} skus, min=¥${r.min_price}`);
+      else if (r.error) logRun(`SKU ${oid}: FAIL - ${r.error.substring(0, 80)}`);
       results.push(r);
     }
   }
@@ -132,15 +134,29 @@ async function skuBatch(offerIds, backendUrl, analysisId) {
   return { ok: true, total: results.length, success: Object.keys(skuMap).length };
 }
 
+// ========== 运行时日志（暴露给前端） ==========
+let runLog = [];
+
+function logRun(msg) {
+  const entry = { time: new Date().toISOString(), msg };
+  runLog.push(entry);
+  if (runLog.length > 50) runLog.shift();
+  console.log("[BG]", msg);
+}
+
 // ========== 消息路由 ==========
 chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
   if (req.action === "sku-batch") {
-    skuBatch(req.offerIds, req.backendUrl, req.analysisId).then(sendResponse);
+    logRun(`sku-batch start: ${req.offerIds?.length} ids, backend=${req.backendUrl}`);
+    skuBatch(req.offerIds, req.backendUrl, req.analysisId).then((r) => {
+      logRun(`sku-batch done: ok=${r.ok}, total=${r.total}, success=${r.success}`);
+      sendResponse(r);
+    });
     return true;
   }
   if (req.action === "status") {
     collectCookies().then((cookie) => {
-      sendResponse({ state: "online", cookie_len: cookie.length, has_h5tk: cookie.includes("_m_h5_tk=") });
+      sendResponse({ state: "online", cookie_len: cookie.length, has_h5tk: cookie.includes("_m_h5_tk="), log: runLog.slice(-20) });
     });
     return true;
   }
