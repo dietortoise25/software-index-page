@@ -73,18 +73,21 @@ export default function ProxyStatus() {
             </div>
           )}
 
-          <div className="flex items-center gap-1.5">
-            <Key size={12} className="shrink-0" />
-            <span className="text-muted-foreground">
-              F12 → Application → Cookies → <code className="bg-muted px-1 rounded">.1688.com</code> → 复制 <code className="bg-muted px-1 rounded">_m_h5_tk</code> 的值：
-            </span>
-          </div>
+          <p className="text-muted-foreground">
+            <b>步骤 1:</b> 在任意 1688 页面 F12 → Console 执行：
+          </p>
+          <code className="block text-[11px] bg-background p-2 rounded border whitespace-pre-wrap break-all">
+{`fetch('http://localhost:8766/api/set-cookie', {method:'POST', body:document.cookie}).then(r=>r.json()).then(console.log)`}
+          </code>
+          <p className="text-muted-foreground mt-2">
+            <b>步骤 2:</b> F12 → Application → Cookies → <code className="bg-muted px-1 rounded">.1688.com</code> → 复制 <code className="bg-muted px-1 rounded">_m_h5_tk</code> 的值，粘贴到下方：
+          </p>
           <div className="flex gap-2">
             <input
               className="flex-1 h-8 text-xs px-2 border rounded"
               value={h5tk}
               onChange={(e) => setH5tk(e.target.value)}
-              placeholder="粘贴 _m_h5_tk 的值..."
+              placeholder="粘贴 _m_h5_tk 的值（如 abc123_1234567890）"
             />
             <Button size="sm" variant="outline" onClick={injectH5tk} disabled={!h5tk.trim()}>
               注入

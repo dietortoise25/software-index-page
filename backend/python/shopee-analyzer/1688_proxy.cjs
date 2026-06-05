@@ -211,22 +211,39 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // POST /api/set-cookie (手动设置完整 cookie)
+  // POST /api/set-cookie (手动注入 cookie)
   if (url.pathname === "/api/set-cookie" && req.method === "POST") {
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", () => {
-      authCookie = body.trim();
-      if (!authCookie.includes("_m_h5_tk=")) {
-        // 可能只传了 _m_h5_tk 值，拼接到已有 cookie 上
-        const h5tk = body.trim();
-        const existing = fallbackCookie();
-        authCookie = existing ? `${existing}; _m_h5_tk=${h5tk}` : `_m_h5_tk=${h5tk}`;
+      const incoming = body.trim();
+
+      if (incoming.includes("_m_h5_tk=")) {
+        // 完整 cookie → 直接替换
+        authCookie = incoming;
+      } else if (incoming.includes("_") && incoming.length < 80) {
+        // 只传了 _m_h5_tk 的值 → 合并到已有 cookie
+        const h5tk = incoming;
+        const existing = authCookie && authCookie.length > 10 ? authCookie : fallbackCookie();
+        // 如果已有 cookie 里有旧的 _m_h5_tk，替换；否则追加
+        if (existing.includes("_m_h5_tk=")) {
+          authCookie = existing.replace(/_m_h5_tk=[^;]+/, `_m_h5_tk=${h5tk}`);
+        } else {
+          authCookie = existing ? `${existing}; _m_h5_tk=${h5tk}` : `_m_h5_tk=${h5tk}`;
+        }
+      } else {
+        // document.cookie 的内容（无 httpOnly）→ 保存下来，等 _m_h5_tk 合并
+        const existing = authCookie && authCookie.includes("_m_h5_tk=") ? authCookie : "";
+        // 从 existing 中保留 _m_h5_tk，其余用新传来的
+        const h5tkPart = existing.match(/_m_h5_tk=[^;]+/) || [];
+        authCookie = incoming + (h5tkPart[0] ? "; " + h5tkPart[0] : "");
       }
+
       fs.writeFileSync(path.join(__dirname, ".1688_cookies.txt"), authCookie);
-      console.log(`[cookie] 手动设置 (${authCookie.length} chars, has _m_h5_tk=${authCookie.includes("_m_h5_tk")})`);
+      const hasH5tk = authCookie.includes("_m_h5_tk=");
+      console.log(`[cookie] 手动设置 (${authCookie.length} chars, _m_h5_tk=${hasH5tk ? "YES" : "NO"})`);
       res.writeHead(200, { ...cors, "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true, len: authCookie.length }));
+      res.end(JSON.stringify({ ok: true, len: authCookie.length, has_h5tk: hasH5tk }));
     });
     return;
   }
