@@ -8,6 +8,7 @@ import ProgressPanel from "@/components/sourcing/ProgressPanel"
 import ResultTable from "@/components/sourcing/ResultTable"
 import SummaryBar from "@/components/sourcing/SummaryBar"
 import ExportButton from "@/components/sourcing/ExportButton"
+import CookieInput from "@/components/sourcing/CookieInput"
 import { analyzeStream } from "@/lib/sourcing"
 import type { SourcingRow, SourcingSummary } from "@/lib/sourcing"
 
@@ -172,6 +173,7 @@ export default function SourcingToolPage() {
           <p className="text-sm text-muted-foreground">
             Shopee 商品导出 → 1688 以图搜同款 → 成本利润计算
           </p>
+          <CookieInput />
         </div>
       </div>
 

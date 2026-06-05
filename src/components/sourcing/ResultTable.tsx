@@ -147,6 +147,11 @@ function Row({ row }: { row: SourcingRow }) {
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">
                         {c.shop_name} · 销量 {c.sales || "-"} · {c.min_order || "-"}
+                        {c.sku.min_price && c.sku.count > 1 && (
+                          <span className="ml-1 text-green-600">
+                            · SKU最低 ¥{c.sku.min_price}
+                          </span>
+                        )}
                       </div>
                       <div className="flex gap-1 mt-1 flex-wrap">
                         {c.offer_tags?.map((t) => (

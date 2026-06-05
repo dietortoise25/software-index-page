@@ -11,6 +11,7 @@
 import asyncio
 import json as _json
 import logging
+import os
 import traceback
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -20,10 +21,16 @@ import pandas as pd
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from aibuy_client import search_by_image, reset_session, configure as configure_aibuy, warmup_session
+from aibuy_client import (
+    search_by_image, reset_session,
+    configure as configure_aibuy, warmup_session,
+    fetch_sku_prices, set_auth_cookie, get_auth_cookie,
+)
 from config import load_sourcing_config, save_sourcing_config, reload_sourcing_config, deep_merge
 
 logger = logging.getLogger("sourcing")
+
+_CONFIG_DIR = os.path.join(os.path.dirname(__file__), "config")
 
 router = APIRouter(prefix="/api/sourcing", tags=["sourcing"])
 
@@ -124,10 +131,11 @@ def _search_one(prod: dict, page_size: int, same_style_only: bool):
         return pid, name, [], str(e)[:120]
 
 
-def _pick_candidate(c: dict) -> dict:
+def _pick_candidate(c: dict, sku_data: dict | None = None) -> dict:
     """提取单个 1688 候选的全部字段"""
     prov = c.get("providerInfo") or {}
     purch = c.get("purchaseInfos") or []
+    sku_data = sku_data or {}
     return {
         "title": c.get("title", ""),
         "item_id": c.get("itemId", ""),
@@ -155,13 +163,31 @@ def _pick_candidate(c: dict) -> dict:
         "provider_tags": prov.get("providerTags", []),
         "provider_services": c.get("providerServices", []),
         "provider_custom_tags": c.get("providerKjCustomTags", []),
+        "sku": {
+            "count": sku_data.get("sku_count", 0),
+            "min_price": sku_data.get("min_price"),
+            "max_price": sku_data.get("max_price"),
+            "min_price_spec": sku_data.get("min_price_spec"),
+            "items": sku_data.get("skus", []),
+        },
     }
 
 
-def _build_row(prod: dict, cands: list, cost_cfg: dict) -> dict:
+def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None = None) -> dict:
     """构建单产品分析行"""
     pid = prod["product_id"]
     best = cands[0] if cands else {}
+    sku_cache = sku_cache or {}
+
+    # 注入 SKU 数据到候选
+    enriched = []
+    for c in cands:
+        item_id = c.get("itemId", "")
+        sku_data = sku_cache.get(item_id) or {}
+        enriched.append(_pick_candidate(c, sku_data))
+    cands = enriched  # type: ignore
+
+    best_1688 = cands[0] if cands else None
 
     row = {
         "product_id": pid,
@@ -178,6 +204,32 @@ def _build_row(prod: dict, cands: list, cost_cfg: dict) -> dict:
     }
     row.update(_calc_cost(row, cost_cfg))
     return row
+
+
+def _build_rows(products: list, candidates_map: dict, cost_cfg: dict) -> list:
+    """构建所有产品行，含 SKU 价格富化"""
+    # 收集所有 offer_id
+    offer_ids = set()
+    for cands in candidates_map.values():
+        for c in cands:
+            oid = c.get("itemId", "")
+            if oid:
+                offer_ids.add(oid)
+
+    # 并发获取 SKU 数据
+    sku_cache = {}
+    if offer_ids:
+        logger.info(f"[sku] 获取 {len(offer_ids)} 个 offer 的 SKU 价格...")
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            futures = {ex.submit(fetch_sku_prices, oid): oid for oid in offer_ids}
+            for fut in as_completed(futures):
+                oid = futures[fut]
+                try:
+                    sku_cache[oid] = fut.result()
+                except Exception as e:
+                    logger.warning(f"[sku] {oid} 失败: {e}")
+
+    return [_build_row(prod, candidates_map.get(prod["product_id"], []), cost_cfg, sku_cache) for prod in products]
 
 
 def _sse(event: str, data: dict) -> str:
@@ -300,7 +352,7 @@ async def sourcing_analyze(
             pid, cands, _ = fut.result()
             candidates_map[pid] = cands
 
-    rows = [_build_row(prod, candidates_map.get(prod["product_id"], []), cost_cfg) for prod in products]
+    rows = _build_rows(products, candidates_map, cost_cfg)
 
     summary = {
         "total_products": len(rows),
@@ -374,9 +426,9 @@ async def sourcing_analyze_stream(
         finally:
             executor.shutdown(wait=False)
 
-        yield _sse("phase", {"phase": "costing", "message": "成本计算中..."})
+        yield _sse("phase", {"phase": "costing", "message": "获取SKU价格 + 成本计算中..."})
 
-        rows = [_build_row(prod, candidates_map.get(prod["product_id"], []), cost_cfg) for prod in products]
+        rows = _build_rows(products, candidates_map, cost_cfg)
 
         summary = {
             "total_products": len(rows),
@@ -427,6 +479,51 @@ async def reload_config():
     configure_aibuy(cfg["api"])
     warmup_session()
     return {"status": "ok", "config": cfg}
+
+
+# ========== 1688 登录态 Cookie 管理 ==========
+
+_COOKIE_PATH = os.path.join(_CONFIG_DIR, ".1688_auth_cookie")
+
+def _load_cookie():
+    if os.path.exists(_COOKIE_PATH):
+        with open(_COOKIE_PATH, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    return ""
+
+def _save_cookie(cookie: str):
+    with open(_COOKIE_PATH, "w", encoding="utf-8") as f:
+        f.write(cookie)
+
+
+# 启动时从文件加载 cookie
+_stored_cookie = _load_cookie()
+if _stored_cookie:
+    set_auth_cookie(_stored_cookie)
+    logger.info(f"[auth] 已加载 1688 登录 cookie ({len(_stored_cookie)} 字符)")
+
+
+@router.get("/auth")
+async def get_auth():
+    """获取 1688 登录态 cookie 状态"""
+    cookie = get_auth_cookie()
+    return {
+        "has_cookie": bool(cookie),
+        "cookie_len": len(cookie),
+        "sample": cookie[:30] + "..." if cookie else "",
+    }
+
+
+@router.put("/auth")
+async def update_auth(body: dict):
+    """更新 1688 登录态 cookie"""
+    cookie = body.get("cookie", "")
+    if not cookie:
+        raise HTTPException(400, "缺少 cookie 字段")
+    _save_cookie(cookie)
+    set_auth_cookie(cookie)
+    logger.info(f"[auth] cookie 已更新 ({len(cookie)} 字符)")
+    return {"status": "ok", "cookie_len": len(cookie)}
 
 
 @router.post("/refresh-session")

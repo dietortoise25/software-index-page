@@ -49,6 +49,13 @@ export interface Candidate {
   provider_tags: { tagCode: string; tagName: string; tagStyle: string }[]
   provider_services: { code: string; label: string; value: string; originValue?: number }[]
   provider_custom_tags: string[]
+  sku: {
+    count: number
+    min_price: string | null
+    max_price: string | null
+    min_price_spec: string | null
+    items: { spec: string; full_spec: string; price: string; can_book_count: number; sku_id: number }[]
+  }
 }
 
 export interface SourcingRow {
@@ -150,6 +157,19 @@ export async function fetchConfig(): Promise<SourcingConfig> {
   if (!res.ok) throw new Error("加载配置失败")
   const json = await res.json()
   return json.config
+}
+
+export async function fetchAuthStatus(): Promise<{ has_cookie: boolean; cookie_len: number }> {
+  const res = await fetch(`${BASE}/auth`)
+  return res.json()
+}
+
+export async function saveAuthCookie(cookie: string): Promise<void> {
+  await fetch(`${BASE}/auth`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cookie }),
+  })
 }
 
 export async function saveConfig(config: Partial<SourcingConfig>): Promise<void> {
