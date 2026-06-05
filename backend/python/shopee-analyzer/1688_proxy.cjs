@@ -177,6 +177,22 @@ function querySku(offerId, callback) {
   req.end();
 }
 
+// ── SKU 缓存 ──
+
+const skuCache = new Map(); // offerId → { result, timestamp }
+
+function getCachedSku(offerId) {
+  const cached = skuCache.get(offerId);
+  if (cached && Date.now() - cached.timestamp < 300000) { // 5 分钟
+    return cached.result;
+  }
+  return null;
+}
+
+function setCachedSku(offerId, result) {
+  skuCache.set(offerId, { result, timestamp: Date.now() });
+}
+
 // ── HTTP 服务 ──
 
 const server = http.createServer((req, res) => {
@@ -203,8 +219,20 @@ const server = http.createServer((req, res) => {
   const skuMatch = url.pathname.match(/^\/api\/sku\/(\d+)$/);
   if (skuMatch) {
     const offerId = skuMatch[1];
+
+    // 命中缓存直接返回
+    const cached = getCachedSku(offerId);
+    if (cached) {
+      res.writeHead(200, { ...cors, "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify(cached));
+      return;
+    }
+
     console.log(`[sku] 查询 ${offerId}...`);
     querySku(offerId, (result) => {
+      if (result.sku_count > 0) {
+        setCachedSku(offerId, result);
+      }
       res.writeHead(200, { ...cors, "Content-Type": "application/json; charset=utf-8" });
       res.end(JSON.stringify(result));
     });

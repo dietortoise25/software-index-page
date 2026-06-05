@@ -170,19 +170,24 @@ export default function SourcingToolPage() {
                     if (c.item_id && !seen.has(c.item_id)) seen.add(c.item_id)
                   }
                 }
-                // 并发获取 SKU 价格
+                // 分批并发获取 SKU 价格（每批 10 个，避免打爆本地代理）
                 const skuMap: Record<string, any> = {}
-                if (seen.size > 0) {
-                  const results = await Promise.all(
-                    Array.from(seen).map(async (oid) => {
-                      try {
-                        const r = await fetch(`http://localhost:8766/api/sku/${oid}`, { signal: AbortSignal.timeout(8000) })
-                        return { oid, data: await r.json() }
-                      } catch { return { oid, data: null } }
-                    })
-                  )
-                  for (const { oid, data } of results) {
-                    if (data && data.sku_count > 0) skuMap[oid] = data
+                const ids = Array.from(seen)
+                if (ids.length > 0) {
+                  const BATCH = 10
+                  for (let b = 0; b < ids.length; b += BATCH) {
+                    const batch = ids.slice(b, b + BATCH)
+                    const results = await Promise.all(
+                      batch.map(async (oid) => {
+                        try {
+                          const r = await fetch(`http://localhost:8766/api/sku/${oid}`, { signal: AbortSignal.timeout(8000) })
+                          return { oid, data: await r.json() }
+                        } catch { return { oid, data: null } }
+                      })
+                    )
+                    for (const { oid, data } of results) {
+                      if (data && data.sku_count > 0) skuMap[oid] = data
+                    }
                   }
                 }
                 // 注入 SKU 数据到 rows
