@@ -157,51 +157,73 @@ export default function SourcingToolPage() {
             break
           case "complete": {
             let rows = ev.data.rows as SourcingRow[]
-            let summary = ev.data.summary as SourcingSummary
+            const summary = ev.data.summary as SourcingSummary
 
-            // 尝试从本地代理获取 SKU 明细价
+            // 检测本地代理
+            let proxyOnline = false
             try {
-              const hp = await fetch("http://localhost:8766/health", { signal: AbortSignal.timeout(2000) })
-              if (hp.ok) {
-                // 收集所有唯一 offer_id
-                const seen = new Set<string>()
-                for (const r of rows) {
-                  for (const c of r.candidates) {
-                    if (c.item_id && !seen.has(c.item_id)) seen.add(c.item_id)
-                  }
-                }
-                // 分批并发获取 SKU 价格（每批 10 个，避免打爆本地代理）
-                const skuMap: Record<string, any> = {}
-                const ids = Array.from(seen)
-                if (ids.length > 0) {
-                  const BATCH = 10
-                  for (let b = 0; b < ids.length; b += BATCH) {
-                    const batch = ids.slice(b, b + BATCH)
-                    const results = await Promise.all(
-                      batch.map(async (oid) => {
-                        try {
-                          const r = await fetch(`http://localhost:8766/api/sku/${oid}`, { signal: AbortSignal.timeout(8000) })
-                          return { oid, data: await r.json() }
-                        } catch { return { oid, data: null } }
-                      })
-                    )
-                    for (const { oid, data } of results) {
-                      if (data && data.sku_count > 0) skuMap[oid] = data
-                    }
-                  }
-                }
-                // 注入 SKU 数据到 rows
-                rows = rows.map((row) => ({
-                  ...row,
-                  candidates: row.candidates.map((c) => ({
-                    ...c,
-                    sku: skuMap[c.item_id] || c.sku,
-                  })),
-                }))
-              }
-            } catch { /* proxy offline, use default */ }
+              const hp = await fetch("http://localhost:8766/health", { signal: AbortSignal.timeout(1500) })
+              proxyOnline = hp.ok
+            } catch { }
 
-            dispatch({ type: "ENRICH_SKU", rows, summary })
+            if (!proxyOnline) {
+              dispatch({ type: "COMPLETE", rows, summary })
+              break
+            }
+
+            // 收集所有唯一 offer_id（只取每产品前 3 个候选，减少请求量）
+            dispatch({ type: "PROGRESS", phase: "sku", data: { message: "正在获取 SKU 明细价..." } })
+            const seen = new Set<string>()
+            for (const r of rows) {
+              for (const c of r.candidates.slice(0, 3)) {
+                if (c.item_id && !seen.has(c.item_id)) seen.add(c.item_id)
+              }
+            }
+
+            const ids = Array.from(seen)
+            const skuMap: Record<string, any> = {}
+            let fetched = 0
+
+            if (ids.length > 0) {
+              const BATCH = 8
+              for (let b = 0; b < ids.length; b += BATCH) {
+                const batch = ids.slice(b, b + BATCH)
+                const results = await Promise.all(
+                  batch.map(async (oid) => {
+                    try {
+                      const r = await fetch(`http://localhost:8766/api/sku/${oid}`, { signal: AbortSignal.timeout(10000) })
+                      const data = await r.json()
+                      return { oid, data }
+                    } catch { return { oid, data: null } }
+                  })
+                )
+                for (const { oid, data } of results) {
+                  if (data && data.sku_count > 0) {
+                    skuMap[oid] = data
+                    fetched++
+                  }
+                }
+                dispatch({ type: "PROGRESS", phase: "sku", data: {
+                  message: `正在获取 SKU 明细价... ${Math.min(b + BATCH, ids.length)}/${ids.length}`,
+                }})
+              }
+            }
+
+            // 注入 SKU
+            if (fetched > 0) {
+              rows = rows.map((row) => ({
+                ...row,
+                candidates: row.candidates.map((c) => ({
+                  ...c,
+                  sku: skuMap[c.item_id] || c.sku,
+                })),
+              }))
+            }
+
+            dispatch({ type: "COMPLETE", rows, summary })
+            alert(fetched > 0
+              ? `已获取 ${fetched} 个商品的 SKU 明细价，展开候选卡片查看`
+              : `代理在线但未获取到 SKU 价格（cookie 可能过期，请重新注入）`)
             break
           }
         }
