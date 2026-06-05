@@ -55,6 +55,7 @@ type Action =
   | { type: "START_ANALYZING"; total: number; message: string }
   | { type: "PROGRESS"; phase: string; data: any }
   | { type: "COMPLETE"; rows: SourcingRow[]; summary: SourcingSummary }
+  | { type: "ENRICH_SKU"; rows: SourcingRow[]; summary: SourcingSummary }
   | { type: "ERROR"; message: string }
 
 function reducer(state: State, action: Action): State {
@@ -105,6 +106,11 @@ function reducer(state: State, action: Action): State {
         ...state, phase: "done",
         rows: action.rows, summary: action.summary,
       }
+    case "ENRICH_SKU":
+      return {
+        ...state, phase: "done",
+        rows: action.rows, summary: action.summary,
+      }
     case "ERROR":
       alert(action.message)
       return { ...state, phase: state.files.length > 0 ? "uploaded" : "idle" }
@@ -149,13 +155,50 @@ export default function SourcingToolPage() {
           case "progress":
             dispatch({ type: "PROGRESS", phase: "progress", data: ev.data })
             break
-          case "complete":
-            dispatch({
-              type: "COMPLETE",
-              rows: ev.data.rows as SourcingRow[],
-              summary: ev.data.summary as SourcingSummary,
-            })
+          case "complete": {
+            let rows = ev.data.rows as SourcingRow[]
+            let summary = ev.data.summary as SourcingSummary
+
+            // 尝试从本地代理获取 SKU 明细价
+            try {
+              const hp = await fetch("http://localhost:8766/health", { signal: AbortSignal.timeout(2000) })
+              if (hp.ok) {
+                // 收集所有唯一 offer_id
+                const seen = new Set<string>()
+                for (const r of rows) {
+                  for (const c of r.candidates) {
+                    if (c.item_id && !seen.has(c.item_id)) seen.add(c.item_id)
+                  }
+                }
+                // 并发获取 SKU 价格
+                const skuMap: Record<string, any> = {}
+                if (seen.size > 0) {
+                  const results = await Promise.all(
+                    Array.from(seen).map(async (oid) => {
+                      try {
+                        const r = await fetch(`http://localhost:8766/api/sku/${oid}`, { signal: AbortSignal.timeout(8000) })
+                        return { oid, data: await r.json() }
+                      } catch { return { oid, data: null } }
+                    })
+                  )
+                  for (const { oid, data } of results) {
+                    if (data && data.sku_count > 0) skuMap[oid] = data
+                  }
+                }
+                // 注入 SKU 数据到 rows
+                rows = rows.map((row) => ({
+                  ...row,
+                  candidates: row.candidates.map((c) => ({
+                    ...c,
+                    sku: skuMap[c.item_id] || c.sku,
+                  })),
+                }))
+              }
+            } catch { /* proxy offline, use default */ }
+
+            dispatch({ type: "ENRICH_SKU", rows, summary })
             break
+          }
         }
       }
     } catch (e: any) {
