@@ -164,6 +164,16 @@ export async function fetchAuthStatus(): Promise<{ has_cookie: boolean; cookie_l
   return res.json()
 }
 
+export async function authHealthcheck(): Promise<{
+  status: "ok" | "no_cookie" | "failed"
+  message: string
+  cookie_len?: number
+  sample_prices?: Record<string, string>
+}> {
+  const res = await fetch(`${BASE}/auth/healthcheck`, { method: "POST" })
+  return res.json()
+}
+
 export async function saveAuthCookie(cookie: string): Promise<void> {
   await fetch(`${BASE}/auth`, {
     method: "PUT",

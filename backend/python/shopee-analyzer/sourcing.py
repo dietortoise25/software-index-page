@@ -514,6 +514,38 @@ async def get_auth():
     }
 
 
+@router.post("/auth/healthcheck")
+async def auth_healthcheck():
+    """测试 1688 登录态是否有效：用已存 cookie 调 SKU API"""
+    cookie = get_auth_cookie()
+    if not cookie:
+        return {"status": "no_cookie", "message": "未配置 1688 登录态 cookie"}
+
+    # 用测试 offer_id 调 SKU API，看是否返回 SUCCESS
+    result = fetch_sku_prices("740919115663")
+
+    if result.get("error"):
+        return {
+            "status": "failed",
+            "message": f"SKU API 调用失败: {result['error']}",
+            "cookie_len": len(cookie),
+        }
+
+    if result.get("sku_count", 0) > 0:
+        return {
+            "status": "ok",
+            "message": f"登录态有效，成功获取 {result['sku_count']} 个 SKU 价格",
+            "cookie_len": len(cookie),
+            "sample_prices": {s["spec"]: s["price"] for s in result.get("skus", [])[:5]},
+        }
+
+    return {
+        "status": "failed",
+        "message": "cookie 存在但 SKU API 未返回数据（可能已过期）",
+        "cookie_len": len(cookie),
+    }
+
+
 @router.put("/auth")
 async def update_auth(body: dict):
     """更新 1688 登录态 cookie"""

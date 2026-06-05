@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react"
-import { Key, Check, AlertCircle } from "lucide-react"
+import { Key, Check, AlertCircle, Activity, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { fetchAuthStatus, saveAuthCookie } from "@/lib/sourcing"
+import { fetchAuthStatus, saveAuthCookie, authHealthcheck } from "@/lib/sourcing"
 
 export default function CookieInput() {
   const [open, setOpen] = useState(false)
   const [cookie, setCookie] = useState("")
   const [status, setStatus] = useState<{ has: boolean; len: number } | null>(null)
   const [msg, setMsg] = useState("")
+  const [checking, setChecking] = useState(false)
+  const [health, setHealth] = useState<{ status: string; message: string } | null>(null)
 
   useEffect(() => {
     fetchAuthStatus().then((s) => setStatus({ has: s.has_cookie, len: s.cookie_len })).catch(() => {})
@@ -19,9 +21,32 @@ export default function CookieInput() {
       await saveAuthCookie(cookie.trim())
       setStatus({ has: true, len: cookie.trim().length })
       setMsg("已保存")
+      setHealth(null)
       setTimeout(() => setMsg(""), 2000)
     } catch (e: any) {
       setMsg("保存失败: " + (e.message || ""))
+    }
+  }
+
+  const handleHealthcheck = async () => {
+    setChecking(true)
+    setHealth(null)
+    try {
+      const h = await authHealthcheck()
+      setHealth(h)
+    } catch (e: any) {
+      setHealth({ status: "error", message: e.message || "请求失败" })
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  const statusIcon = (s: string) => {
+    switch (s) {
+      case "ok": return <Check size={12} className="text-green-500" />
+      case "no_cookie": return <AlertCircle size={12} className="text-amber-500" />
+      case "failed": case "error": return <AlertCircle size={12} className="text-red-500" />
+      default: return null
     }
   }
 
@@ -51,10 +76,32 @@ export default function CookieInput() {
             onChange={(e) => setCookie(e.target.value)}
             placeholder="粘贴 1688.com 的完整 cookie 字符串..."
           />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="outline" onClick={handleSave}>保存</Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleHealthcheck}
+              disabled={!status?.has || checking}
+            >
+              {checking
+                ? <Loader2 size={12} className="mr-1 animate-spin" />
+                : <Activity size={12} className="mr-1" />}
+              检测登录态
+            </Button>
             {msg && <span className={msg.includes("失败") ? "text-red-500" : "text-green-500"}>{msg}</span>}
           </div>
+
+          {health && (
+            <div className={`flex items-start gap-1.5 p-2 rounded text-xs ${
+              health.status === "ok" ? "bg-green-50 text-green-700" :
+              health.status === "no_cookie" ? "bg-amber-50 text-amber-700" :
+              "bg-red-50 text-red-700"
+            }`}>
+              {statusIcon(health.status)}
+              <span>{health.message}</span>
+            </div>
+          )}
         </div>
       )}
     </div>
