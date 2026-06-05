@@ -620,15 +620,33 @@ async def update_auth(body: dict):
     return {"status": "ok", "cookie_len": len(cookie)}
 
 
+# 内存中的 SKU 缓存（最后一个分析任务的 SKU 数据）
+_last_sku_data: dict = {}
+
+
 @router.post("/sku-batch")
 async def sku_batch(body: dict):
-    """接收前端/扩展回传的 SKU 价格数据"""
+    """接收扩展回传的 SKU 价格数据，合并后可供前端拉取"""
+    global _last_sku_data
     sku_data = body.get("sku_data", {})
-    analysis_id = body.get("analysis_id", "")
     if not sku_data:
         raise HTTPException(400, "缺少 sku_data 字段")
-    logger.info(f"[sku-batch] 收到 {len(sku_data)} 个 offer 的 SKU 数据")
-    return {"status": "ok", "count": len(sku_data), "analysis_id": analysis_id}
+
+    is_complete = body.get("complete", False)
+    if is_complete:
+        _last_sku_data = sku_data
+        logger.info(f"[sku-batch] 收到完整 SKU 数据: {len(sku_data)} 个 offer")
+    return {
+        "status": "ok",
+        "count": len(sku_data),
+        "stored": is_complete,
+    }
+
+
+@router.get("/sku-result")
+async def sku_result():
+    """拉取最近一次分析通过扩展获取的 SKU 数据"""
+    return {"sku_data": _last_sku_data, "count": len(_last_sku_data)}
 
 
 @router.post("/refresh-session")

@@ -159,9 +159,7 @@ export default function SourcingToolPage() {
             const rows = ev.data.rows as SourcingRow[]
             const summary = ev.data.summary as SourcingSummary
 
-            dispatch({ type: "COMPLETE", rows, summary })
-
-            // 通过扩展获取 SKU 明细价
+            // 收集 offer ID
             const seen = new Set<string>()
             for (const r of rows) {
               for (const c of r.candidates) {
@@ -169,13 +167,45 @@ export default function SourcingToolPage() {
               }
             }
             const ids = Array.from(seen)
+
+            // 尝试通过扩展获取 SKU 价格
+            let skuData: Record<string, any> = {}
             if (ids.length > 0) {
-              dispatch({ type: "PROGRESS", phase: "sku", data: { message: `正在通过扩展获取 ${ids.length} 个 SKU 明细价...` } })
-              const result = await sendToExtension("sku-batch", { offerIds: ids, backendUrl: window.location.origin })
-              if (!result || !result.ok) {
-                dispatch({ type: "PROGRESS", phase: "sku", data: { message: `SKU 获取失败: ${result?.error || "扩展通信失败"}` } })
+              const extStatus = await sendToExtension("status")
+              if (extStatus && extStatus.state === "online") {
+                dispatch({ type: "PROGRESS", phase: "sku", data: { message: `正在通过扩展获取 ${ids.length} 个 SKU 明细价...` } })
+                const result = await sendToExtension("sku-batch", { offerIds: ids, backendUrl: window.location.origin })
+
+                if (result && result.ok) {
+                  dispatch({ type: "PROGRESS", phase: "sku", data: { message: `SKU 采集完成: ${result.success}/${result.total} 个, 等待后端处理...` } })
+                  // 轮询后端
+                  for (let poll = 0; poll < 15; poll++) {
+                    await new Promise((r) => setTimeout(r, 1000))
+                    try {
+                      const r = await fetch("/api/shopee/sourcing/sku-result")
+                      const j = await r.json()
+                      if (j.count > 0) { skuData = j.sku_data; break }
+                    } catch {}
+                  }
+                  if (Object.keys(skuData).length > 0) {
+                    dispatch({ type: "PROGRESS", phase: "sku", data: { message: `后端已收到 ${Object.keys(skuData).length} 个 SKU, 注入结果...` } })
+                  }
+                }
               }
             }
+
+            // 注入 SKU 到 rows
+            if (Object.keys(skuData).length > 0) {
+              for (const r of rows) {
+                for (const c of r.candidates) {
+                  if (c.item_id && skuData[c.item_id]) {
+                    c.sku = skuData[c.item_id]
+                  }
+                }
+              }
+            }
+
+            dispatch({ type: "COMPLETE", rows, summary })
             break
           }
         }
