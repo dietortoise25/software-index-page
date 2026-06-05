@@ -25,6 +25,14 @@ function getChromeCookiesDir() {
   return path.join(localAppData, "Google", "Chrome", "User Data", "Default");
 }
 
+function fallbackCookie() {
+  try {
+    return fs.readFileSync(path.join(__dirname, ".1688_cookies.txt"), "utf-8").trim();
+  } catch {
+    return "";
+  }
+}
+
 function read1688Cookies() {
   const dir = getChromeCookiesDir();
   if (!dir || !fs.existsSync(dir)) {
@@ -32,11 +40,17 @@ function read1688Cookies() {
     return "";
   }
 
-  const dbPath = path.join(dir, "Cookies");
+  // 新版 Chrome: Network/Cookies，旧版: Cookies
+  let dbPath = path.join(dir, "Network", "Cookies");
   if (!fs.existsSync(dbPath)) {
-    console.log("[cookie] Cookies 数据库未找到:", dbPath);
-    return "";
+    dbPath = path.join(dir, "Cookies");
   }
+  if (!fs.existsSync(dbPath)) {
+    console.log("[cookie] Cookies 数据库未找到");
+    return fallbackCookie();
+  }
+
+  console.log("[cookie] 读取:", dbPath);
 
   // 用 sqlite3 读 cookie
   const result = spawnSync("sqlite3", [
@@ -45,13 +59,8 @@ function read1688Cookies() {
   ], { encoding: "utf-8", timeout: 5000 });
 
   if (result.error || result.status !== 0) {
-    console.log("[cookie] sqlite3 读取失败，尝试备选方案...");
-    // 备选：从文件加载已保存的 cookie
-    try {
-      return fs.readFileSync(path.join(__dirname, ".1688_cookies.txt"), "utf-8").trim();
-    } catch {
-      return "";
-    }
+    console.log("[cookie] sqlite3 读取失败:", result.error?.message || result.stderr);
+    return fallbackCookie();
   }
 
   // 组装 cookie 字符串
@@ -156,8 +165,15 @@ function querySku(offerId, callback) {
     });
   });
 
-  req.on("error", (e) => callback({ sku_count: 0, error: e.message }));
-  req.on("timeout", () => { req.destroy(); callback({ sku_count: 0, error: "timeout" }); });
+  req.on("error", (e) => {
+    console.log(`[sku] ${offerId} error: ${e.message}`);
+    callback({ sku_count: 0, error: e.message });
+  });
+  req.on("timeout", () => {
+    console.log(`[sku] ${offerId} timeout`);
+    req.destroy();
+    callback({ sku_count: 0, error: "timeout" });
+  });
   req.end();
 }
 
@@ -195,14 +211,20 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // POST /api/set-cookie (手动设置 cookie)
+  // POST /api/set-cookie (手动设置完整 cookie)
   if (url.pathname === "/api/set-cookie" && req.method === "POST") {
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", () => {
       authCookie = body.trim();
+      if (!authCookie.includes("_m_h5_tk=")) {
+        // 可能只传了 _m_h5_tk 值，拼接到已有 cookie 上
+        const h5tk = body.trim();
+        const existing = fallbackCookie();
+        authCookie = existing ? `${existing}; _m_h5_tk=${h5tk}` : `_m_h5_tk=${h5tk}`;
+      }
       fs.writeFileSync(path.join(__dirname, ".1688_cookies.txt"), authCookie);
-      console.log(`[cookie] 手动设置 (${authCookie.length} chars)`);
+      console.log(`[cookie] 手动设置 (${authCookie.length} chars, has _m_h5_tk=${authCookie.includes("_m_h5_tk")})`);
       res.writeHead(200, { ...cors, "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, len: authCookie.length }));
     });

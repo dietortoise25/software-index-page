@@ -10,10 +10,10 @@
       "US-5": { "status": "confirmed", "title": "查看利润分析结果" },
       "US-6": { "status": "confirmed", "title": "查看汇总统计" },
       "US-7": { "status": "confirmed", "title": "保存和加载成本配置" },
-      "US-8": { "status": "confirmed", "title": "导出分析结果到 Excel" },
+      "US-8": { "status": "confirmed", "title": "导出分析结果到 CSV" },
       "US-9": { "status": "confirmed", "title": "工具入口注册" }
     }},
     "3": { "status": "confirmed" },
-    "4": { "status": "in_progress", "completed": [] }
+    "4": { "status": "completed", "completed": ["US-1","US-2","US-3","US-4","US-5","US-6","US-7","US-8","US-9"] }
   }
 }

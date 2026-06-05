@@ -1,2 +1,4 @@
+allowBuilds:
+  esbuild: set this to true or false
 patchedDependencies:
   '@langchain/openai@1.4.7': patches/@langchain__openai@1.4.7.patch

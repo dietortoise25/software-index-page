@@ -1,0 +1,33 @@
+{
+  "inbounds": [{
+    "port": 10808,
+    "listen": "127.0.0.1",
+    "protocol": "socks",
+    "settings": {
+      "auth": "noauth",
+      "udp": true
+    }
+  }],
+  "outbounds": [{
+    "protocol": "vless",
+    "settings": {
+      "vnext": [{
+        "address": "ccc.156725927.xyz",
+        "port": 443,
+        "users": [{ "id": "3b1923c5-bfc1-447a-bdc6-a5f452b66a19", "encryption": "none" }]
+      }]
+    },
+    "streamSettings": {
+      "network": "ws",
+      "security": "tls",
+      "tlsSettings": {
+        "serverName": "ccc.156725927.xyz",
+        "fingerprint": "chrome"
+      },
+      "wsSettings": {
+        "path": "/%3Fed%3D2048",
+        "headers": { "Host": "ccc.156725927.xyz" }
+      }
+    }
+  }]
+}

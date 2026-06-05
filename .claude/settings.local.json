@@ -208,7 +208,13 @@
       "Bash(Get-ChildItem *)",
       "Bash(timeout 90 cat)",
       "Bash(echo \"frontend: $?\")",
-      "Bash(echo \"agent: $?\")"
+      "Bash(echo \"agent: $?\")",
+      "mcp__chrome-devtools__wait_for",
+      "PowerShell(pnpm tsc *)",
+      "WebFetch(domain:ui.shadcn.com)",
+      "WebFetch(domain:base-ui.com)",
+      "Bash(timeout *)",
+      "Skill(shadcn-ui)"
     ]
   },
   "skipWebFetchPreflight": true
