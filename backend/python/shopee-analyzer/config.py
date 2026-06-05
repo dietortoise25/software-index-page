@@ -32,6 +32,9 @@ _DEFAULTS: dict[str, Any] = {
         "target_margin_rate": 0.15,
         "high_margin_rate": 0.30,
     },
+    "system": {
+        "proxy_url": "",
+    },
     "limits": {
         "max_file_size_mb": 10,
     },

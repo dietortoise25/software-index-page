@@ -20,14 +20,12 @@ const STEPS: Step[] = [
   },
   {
     icon: Key,
-    title: "配置 1688 登录态（可选，用于获取 SKU 明细价）",
+    title: "启动本地代理（可选，用于获取 SKU 明细价）",
     desc: (
       <>
-        打开{" "}
-        <a href="https://detail.1688.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-          1688 商品详情页
-        </a>
-        ，F12 → Console 粘贴一行命令即可注入登录态。不配置也能用，候选价格用搜索返回的标价。
+        双击项目目录中的{" "}
+        <code className="bg-muted px-1 rounded text-xs">start_proxy.bat</code>
+        {" "}启动本地代理。启动后刷新此页，状态栏显示 🟢 即可。不启动也能用，候选价格用搜索返回的标价。
       </>
     ),
   },

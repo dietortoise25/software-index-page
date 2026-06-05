@@ -247,12 +247,48 @@ def get_auth_cookie() -> str:
     return _AUTH_COOKIE
 
 
-def fetch_sku_prices(offer_id: str) -> dict:
+def _parse_sku_response(data: dict) -> dict:
+    """解析 SKU 响应为统一格式"""
+    sku_map = data.get("data", {}).get("skuSelectorBizModel", {}).get("skuInfoMap", {})
+    prices = []
+    for spec, info in sku_map.items():
+        prices.append({
+            "spec": spec.split("&gt;")[0],
+            "full_spec": spec,
+            "price": info.get("price"),
+            "can_book_count": info.get("canBookCount", 0),
+            "sku_id": info.get("skuId"),
+        })
+    min_p = min(prices, key=lambda x: float(x["price"] or 0)) if prices else None
+    max_p = max(prices, key=lambda x: float(x["price"] or 0)) if prices else None
+    return {
+        "sku_count": len(prices),
+        "min_price": min_p["price"] if min_p else None,
+        "max_price": max_p["price"] if max_p else None,
+        "min_price_spec": min_p["spec"] if min_p else None,
+        "skus": prices,
+    }
+
+
+def fetch_sku_prices(offer_id: str, proxy_url: str = "") -> dict:
     """
-    用登录态 cookie 获取商品 SKU 价格。
-    返回 {"sku_count": N, "min_price": "7.40", "max_price": "10.00", "skus": {...}}
-    未配 cookie 时返回空。
+    获取商品 SKU 价格。
+    - 有 proxy_url: 通过本地代理调用（利用用户 IP）
+    - 无 proxy_url: 用已存储的 cookie 直连 1688（需 IP 一致）
+    返回 {"sku_count": N, "min_price": "7.40", ...}
     """
+    # 通过代理调用
+    if proxy_url:
+        try:
+            r = urllib.request.urlopen(f"{proxy_url}/api/sku/{offer_id}", timeout=10)
+            data = json.loads(r.read().decode("utf-8"))
+            if data.get("sku_count", 0) > 0:
+                return data
+            return {"sku_count": 0, "min_price": None, "max_price": None, "skus": [], "error": data.get("error", "proxy returned empty")}
+        except Exception as e:
+            return {"sku_count": 0, "min_price": None, "max_price": None, "skus": [], "error": str(e)[:100]}
+
+    # 直连 1688（需 cookie）
     if not _AUTH_COOKIE or not _AUTH_TOKEN:
         return {"sku_count": 0, "min_price": None, "max_price": None, "skus": {}}
 

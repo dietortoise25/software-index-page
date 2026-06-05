@@ -13,6 +13,7 @@ import json as _json
 import logging
 import os
 import traceback
+import urllib.request
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Optional
@@ -176,7 +177,6 @@ def _pick_candidate(c: dict, sku_data: dict | None = None) -> dict:
 def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None = None) -> dict:
     """构建单产品分析行"""
     pid = prod["product_id"]
-    best = cands[0] if cands else {}
     sku_cache = sku_cache or {}
 
     # 注入 SKU 数据到候选
@@ -187,7 +187,7 @@ def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None =
         enriched.append(_pick_candidate(c, sku_data))
     cands = enriched  # type: ignore
 
-    best_1688 = cands[0] if cands else None
+    best_1688 = enriched[0] if enriched else None
 
     row = {
         "product_id": pid,
@@ -197,8 +197,8 @@ def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None =
         "shopee_price_brl": str(prod.get("shopee_price_brl", "")),
         "image_url": prod.get("image_url", ""),
         "shopee_monthly_sales": prod.get("shopee_monthly_sales", ""),
-        "best_1688": _pick_candidate(best) if best else None,
-        "candidates": [_pick_candidate(c) for c in cands],
+        "best_1688": best_1688,
+        "candidates": enriched,
         "shopee_price_num": _parse_shopee_price(prod.get("shopee_price_brl")),
         "has_1688_data": len(cands) > 0,
     }
@@ -208,6 +208,8 @@ def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None =
 
 def _build_rows(products: list, candidates_map: dict, cost_cfg: dict) -> list:
     """构建所有产品行，含 SKU 价格富化"""
+    proxy_url = _get_proxy_url()
+
     # 收集所有 offer_id
     offer_ids = set()
     for cands in candidates_map.values():
@@ -218,10 +220,10 @@ def _build_rows(products: list, candidates_map: dict, cost_cfg: dict) -> list:
 
     # 并发获取 SKU 数据
     sku_cache = {}
-    if offer_ids:
-        logger.info(f"[sku] 获取 {len(offer_ids)} 个 offer 的 SKU 价格...")
+    if offer_ids and proxy_url:
+        logger.info(f"[sku] 通过代理 {proxy_url} 获取 {len(offer_ids)} 个 offer 的 SKU 价格...")
         with ThreadPoolExecutor(max_workers=6) as ex:
-            futures = {ex.submit(fetch_sku_prices, oid): oid for oid in offer_ids}
+            futures = {ex.submit(fetch_sku_prices, oid, proxy_url): oid for oid in offer_ids}
             for fut in as_completed(futures):
                 oid = futures[fut]
                 try:
@@ -472,6 +474,26 @@ async def update_config(body: dict):
         raise HTTPException(500, traceback.format_exc())
 
 
+@router.get("/system")
+async def get_system_config():
+    """读取系统配置（proxy_url 等）"""
+    cfg = _cfg()
+    return {"system": cfg.get("system", {})}
+
+
+@router.put("/system")
+async def update_system_config(body: dict):
+    """更新系统配置"""
+    system_cfg = body.get("system", {})
+    if not system_cfg:
+        raise HTTPException(400, "缺少 system 字段")
+    current = _cfg()
+    merged = deep_merge(current.copy(), {"system": system_cfg})
+    save_sourcing_config(merged)
+    logger.info("[config] 系统配置已更新")
+    return {"status": "ok", "system": merged.get("system", {})}
+
+
 @router.post("/config/reload")
 async def reload_config():
     """强制从 YAML 重新加载配置（清除缓存）"""
@@ -512,6 +534,46 @@ async def get_auth():
         "cookie_len": len(cookie),
         "sample": cookie[:30] + "..." if cookie else "",
     }
+
+
+def _check_proxy_alive(proxy_url: str) -> bool:
+    """检测本地代理是否在线"""
+    try:
+        r = urllib.request.urlopen(f"{proxy_url}/health", timeout=3)
+        return r.status == 200
+    except Exception:
+        return False
+
+
+@router.get("/proxy/healthcheck")
+async def proxy_healthcheck():
+    """检测本地代理 + SKU 连通性"""
+    proxy_url = _get_proxy_url()
+    if not proxy_url:
+        return {"proxy": "not_configured", "message": "未配置本地代理地址"}
+
+    alive = _check_proxy_alive(proxy_url)
+    if not alive:
+        return {"proxy": "offline", "message": f"无法连接到本地代理 {proxy_url}"}
+
+    # 代理在线，测试 SKU API
+    try:
+        r = urllib.request.urlopen(f"{proxy_url}/api/sku/740919115663", timeout=10)
+        data = _json.loads(r.read().decode("utf-8"))
+        if data.get("prices"):
+            return {
+                "proxy": "ok",
+                "sku": "ok",
+                "message": f"本地代理已连接，SKU API 正常 ({len(data['prices'])} 个价格)",
+                "sample_prices": data["prices"],
+            }
+        return {"proxy": "ok", "sku": "no_data", "message": "代理在线但 SKU API 未返回价格（cookie 可能过期）"}
+    except Exception as e:
+        return {"proxy": "ok", "sku": "error", "message": f"代理在线但 SKU 查询失败: {e}"}
+
+
+def _get_proxy_url() -> str:
+    return _cfg().get("system", {}).get("proxy_url", "")
 
 
 @router.post("/auth/healthcheck")
