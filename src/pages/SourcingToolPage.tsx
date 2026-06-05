@@ -171,11 +171,10 @@ export default function SourcingToolPage() {
               break
             }
 
-            // 收集所有唯一 offer_id（只取每产品前 3 个候选，减少请求量）
-            dispatch({ type: "PROGRESS", phase: "sku", data: { message: "正在获取 SKU 明细价..." } })
+            // 收集所有唯一 offer_id
             const seen = new Set<string>()
             for (const r of rows) {
-              for (const c of r.candidates.slice(0, 3)) {
+              for (const c of r.candidates) {
                 if (c.item_id && !seen.has(c.item_id)) seen.add(c.item_id)
               }
             }
@@ -185,45 +184,40 @@ export default function SourcingToolPage() {
             let fetched = 0
 
             if (ids.length > 0) {
-              const BATCH = 8
-              for (let b = 0; b < ids.length; b += BATCH) {
-                const batch = ids.slice(b, b + BATCH)
-                const results = await Promise.all(
-                  batch.map(async (oid) => {
-                    try {
-                      const r = await fetch(`http://localhost:8766/api/sku/${oid}`, { signal: AbortSignal.timeout(10000) })
-                      const data = await r.json()
-                      return { oid, data }
-                    } catch { return { oid, data: null } }
-                  })
-                )
-                for (const { oid, data } of results) {
-                  if (data && data.sku_count > 0) {
-                    skuMap[oid] = data
-                    fetched++
+              dispatch({ type: "PROGRESS", phase: "sku", data: { message: `正在获取 SKU 明细价... 0/${ids.length}` } })
+
+              const CONCURRENCY = 6
+              let done = 0
+              const queue = [...ids]
+
+              async function worker() {
+                while (queue.length > 0) {
+                  const oid = queue.shift()!
+                  try {
+                    const r = await fetch(`http://localhost:8766/api/sku/${oid}`, { signal: AbortSignal.timeout(12000) })
+                    const data = await r.json()
+                    if (data && data.sku_count > 0) { skuMap[oid] = data; fetched++ }
+                  } catch { /* skip individual errors */ }
+                  done++
+                  if (done % 10 === 0 || done === ids.length) {
+                    dispatch({ type: "PROGRESS", phase: "sku", data: { message: `正在获取 SKU 明细价... ${done}/${ids.length}` } })
                   }
                 }
-                dispatch({ type: "PROGRESS", phase: "sku", data: {
-                  message: `正在获取 SKU 明细价... ${Math.min(b + BATCH, ids.length)}/${ids.length}`,
-                }})
               }
+
+              await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()))
             }
 
             // 注入 SKU
-            if (fetched > 0) {
-              rows = rows.map((row) => ({
-                ...row,
-                candidates: row.candidates.map((c) => ({
-                  ...c,
-                  sku: skuMap[c.item_id] || c.sku,
-                })),
-              }))
-            }
+            rows = rows.map((row) => ({
+              ...row,
+              candidates: row.candidates.map((c) => ({
+                ...c,
+                sku: skuMap[c.item_id] || c.sku,
+              })),
+            }))
 
             dispatch({ type: "COMPLETE", rows, summary })
-            alert(fetched > 0
-              ? `已获取 ${fetched} 个商品的 SKU 明细价，展开候选卡片查看`
-              : `代理在线但未获取到 SKU 价格（cookie 可能过期，请重新注入）`)
             break
           }
         }
