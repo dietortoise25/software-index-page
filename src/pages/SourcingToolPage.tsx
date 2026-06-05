@@ -8,7 +8,7 @@ import ProgressPanel from "@/components/sourcing/ProgressPanel"
 import ResultTable from "@/components/sourcing/ResultTable"
 import SummaryBar from "@/components/sourcing/SummaryBar"
 import ExportButton from "@/components/sourcing/ExportButton"
-import ProxyStatus from "@/components/sourcing/ProxyStatus"
+import ProxyStatus, { sendToExtension } from "@/components/sourcing/ProxyStatus"
 import WorkflowGuide from "@/components/sourcing/WorkflowGuide"
 import { analyzeStream } from "@/lib/sourcing"
 import type { SourcingRow, SourcingSummary } from "@/lib/sourcing"
@@ -162,9 +162,6 @@ export default function SourcingToolPage() {
             dispatch({ type: "COMPLETE", rows, summary })
 
             // 通过扩展获取 SKU 明细价
-            const bridge = (window as any).__1688SKU_BRIDGE__
-            if (!bridge) break
-
             const seen = new Set<string>()
             for (const r of rows) {
               for (const c of r.candidates) {
@@ -172,12 +169,12 @@ export default function SourcingToolPage() {
               }
             }
             const ids = Array.from(seen)
-            if (ids.length === 0) break
-
-            dispatch({ type: "PROGRESS", phase: "sku", data: { message: `正在通过扩展获取 ${ids.length} 个 SKU 明细价...` } })
-            const result = await bridge.queryBatch(ids, window.location.origin)
-            if (!result.ok) {
-              dispatch({ type: "PROGRESS", phase: "sku", data: { message: `SKU 获取失败: ${result.error || "未知错误"}` } })
+            if (ids.length > 0) {
+              dispatch({ type: "PROGRESS", phase: "sku", data: { message: `正在通过扩展获取 ${ids.length} 个 SKU 明细价...` } })
+              const result = await sendToExtension("sku-batch", { offerIds: ids, backendUrl: window.location.origin })
+              if (!result || !result.ok) {
+                dispatch({ type: "PROGRESS", phase: "sku", data: { message: `SKU 获取失败: ${result?.error || "扩展通信失败"}` } })
+              }
             }
             break
           }
