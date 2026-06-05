@@ -1,14 +1,11 @@
 import { useEffect, useState, useCallback } from "react"
-import { Wifi, WifiOff, Loader2, Check, AlertCircle, Activity } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Wifi, WifiOff, Loader2, AlertCircle, Activity } from "lucide-react"
 
 const PROXY_URL = "http://localhost:8766"
 
 export default function ProxyStatus() {
   const [status, setStatus] = useState<"checking" | "online" | "offline">("checking")
   const [open, setOpen] = useState(false)
-  const [h5tk, setH5tk] = useState("")
-  const [msg, setMsg] = useState("")
   const [stats, setStats] = useState<{ queries: number; successes: number; errors: number } | null>(null)
   const [logs, setLogs] = useState<{ time: string; msg: string }[]>([])
 
@@ -46,21 +43,6 @@ export default function ProxyStatus() {
     return () => clearInterval(t)
   }, [open, fetchStats])
 
-  const injectH5tk = async () => {
-    if (!h5tk.trim()) return
-    try {
-      const r = await fetch(`${PROXY_URL}/api/set-cookie`, { method: "POST", body: h5tk.trim() })
-      const j = await r.json()
-      if (j.ok) {
-        setMsg("已注入")
-        checkProxy()
-        setTimeout(() => setMsg(""), 2000)
-      }
-    } catch (e: any) {
-      setMsg("失败: " + (e.message || ""))
-    }
-  }
-
   return (
     <div className="text-xs">
       <button className="flex items-center gap-1.5 hover:opacity-80" onClick={() => { setOpen(!open); if (!open) fetchStats() }}>
@@ -87,25 +69,16 @@ export default function ProxyStatus() {
             </div>
           )}
 
-          {/* Cookie 注入 */}
+          {/* Cookie */}
           <p className="text-muted-foreground">
-            <b>步骤 1:</b> 在 1688 页面 F12 → Console 执行：
+            安装 Chrome 扩展，一键发送含 httpOnly 的完整 cookie：
           </p>
-          <code className="block text-[11px] bg-background p-2 rounded border break-all">
-{`fetch('${PROXY_URL}/api/set-cookie', {method:'POST', body:document.cookie}).then(r=>r.json()).then(console.log)`}
-          </code>
-          <p className="text-muted-foreground">
-            <b>步骤 2:</b> 粘贴 <code className="bg-muted px-1 rounded">_m_h5_tk</code> 值：
-          </p>
-          <div className="flex gap-2">
-            <input className="flex-1 h-8 text-xs px-2 border rounded" value={h5tk} onChange={(e) => setH5tk(e.target.value)} placeholder="粘贴 _m_h5_tk 的值" />
-            <Button size="sm" variant="outline" onClick={injectH5tk} disabled={!h5tk.trim()}>注入</Button>
-          </div>
-          {msg && (
-            <span className={`flex items-center gap-1 ${msg.includes("失败") ? "text-red-500" : "text-green-500"}`}>
-              {msg.includes("失败") ? <AlertCircle size={12} /> : <Check size={12} />}{msg}
-            </span>
-          )}
+          <ol className="text-muted-foreground space-y-0.5 ml-4 list-decimal text-[11px]">
+            <li>Chrome 打开 <code className="bg-muted px-1 rounded">chrome://extensions</code></li>
+            <li>开启 <b>开发者模式</b> → <b>加载已解压的扩展程序</b></li>
+            <li>选择项目目录中的 <code className="bg-muted px-1 rounded">extension</code> 文件夹</li>
+            <li>点击扩展图标 → 点<b>"发送 Cookie 给代理"</b></li>
+          </ol>
 
           {/* 实时日志 */}
           {logs.length > 0 && (

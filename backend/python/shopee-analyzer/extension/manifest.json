@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "1688 Cookie Bridge",
+  "version": "1.0",
+  "description": "将 1688 完整 cookie（含 httpOnly）注入本地代理",
+  "permissions": ["cookies"],
+  "host_permissions": [
+    "*://*.1688.com/*",
+    "*://*.taobao.com/*",
+    "*://*.tmall.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
