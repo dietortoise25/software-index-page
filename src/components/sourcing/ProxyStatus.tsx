@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Wifi, WifiOff, Loader2, Key, Check, AlertCircle } from "lucide-react"
+import { Wifi, WifiOff, Loader2, Check, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const PROXY_URL = "http://localhost:8766"
