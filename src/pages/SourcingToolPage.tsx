@@ -9,6 +9,7 @@ import ResultTable from "@/components/sourcing/ResultTable"
 import SummaryBar from "@/components/sourcing/SummaryBar"
 import ExportButton from "@/components/sourcing/ExportButton"
 import CookieInput from "@/components/sourcing/CookieInput"
+import WorkflowGuide from "@/components/sourcing/WorkflowGuide"
 import { analyzeStream } from "@/lib/sourcing"
 import type { SourcingRow, SourcingSummary } from "@/lib/sourcing"
 
@@ -176,6 +177,9 @@ export default function SourcingToolPage() {
           <CookieInput />
         </div>
       </div>
+
+      {/* 使用引导 */}
+      <WorkflowGuide />
 
       {/* ① 文件上传 */}
       <Card className="p-4">
