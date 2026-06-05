@@ -156,68 +156,29 @@ export default function SourcingToolPage() {
             dispatch({ type: "PROGRESS", phase: "progress", data: ev.data })
             break
           case "complete": {
-            let rows = ev.data.rows as SourcingRow[]
+            const rows = ev.data.rows as SourcingRow[]
             const summary = ev.data.summary as SourcingSummary
 
-            // 检测本地代理
-            let proxyOnline = false
-            try {
-              const hp = await fetch("http://localhost:8766/health", { signal: AbortSignal.timeout(1500) })
-              proxyOnline = hp.ok
-            } catch { }
+            dispatch({ type: "COMPLETE", rows, summary })
 
-            if (!proxyOnline) {
-              dispatch({ type: "COMPLETE", rows, summary })
-              break
-            }
+            // 通过扩展获取 SKU 明细价
+            const bridge = (window as any).__1688SKU_BRIDGE__
+            if (!bridge) break
 
-            // 收集所有唯一 offer_id
             const seen = new Set<string>()
             for (const r of rows) {
               for (const c of r.candidates) {
                 if (c.item_id && !seen.has(c.item_id)) seen.add(c.item_id)
               }
             }
-
             const ids = Array.from(seen)
-            const skuMap: Record<string, any> = {}
-            let fetched = 0
+            if (ids.length === 0) break
 
-            if (ids.length > 0) {
-              dispatch({ type: "PROGRESS", phase: "sku", data: { message: `正在获取 SKU 明细价... 0/${ids.length}` } })
-
-              const CONCURRENCY = 6
-              let done = 0
-              const queue = [...ids]
-
-              async function worker() {
-                while (queue.length > 0) {
-                  const oid = queue.shift()!
-                  try {
-                    const r = await fetch(`http://localhost:8766/api/sku/${oid}`, { signal: AbortSignal.timeout(12000) })
-                    const data = await r.json()
-                    if (data && data.sku_count > 0) { skuMap[oid] = data; fetched++ }
-                  } catch { /* skip individual errors */ }
-                  done++
-                  if (done % 10 === 0 || done === ids.length) {
-                    dispatch({ type: "PROGRESS", phase: "sku", data: { message: `正在获取 SKU 明细价... ${done}/${ids.length}` } })
-                  }
-                }
-              }
-
-              await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()))
+            dispatch({ type: "PROGRESS", phase: "sku", data: { message: `正在通过扩展获取 ${ids.length} 个 SKU 明细价...` } })
+            const result = await bridge.queryBatch(ids, window.location.origin)
+            if (!result.ok) {
+              dispatch({ type: "PROGRESS", phase: "sku", data: { message: `SKU 获取失败: ${result.error || "未知错误"}` } })
             }
-
-            // 注入 SKU
-            rows = rows.map((row) => ({
-              ...row,
-              candidates: row.candidates.map((c) => ({
-                ...c,
-                sku: skuMap[c.item_id] || c.sku,
-              })),
-            }))
-
-            dispatch({ type: "COMPLETE", rows, summary })
             break
           }
         }

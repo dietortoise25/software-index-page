@@ -620,6 +620,17 @@ async def update_auth(body: dict):
     return {"status": "ok", "cookie_len": len(cookie)}
 
 
+@router.post("/sku-batch")
+async def sku_batch(body: dict):
+    """接收前端/扩展回传的 SKU 价格数据"""
+    sku_data = body.get("sku_data", {})
+    analysis_id = body.get("analysis_id", "")
+    if not sku_data:
+        raise HTTPException(400, "缺少 sku_data 字段")
+    logger.info(f"[sku-batch] 收到 {len(sku_data)} 个 offer 的 SKU 数据")
+    return {"status": "ok", "count": len(sku_data), "analysis_id": analysis_id}
+
+
 @router.post("/refresh-session")
 async def refresh_session():
     """强制刷新 1688 游客 session"""

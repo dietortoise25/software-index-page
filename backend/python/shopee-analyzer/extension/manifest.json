@@ -1,18 +1,22 @@
 {
   "manifest_version": 3,
-  "name": "1688 Cookie Bridge",
-  "version": "1.0",
-  "description": "将 1688 完整 cookie（含 httpOnly）注入本地代理",
+  "name": "1688 SKU Bridge",
+  "version": "3.0",
+  "description": "读取 1688 登录态，在前端与 1688 之间建立 SKU 数据桥梁",
   "permissions": ["cookies"],
   "host_permissions": [
     "*://*.1688.com/*",
     "*://*.taobao.com/*",
-    "*://*.tmall.com/*"
+    "*://*.tmall.com/*",
+    "*://42.193.170.109/*",
+    "*://localhost/*"
   ],
-  "action": {
-    "default_popup": "popup.html"
-  },
   "background": {
     "service_worker": "background.js"
-  }
+  },
+  "content_scripts": [{
+    "matches": ["*://42.193.170.109/*", "http://localhost/*", "http://127.0.0.1/*"],
+    "js": ["inject.js"],
+    "run_at": "document_start"
+  }]
 }
