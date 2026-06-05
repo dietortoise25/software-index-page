@@ -100,7 +100,7 @@ async function queryOne(offerId, cookie, token) {
 }
 
 // ========== 批量 → POST 后端 ==========
-async function skuBatch(offerIds, backendUrl) {
+async function skuBatch(offerIds, backendUrl, analysisId) {
   const fullCookie = await collectCookies();
   if (!fullCookie) return { ok: false, error: "no 1688 cookies" };
   const cookie = slimCookie(fullCookie);
@@ -125,7 +125,7 @@ async function skuBatch(offerIds, backendUrl) {
   try {
     await fetch(`${backendUrl}/api/sourcing/sku-batch`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ complete: true, sku_data: skuMap, total: results.length, success: Object.keys(skuMap).length }),
+      body: JSON.stringify({ complete: true, analysis_id: analysisId || "", sku_data: skuMap, total: results.length, success: Object.keys(skuMap).length }),
     });
   } catch(e) { return { ok: false, error: "POST to backend failed: " + e.message }; }
 
@@ -135,7 +135,7 @@ async function skuBatch(offerIds, backendUrl) {
 // ========== 消息路由 ==========
 chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
   if (req.action === "sku-batch") {
-    skuBatch(req.offerIds, req.backendUrl).then(sendResponse);
+    skuBatch(req.offerIds, req.backendUrl, req.analysisId).then(sendResponse);
     return true;
   }
   if (req.action === "status") {

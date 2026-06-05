@@ -155,59 +155,26 @@ export default function SourcingToolPage() {
           case "progress":
             dispatch({ type: "PROGRESS", phase: "progress", data: ev.data })
             break
-          case "complete": {
-            const rows = ev.data.rows as SourcingRow[]
-            const summary = ev.data.summary as SourcingSummary
+          case "awaiting_sku": {
+            const { offer_ids, analysis_id, count } = ev.data
+            dispatch({ type: "PROGRESS", phase: "waiting_sku", data: { message: `搜图完成, 通过扩展获取 ${count} 个 SKU 价格...` } })
 
-            // 收集 offer ID
-            const seen = new Set<string>()
-            for (const r of rows) {
-              for (const c of r.candidates) {
-                if (c.item_id && !seen.has(c.item_id)) seen.add(c.item_id)
-              }
-            }
-            const ids = Array.from(seen)
-
-            // 尝试通过扩展获取 SKU 价格
-            let skuData: Record<string, any> = {}
-            if (ids.length > 0) {
-              const extStatus = await sendToExtension("status")
-              if (extStatus && extStatus.state === "online") {
-                dispatch({ type: "PROGRESS", phase: "sku", data: { message: `正在通过扩展获取 ${ids.length} 个 SKU 明细价...` } })
-                const result = await sendToExtension("sku-batch", { offerIds: ids, backendUrl: window.location.origin })
-
-                if (result && result.ok) {
-                  dispatch({ type: "PROGRESS", phase: "sku", data: { message: `SKU 采集完成: ${result.success}/${result.total} 个, 等待后端处理...` } })
-                  // 轮询后端
-                  for (let poll = 0; poll < 15; poll++) {
-                    await new Promise((r) => setTimeout(r, 1000))
-                    try {
-                      const r = await fetch("/api/shopee/sourcing/sku-result")
-                      const j = await r.json()
-                      if (j.count > 0) { skuData = j.sku_data; break }
-                    } catch {}
-                  }
-                  if (Object.keys(skuData).length > 0) {
-                    dispatch({ type: "PROGRESS", phase: "sku", data: { message: `后端已收到 ${Object.keys(skuData).length} 个 SKU, 注入结果...` } })
-                  }
-                }
-              }
-            }
-
-            // 注入 SKU 到 rows
-            if (Object.keys(skuData).length > 0) {
-              for (const r of rows) {
-                for (const c of r.candidates) {
-                  if (c.item_id && skuData[c.item_id]) {
-                    c.sku = skuData[c.item_id]
-                  }
-                }
-              }
-            }
-
-            dispatch({ type: "COMPLETE", rows, summary })
+            // 发送给扩展
+            const result = await sendToExtension("sku-batch", { offerIds: offer_ids, backendUrl: window.location.origin, analysisId: analysis_id })
+            dispatch({ type: "PROGRESS", phase: "waiting_sku", data: {
+              message: result?.ok
+                ? `扩展已采集 ${result.success}/${result.total} 个 SKU, 等待后端计算...`
+                : `扩展采集: ${result?.error || "失败"}, 使用标价...`
+            }})
             break
           }
+          case "complete":
+            dispatch({
+              type: "COMPLETE",
+              rows: ev.data.rows as SourcingRow[],
+              summary: ev.data.summary as SourcingSummary,
+            })
+            break
         }
       }
     } catch (e: any) {

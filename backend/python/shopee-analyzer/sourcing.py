@@ -12,6 +12,8 @@ import asyncio
 import json as _json
 import logging
 import os
+import threading
+import time
 import traceback
 import urllib.request
 from io import BytesIO
@@ -399,6 +401,7 @@ async def sourcing_analyze_stream(
     cost_cfg = _cost_cfg_from(cfg, overrides if overrides else None)
 
     async def generate():
+        analysis_id = _json.dumps({"ts": int(time.time() * 1000), "offer_count": 0})
         yield _sse("phase", {"phase": "parsing", "message": f"已解析 {total} 个产品"})
         yield _sse("start", {"total": total, "message": f"开始并发搜图 ({max_workers} 线程)"})
 
@@ -428,7 +431,32 @@ async def sourcing_analyze_stream(
         finally:
             executor.shutdown(wait=False)
 
-        yield _sse("phase", {"phase": "costing", "message": "获取SKU价格 + 成本计算中..."})
+        # 收集 offer_id 列表，发给前端
+        offer_ids = list(set(
+            c.get("itemId", "")
+            for cands in candidates_map.values()
+            for c in cands
+            if c.get("itemId")
+        ))
+        analysis_id = str(int(time.time() * 1000))
+        yield _sse("awaiting_sku", {"offer_ids": offer_ids, "analysis_id": analysis_id, "count": len(offer_ids)})
+
+        # 等待前端通过扩展获取 SKU 并 POST 回来
+        sku_event = threading.Event()
+        sku_entry = {"data": None, "event": sku_event}
+        _sku_events[analysis_id] = sku_entry
+
+        yield _sse("phase", {"phase": "waiting_sku", "message": f"等待前端通过扩展获取 {len(offer_ids)} 个 SKU 价格..."})
+
+        # 最多等 120 秒
+        sku_received = await loop.run_in_executor(None, sku_event.wait, 120)
+        sku_cache = _sku_events.pop(analysis_id, sku_entry).get("data") or {}
+
+        if not sku_received or not sku_cache:
+            logger.warning(f"[stream] SKU 未收到或超时, analysis_id={analysis_id}")
+            yield _sse("phase", {"phase": "sku_timeout", "message": "SKU 获取超时, 使用搜索标价计算"})
+
+        yield _sse("phase", {"phase": "costing", "message": "成本计算中..."})
 
         rows = _build_rows(products, candidates_map, cost_cfg)
 
@@ -620,33 +648,40 @@ async def update_auth(body: dict):
     return {"status": "ok", "cookie_len": len(cookie)}
 
 
-# 内存中的 SKU 缓存（最后一个分析任务的 SKU 数据）
-_last_sku_data: dict = {}
+# SKU 数据等待机制：SSE 流在搜完后挂起，等待 sku-batch 注入数据
+_sku_events: dict[str, dict] = {}  # analysis_id → {"data": None, "event": threading.Event()}
 
 
 @router.post("/sku-batch")
 async def sku_batch(body: dict):
-    """接收扩展回传的 SKU 价格数据，合并后可供前端拉取"""
-    global _last_sku_data
+    """接收扩展回传的 SKU 价格数据"""
     sku_data = body.get("sku_data", {})
+    analysis_id = body.get("analysis_id", "")
+    is_complete = body.get("complete", False)
+
     if not sku_data:
         raise HTTPException(400, "缺少 sku_data 字段")
 
-    is_complete = body.get("complete", False)
-    if is_complete:
-        _last_sku_data = sku_data
-        logger.info(f"[sku-batch] 收到完整 SKU 数据: {len(sku_data)} 个 offer")
-    return {
-        "status": "ok",
-        "count": len(sku_data),
-        "stored": is_complete,
-    }
+    logger.info(f"[sku-batch] analysis_id={analysis_id}, {len(sku_data)} offers, complete={is_complete}")
+
+    # 查找等待中的 analysis_id
+    entry = _sku_events.get(analysis_id)
+    if entry:
+        entry["data"] = sku_data
+        entry["event"].set()
+        return {"status": "ok", "count": len(sku_data), "matched": True}
+
+    # 没有匹配的 analysis_id — 存储为全局兜底
+    _sku_events["_last"] = {"data": sku_data, "event": threading.Event()}
+    _sku_events["_last"]["event"].set()
+    return {"status": "ok", "count": len(sku_data), "matched": False}
 
 
 @router.get("/sku-result")
 async def sku_result():
-    """拉取最近一次分析通过扩展获取的 SKU 数据"""
-    return {"sku_data": _last_sku_data, "count": len(_last_sku_data)}
+    last = _sku_events.get("_last", {})
+    data = last.get("data", {})
+    return {"sku_data": data, "count": len(data)}
 
 
 @router.post("/refresh-session")
