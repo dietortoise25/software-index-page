@@ -138,6 +138,15 @@ function querySku(offerId, callback) {
     res.on("end", () => {
       try {
         const r = JSON.parse(body);
+        const ret = (r.ret || [])[0] || "";
+        console.log(`[sku] ${offerId} → ret=${ret}`);
+
+        if (!ret.startsWith("SUCCESS")) {
+          console.log(`[sku] ${offerId} → API error: ${ret}`);
+          callback({ sku_count: 0, error: ret });
+          return;
+        }
+
         const skuMap = r.data?.skuSelectorBizModel?.skuInfoMap || {};
 
         const skus = [];
@@ -152,6 +161,7 @@ function querySku(offerId, callback) {
         }
 
         const sorted = skus.sort((a, b) => parseFloat(a.price || "0") - parseFloat(b.price || "0"));
+        console.log(`[sku] ${offerId} → ${skus.length} skus, min=${sorted[0]?.price}`);
         callback({
           sku_count: skus.length,
           min_price: sorted[0]?.price || null,
@@ -193,6 +203,16 @@ function setCachedSku(offerId, result) {
   skuCache.set(offerId, { result, timestamp: Date.now() });
 }
 
+// ── 运行时状态 ──
+
+let stats = { queries: 0, successes: 0, errors: 0 };
+const lastLogs = []; // 最近 20 条日志
+
+function addLog(msg) {
+  lastLogs.push({ time: new Date().toISOString(), msg });
+  if (lastLogs.length > 20) lastLogs.shift();
+}
+
 // ── HTTP 服务 ──
 
 const server = http.createServer((req, res) => {
@@ -211,7 +231,14 @@ const server = http.createServer((req, res) => {
   // GET /health
   if (url.pathname === "/health") {
     res.writeHead(200, { ...cors, "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok", cookie_len: authCookie.length }));
+    res.end(JSON.stringify({ status: "ok", cookie_len: authCookie.length, stats }));
+    return;
+  }
+
+  // GET /api/stats
+  if (url.pathname === "/api/stats") {
+    res.writeHead(200, { ...cors, "Content-Type": "application/json" });
+    res.end(JSON.stringify({ stats, logs: lastLogs }));
     return;
   }
 
@@ -219,6 +246,7 @@ const server = http.createServer((req, res) => {
   const skuMatch = url.pathname.match(/^\/api\/sku\/(\d+)$/);
   if (skuMatch) {
     const offerId = skuMatch[1];
+    stats.queries++;
 
     // 命中缓存直接返回
     const cached = getCachedSku(offerId);
@@ -228,10 +256,15 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    console.log(`[sku] 查询 ${offerId}...`);
+    addLog(`查询 ${offerId}...`);
     querySku(offerId, (result) => {
       if (result.sku_count > 0) {
+        stats.successes++;
         setCachedSku(offerId, result);
+        addLog(`${offerId}: ${result.sku_count} SKUs, min=¥${result.min_price}`);
+      } else {
+        stats.errors++;
+        addLog(`${offerId}: 失败 - ${result.error || "无数据"}`);
       }
       res.writeHead(200, { ...cors, "Content-Type": "application/json; charset=utf-8" });
       res.end(JSON.stringify(result));
