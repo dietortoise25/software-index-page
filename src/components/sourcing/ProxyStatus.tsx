@@ -15,21 +15,32 @@ export default function ProxyStatus() {
   const [info, setInfo] = useState("")
 
   useEffect(() => {
-    const bridge = window.__1688SKU_BRIDGE__
-    if (!bridge) { setStatus("offline"); setInfo("扩展未安装"); return }
+    let cancelled = false
+    let attempts = 0
 
-    bridge.status().then((s) => {
-      if (s.state === "online" && s.has_h5tk) {
-        setStatus("online")
-        setInfo(`1688 登录态有效 (${s.cookie_len} 字符)`)
-      } else if (s.state === "online") {
-        setStatus("online")
-        setInfo("扩展在线，请先登录 1688")
-      } else {
-        setStatus("offline")
-        setInfo("扩展无响应")
+    function check() {
+      const bridge = window.__1688SKU_BRIDGE__
+      if (!bridge) {
+        attempts++
+        if (attempts < 10) setTimeout(check, 500) // 重试最多 5 秒
+        else if (!cancelled) { setStatus("offline"); setInfo("扩展未安装") }
+        return
       }
-    }).catch(() => { setStatus("offline"); setInfo("扩展通信失败") })
+
+      bridge.status().then((s) => {
+        if (cancelled) return
+        if (s.state === "online" && s.has_h5tk) {
+          setStatus("online"); setInfo(`1688 登录态有效 (${s.cookie_len} 字符)`)
+        } else if (s.state === "online") {
+          setStatus("online"); setInfo("扩展在线，请先登录 1688")
+        } else {
+          setStatus("offline"); setInfo("扩展无响应")
+        }
+      }).catch(() => { if (!cancelled) { setStatus("offline"); setInfo("扩展通信失败") } })
+    }
+
+    check()
+    return () => { cancelled = true }
   }, [])
 
   return (
