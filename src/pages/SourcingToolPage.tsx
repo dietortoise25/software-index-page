@@ -157,10 +157,13 @@ export default function SourcingToolPage() {
             break
           case "awaiting_sku": {
             const { offer_ids, analysis_id, count } = ev.data
+            console.log("[SSE] awaiting_sku:", { count, analysis_id, sample_ids: offer_ids.slice(0, 3) })
             dispatch({ type: "PROGRESS", phase: "waiting_sku", data: { message: `搜图完成, 通过扩展获取 ${count} 个 SKU 价格...` } })
 
             // 发送给扩展
+            console.log("[SSE] sending to extension...")
             const result = await sendToExtension("sku-batch", { offerIds: offer_ids, backendUrl: window.location.origin, analysisId: analysis_id })
+            console.log("[SSE] extension result:", result)
             dispatch({ type: "PROGRESS", phase: "waiting_sku", data: {
               message: result?.ok
                 ? `扩展已采集 ${result.success}/${result.total} 个 SKU, 等待后端计算...`
