@@ -112,3 +112,23 @@ def test_pick_candidate_all_fields():
     assert result["core_attributes"][0]["label"] == "材质"
     assert result["provider_tags"][0]["tagName"] == "源头工厂"
     assert result["sku"]["count"] == 0  # 默认空
+
+
+def test_pick_candidate_passes_sku_error():
+    """SKU 获取失败（如配额超限）时，error 透传到前端 sku.error，便于区分真实原因"""
+    from sourcing import _pick_candidate
+    c = {"title": "x", "itemId": "971835973029", "itemPrice": "5.00", "providerInfo": {}, "purchaseInfos": []}
+    sku_data = {"sku_count": 0, "min_price": None, "max_price": None, "min_price_spec": None,
+                "skus": [], "error": "万邦配额已耗尽(4013): Key 超量"}
+    result = _pick_candidate(c, sku_data)
+    assert result["sku"]["error"] == "万邦配额已耗尽(4013): Key 超量"
+
+
+def test_pick_candidate_sku_error_none_when_ok():
+    """SKU 正常时 error 为 None"""
+    from sourcing import _pick_candidate
+    c = {"title": "x", "itemId": "1", "itemPrice": "5.00", "providerInfo": {}, "purchaseInfos": []}
+    sku_data = {"sku_count": 2, "min_price": "5.00", "max_price": "9.00", "min_price_spec": "红",
+                "skus": [], "error": None}
+    result = _pick_candidate(c, sku_data)
+    assert result["sku"]["error"] is None

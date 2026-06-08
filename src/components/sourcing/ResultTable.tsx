@@ -168,7 +168,11 @@ function Row({ row }: { row: SourcingRow }) {
                         </tbody>
                       </table>
                     ) : (
-                      <p className="text-[11px] text-muted-foreground mt-2 pt-2 border-t">暂无 SKU 价格表（未配置 SKU Provider 或该商品无数据）</p>
+                      <p className="text-[11px] text-muted-foreground mt-2 pt-2 border-t">
+                        {c.sku.error
+                          ? `暂无 SKU 价格表（${c.sku.error}）`
+                          : "暂无 SKU 价格表（未配置 SKU Provider 或该商品无数据）"}
+                      </p>
                     )}
                   </div>
                 ))}

@@ -149,7 +149,15 @@ class OneboundProvider(SkuProvider):
         except Exception as e:
             logger.warning(f"[onebound] {item_id} 请求失败: {e}")
             return _empty(f"onebound 请求失败: {str(e)[:120]}")
-        return parse_onebound(resp)
+        # HTTP 200 但 body 含错误码（如 4013 配额超限）：parse 返回带 error 的空结果
+        if str(resp.get("error_code", "")) == "4013":
+            reason = resp.get("reason") or resp.get("error") or "Key 调用量超限"
+            logger.warning(f"[onebound] {item_id} 万邦配额已耗尽(4013): {str(reason)[:160]}")
+            return _empty(f"万邦配额已耗尽(4013): {str(reason)[:120]}")
+        result = parse_onebound(resp)
+        if result["error"] is not None:
+            logger.warning(f"[onebound] {item_id} 返回错误，无 SKU: {result['error']}")
+        return result
 
 
 class JustOneApiProvider(SkuProvider):

@@ -185,6 +185,7 @@ def _pick_candidate(c: dict, sku_data: dict | None = None) -> dict:
             "max_price": sku_data.get("max_price"),
             "min_price_spec": sku_data.get("min_price_spec"),
             "items": sku_data.get("skus", []),
+            "error": sku_data.get("error"),
         },
     }
 

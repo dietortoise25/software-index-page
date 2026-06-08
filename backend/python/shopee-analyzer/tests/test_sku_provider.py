@@ -102,6 +102,31 @@ def test_onebound_fetch_request_failure_returns_status(monkeypatch):
     assert "onebound 请求失败" in result["error"]
 
 
+def test_onebound_logs_warning_on_api_error(monkeypatch, caplog):
+    """万邦返回 HTTP 200 但 body 含 error_code≠0000（如配额超限）→ 必须记 WARNING。
+    此前这条路径静默返回空，导致配额耗尽等问题在日志里完全隐形。"""
+    import logging
+    from sku_provider import OneboundProvider
+    p = OneboundProvider({"key": "k", "secret": "s"})
+    monkeypatch.setattr(p, "_request", lambda iid: {
+        "error_code": "4013", "reason": "Key[t8824513060]已超量,联系QQ:xxx"})
+    with caplog.at_level(logging.WARNING, logger="sku_provider"):
+        result = p.fetch_sku("971835973029")
+    assert result["sku_count"] == 0
+    assert "971835973029" in caplog.text  # 日志带上 item_id 便于定位
+    assert "已超量" in caplog.text         # 带上万邦的真实原因
+
+
+def test_onebound_quota_exceeded_gives_clear_hint(monkeypatch):
+    """error_code=4013（配额超限）→ error 文案含明确的“配额”提示，便于一眼区分"""
+    from sku_provider import OneboundProvider
+    p = OneboundProvider({"key": "k", "secret": "s"})
+    monkeypatch.setattr(p, "_request", lambda iid: {
+        "error_code": "4013", "reason": "Key[t8824513060]已超量"})
+    result = p.fetch_sku("971835973029")
+    assert "配额" in result["error"]
+
+
 # ═══════════════════════════════════════════
 # 4b. onebound 响应解析（parse_onebound 纯函数，对真实 fixture）
 # ═══════════════════════════════════════════

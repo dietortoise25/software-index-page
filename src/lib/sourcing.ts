@@ -55,6 +55,7 @@ export interface Candidate {
     max_price: string | null
     min_price_spec: string | null
     items: { spec: string; full_spec: string; price: string; can_book_count: number; sku_id: number }[]
+    error: string | null
   }
 }
 
