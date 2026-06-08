@@ -48,6 +48,57 @@ def test_get_provider_unknown_active_returns_null():
 
 
 # ═══════════════════════════════════════════
+# 1b. MockProvider：本地确定性假数据源（配额耗尽时不阻塞开发）
+# ═══════════════════════════════════════════
+
+def test_get_provider_mock_selected():
+    """active=mock → MockProvider，无需任何凭证即就绪"""
+    from sku_provider import get_provider, MockProvider
+    p = get_provider({"sku_provider": {"active": "mock"}})
+    assert isinstance(p, MockProvider)
+    assert p.name == "mock"
+    assert p.ready is True
+
+
+def test_mock_returns_full_contract():
+    """mock 返回完整统一契约字段，sku_count>0，error 为 None"""
+    from sku_provider import MockProvider
+    r = MockProvider({}).fetch_sku("971835973029")
+    for key in ("sku_count", "min_price", "max_price", "min_price_spec", "skus", "error"):
+        assert key in r, f"缺契约字段 {key}"
+    assert r["sku_count"] > 0
+    assert r["error"] is None
+    assert len(r["skus"]) == r["sku_count"]
+    # min/max 与 skus 实际价格一致
+    prices = [float(s["price"]) for s in r["skus"]]
+    assert r["min_price"] == f"{min(prices):.2f}"
+    assert r["max_price"] == f"{max(prices):.2f}"
+
+
+def test_mock_is_deterministic():
+    """同一 item_id 多次调用返回完全一致（可复现）"""
+    from sku_provider import MockProvider
+    p = MockProvider({})
+    a = p.fetch_sku("12345")
+    b = p.fetch_sku("12345")
+    assert a == b
+
+
+def test_mock_varies_by_item_id():
+    """不同 item_id 产出不同结果（不是所有 id 一个模子）"""
+    from sku_provider import MockProvider
+    p = MockProvider({})
+    results = {p.fetch_sku(str(i))["sku_count"] for i in range(1, 30)}
+    assert len(results) > 1  # sku 数量有差异
+
+
+def test_mock_not_wrapped_in_cache():
+    """mock 即使 cache.enabled 也不套 CachedProvider —— 避免假数据污染真实缓存文件"""
+    from sku_provider import get_provider, MockProvider
+    p = get_provider({"sku_provider": {"active": "mock", "cache": {"enabled": True, "path": "sku_cache.json"}}})
+    assert isinstance(p, MockProvider)  # 直接是 mock，没有缓存装饰层
+
+# ═══════════════════════════════════════════
 # 2. NullProvider：未配置语义
 # ═══════════════════════════════════════════
 

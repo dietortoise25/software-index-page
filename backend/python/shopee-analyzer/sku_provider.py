@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import threading
+import hashlib
 import urllib.parse
 import urllib.request
 from typing import Any
@@ -175,9 +176,50 @@ class JustOneApiProvider(SkuProvider):
         return _empty("justoneapi provider 未实现")
 
 
+class MockProvider(SkuProvider):
+    """本地确定性假数据源 —— 配额耗尽/离线时不阻塞开发。
+    无需凭证即就绪；同一 item_id 总返回同一结果（用 id 哈希出稳定的规格/价格）。"""
+    name = "mock"
+    ready = True
+
+    _COLORS = ["黑色", "白色", "藏青", "卡其", "酒红", "墨绿"]
+    _SIZES = ["S", "M", "L", "XL", "均码"]
+
+    def __init__(self, conf: dict[str, Any] | None = None):
+        self.ready = True
+
+    def fetch_sku(self, item_id: str) -> dict[str, Any]:
+        # 用 item_id 哈希派生确定性数据（不依赖 random 全局状态）
+        h = int(hashlib.md5(str(item_id).encode()).hexdigest(), 16)
+        n = 2 + h % 5  # 2~6 个 SKU
+        skus = []
+        for i in range(n):
+            hi = (h >> (i * 5)) & 0xFFFF
+            color = self._COLORS[hi % len(self._COLORS)]
+            size = self._SIZES[(hi // 7) % len(self._SIZES)]
+            price = round(2.0 + (hi % 1800) / 100.0, 2)  # 2.00~19.99
+            skus.append({
+                "spec": color,
+                "full_spec": f"{color} / {size}",
+                "price": f"{price:.2f}",
+                "can_book_count": 50 + hi % 950,
+                "sku_id": h % 10_000_000 + i,
+            })
+        prices = sorted(skus, key=lambda s: float(s["price"]))
+        return {
+            "sku_count": n,
+            "min_price": prices[0]["price"],
+            "max_price": prices[-1]["price"],
+            "min_price_spec": prices[0]["spec"],
+            "skus": skus,
+            "error": None,
+        }
+
+
 _REGISTRY = {
     "onebound": OneboundProvider,
     "justoneapi": JustOneApiProvider,
+    "mock": MockProvider,
 }
 
 
@@ -238,6 +280,7 @@ def get_provider(config: dict[str, Any]) -> SkuProvider:
         return NullProvider()
     base = cls(sp.get(active, {}))
     cache = sp.get("cache") or {}
-    if cache.get("enabled") and base.ready:
+    # mock 是本地确定性数据，缓存无意义且会污染真实缓存文件 → 不包装
+    if cache.get("enabled") and base.ready and not isinstance(base, MockProvider):
         return CachedProvider(base, cache.get("path", "sku_cache.json"))
     return base

@@ -36,7 +36,8 @@ _DEFAULTS: dict[str, Any] = {
         "proxy_url": "",
     },
     "sku_provider": {
-        # active: "" | "onebound" | "justoneapi" —— 留空则用 NullProvider（SKU 列为空）
+        # active: "" | "onebound" | "justoneapi" | "mock"
+        #   留空 → NullProvider（SKU 列为空）；mock → 本地确定性假数据（配额耗尽/离线时用）
         "active": os.environ.get("SKU_PROVIDER_ACTIVE", ""),
         # 本地 JSON 缓存：命中不再调外部接口（省配额）。MVP 无 TTL。
         "cache": {
