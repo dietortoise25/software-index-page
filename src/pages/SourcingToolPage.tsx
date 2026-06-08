@@ -245,9 +245,10 @@ export default function SourcingToolPage() {
         <p className="text-xs text-muted-foreground mb-3">
           决定 1688 进货价怎么取。万邦提供真实分规格价（更准、但走付费配额）；不查则只用图搜返回的参考价。
         </p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {[
             { v: "onebound", title: "万邦", desc: "真实分规格价 · 付费配额" },
+            { v: "mock", title: "模拟", desc: "假数据 · 免费调试用" },
             { v: "none", title: "不查", desc: "免费 · 仅图搜参考价" },
           ].map((opt) => {
             const active = s.skuProvider === opt.v

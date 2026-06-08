@@ -90,8 +90,8 @@ def _apply_env_secrets(cfg: dict) -> None:
     jo = sp.setdefault("justoneapi", {})
     if os.environ.get("JUSTONEAPI_TOKEN"):
         jo["token"] = os.environ["JUSTONEAPI_TOKEN"]
-    if os.environ.get("SKU_PROVIDER_ACTIVE"):
-        sp["active"] = os.environ["SKU_PROVIDER_ACTIVE"]
+    # 注意：active 不在此处强制覆盖。env(SKU_PROVIDER_ACTIVE) 仅作 _DEFAULTS 里的
+    # 初始默认值，YAML/前端显式设置优先，否则前端切换会被 env 打回。
 
 
 def load_sourcing_config() -> dict:
