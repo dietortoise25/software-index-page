@@ -1,5 +1,5 @@
 """
-_build_rows 经 SKU Provider 富化的单元测试
+SKU 获取（_fetch_skus_into）+ 建行（_build_rows）单元测试
 运行: cd backend/python/shopee-analyzer && python -m pytest tests/test_build_rows_provider.py -v
 """
 import pytest
@@ -13,10 +13,11 @@ class _FakeProvider:
     name = "fake"
     ready = True
 
-    def __init__(self, ok_map=None, raise_ids=None):
+    def __init__(self, ok_map=None, raise_ids=None, ready=True):
         self.ok_map = ok_map or {}
         self.raise_ids = set(raise_ids or [])
         self.calls = []
+        self.ready = ready
 
     def fetch_sku(self, item_id):
         self.calls.append(item_id)
@@ -35,111 +36,92 @@ def _cand(item_id):
     return {"itemId": item_id, "title": f"候选{item_id}", "itemPrice": "7.40", "link": "", "sales": "", "offerTags": ["高度同款"], "purchaseInfos": [{"value": "2件起批"}], "providerInfo": {"companyName": "厂A"}}
 
 
-def test_build_rows_injects_sku_from_provider():
-    """_build_rows 用注入的 provider 取 SKU，写进候选的 sku 字段"""
+def _drain(gen):
+    """跑完生成器，返回 yield 出的所有进度帧"""
+    return list(gen)
+
+
+# ── _build_rows：纯建行，吃预填好的 sku_cache，不拉取/不 sleep ──
+
+def test_build_rows_injects_sku_from_cache():
+    """_build_rows 把 sku_cache 里的数据写进候选的 sku 字段"""
     from sourcing import _build_rows
-    provider = _FakeProvider(ok_map={
-        "A1": {"sku_count": 3, "min_price": "5.00", "max_price": "9.00", "min_price_spec": "红", "skus": [{"spec": "红", "price": "5.00"}], "error": None},
-    })
-    products = [_prod("P1")]
-    candidates_map = {"P1": [_cand("A1")]}
-
-    rows = _build_rows(products, candidates_map, COST_CFG, provider=provider)
-
-    assert provider.calls == ["A1"]
+    sku_cache = {"A1": {"sku_count": 3, "min_price": "5.00", "max_price": "9.00", "min_price_spec": "红", "skus": [{"spec": "红", "price": "5.00"}], "error": None}}
+    rows = _build_rows([_prod("P1")], {"P1": [_cand("A1")]}, COST_CFG, sku_cache)
     sku = rows[0]["candidates"][0]["sku"]
     assert sku["count"] == 3
     assert sku["min_price"] == "5.00"
 
 
-def test_build_rows_isolates_provider_failure():
-    """某 offer 取 SKU 抛异常，不阻塞其他 offer，整批照常返回"""
+def test_build_rows_empty_cache_no_crash():
+    """sku_cache 为空（未配置/未获取）→ 不报错，SKU 列为空"""
     from sourcing import _build_rows
-    provider = _FakeProvider(
-        ok_map={"GOOD": {"sku_count": 2, "min_price": "8.00", "max_price": "12.00", "min_price_spec": "L", "skus": [{"spec": "L", "price": "8.00"}], "error": None}},
-        raise_ids={"BAD"},
-    )
-    products = [_prod("P1"), _prod("P2")]
-    candidates_map = {"P1": [_cand("BAD")], "P2": [_cand("GOOD")]}
-
-    rows = _build_rows(products, candidates_map, COST_CFG, provider=provider)
-
-    assert len(rows) == 2
-    by_pid = {r["product_id"]: r for r in rows}
-    # 失败 offer：sku 为空，但行仍存在
-    assert by_pid["P1"]["candidates"][0]["sku"]["count"] == 0
-    # 成功 offer：sku 正常注入
-    assert by_pid["P2"]["candidates"][0]["sku"]["count"] == 2
-
-
-def test_build_rows_default_provider_no_crash():
-    """不传 provider 时（默认 NullProvider），不报错，SKU 列为空"""
-    from sourcing import _build_rows
-    products = [_prod("P1")]
-    candidates_map = {"P1": [_cand("A1")]}
-
-    rows = _build_rows(products, candidates_map, COST_CFG)
-
+    rows = _build_rows([_prod("P1")], {"P1": [_cand("A1")]}, COST_CFG)
     assert len(rows) == 1
     assert rows[0]["candidates"][0]["sku"]["count"] == 0
 
 
-# ── 串行单发：万邦试用档 1-3 秒一次，整批并发会被打 503，必须串行+间隔 ──
+# ── _fetch_skus_into：串行拉取 + 逐 offer 进度 + 填 cache ──
 
-class _OverlapProvider:
-    """记录请求是否重叠的假 provider（用于验证串行执行）"""
-    name = "overlap"
-    ready = True
+def test_fetch_skus_yields_progress_per_offer():
+    """每拉完一个 offer yield 一条进度 (current/total/item_id)，cache 被填好"""
+    from sourcing import _fetch_skus_into
+    provider = _FakeProvider(ok_map={
+        f"A{i}": {"sku_count": 1, "min_price": "5.00", "max_price": "5.00", "min_price_spec": "红", "skus": [], "error": None}
+        for i in range(3)
+    })
+    candidates_map = {f"P{i}": [_cand(f"A{i}")] for i in range(3)}
+    sku_cache = {}
+    progs = _drain(_fetch_skus_into(provider, candidates_map, sku_cache))
 
-    def __init__(self):
-        import threading
-        self._lock = threading.Lock()
-        self.inflight = 0
-        self.max_inflight = 0
-        self.calls = []
-
-    def fetch_sku(self, item_id):
-        import time
-        with self._lock:
-            self.inflight += 1
-            self.max_inflight = max(self.max_inflight, self.inflight)
-            self.calls.append(item_id)
-        time.sleep(0.01)  # 制造重叠窗口；若并发则 max_inflight>1
-        with self._lock:
-            self.inflight -= 1
-        return {"sku_count": 1, "min_price": "5.00", "max_price": "5.00", "min_price_spec": "红", "skus": [], "error": None}
+    assert [p["current"] for p in progs] == [1, 2, 3]
+    assert all(p["total"] == 3 for p in progs)
+    assert set(sku_cache.keys()) == {"A0", "A1", "A2"}
+    assert sku_cache["A0"]["sku_count"] == 1
 
 
-def test_build_rows_fetches_sku_serially():
-    """多个 offer 的 SKU 获取串行执行，绝不并发（峰值并发恒为 1）"""
-    from sourcing import _build_rows
-    provider = _OverlapProvider()
-    products = [_prod(f"P{i}") for i in range(5)]
-    candidates_map = {f"P{i}": [_cand(f"A{i}")] for i in range(5)}
-
-    _build_rows(products, candidates_map, COST_CFG, provider=provider)
-
-    assert provider.max_inflight == 1, f"SKU 请求未串行，峰值并发={provider.max_inflight}"
-    assert len(provider.calls) == 5
-
-
-def test_build_rows_spaces_sku_requests(monkeypatch):
-    """相邻 SKU 请求之间按 _SKU_REQUEST_INTERVAL_SEC 间隔，给万邦喘息"""
+def test_fetch_skus_serial_with_interval(monkeypatch):
+    """相邻 offer 之间按 _SKU_REQUEST_INTERVAL_SEC 间隔（给万邦喘息，避免 503）"""
     import sourcing
-    from sourcing import _build_rows
+    from sourcing import _fetch_skus_into
     sleeps = []
     monkeypatch.setattr(sourcing.time, "sleep", lambda s: sleeps.append(s))
     provider = _FakeProvider(ok_map={
         f"A{i}": {"sku_count": 1, "min_price": "5.00", "max_price": "5.00", "min_price_spec": "红", "skus": [], "error": None}
         for i in range(3)
     })
-    products = [_prod(f"P{i}") for i in range(3)]
     candidates_map = {f"P{i}": [_cand(f"A{i}")] for i in range(3)}
-
-    _build_rows(products, candidates_map, COST_CFG, provider=provider)
+    _drain(_fetch_skus_into(provider, candidates_map, {}))
 
     interval = sourcing._SKU_REQUEST_INTERVAL_SEC
     assert interval >= 1.0, "万邦默认 1-3 秒一次，间隔不应小于 1 秒"
-    # 3 个请求至少间隔 2 次
     paced = [s for s in sleeps if s >= interval]
-    assert len(paced) >= 2, f"间隔次数不足: {sleeps}"
+    assert len(paced) >= 2, f"间隔次数不足: {sleeps}"  # 3 个请求至少间隔 2 次
+
+
+def test_fetch_skus_isolates_failure():
+    """某 offer 抛异常 → cache 记空+error，不阻塞后续 offer"""
+    from sourcing import _fetch_skus_into
+    provider = _FakeProvider(
+        ok_map={"GOOD": {"sku_count": 2, "min_price": "8.00", "max_price": "12.00", "min_price_spec": "L", "skus": [], "error": None}},
+        raise_ids={"BAD"},
+    )
+    candidates_map = {"P1": [_cand("BAD")], "P2": [_cand("GOOD")]}
+    sku_cache = {}
+    progs = _drain(_fetch_skus_into(provider, candidates_map, sku_cache))
+
+    assert len(progs) == 2  # 两个 offer 都跑到了
+    assert sku_cache["BAD"]["sku_count"] == 0
+    assert sku_cache["BAD"]["error"]
+    assert sku_cache["GOOD"]["sku_count"] == 2
+
+
+def test_fetch_skus_skips_when_not_ready():
+    """provider 未就绪 → 不拉取、不 yield、cache 不变"""
+    from sourcing import _fetch_skus_into
+    provider = _FakeProvider(ready=False)
+    sku_cache = {}
+    progs = _drain(_fetch_skus_into(provider, {"P1": [_cand("A1")]}, sku_cache))
+    assert progs == []
+    assert sku_cache == {}
+    assert provider.calls == []

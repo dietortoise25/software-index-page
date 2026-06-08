@@ -61,6 +61,7 @@ type Action =
   | { type: "SET_PROVIDER"; provider: string }
   | { type: "START_ANALYZING"; total: number; message: string }
   | { type: "PROGRESS"; phase: string; data: any }
+  | { type: "SKU_PROGRESS"; current: number; total: number; message: string }
   | { type: "COMPLETE"; rows: SourcingRow[]; summary: SourcingSummary }
   | { type: "ERROR"; message: string }
 
@@ -110,6 +111,14 @@ function reducer(state: State, action: Action): State {
       }
       return { ...state, progressPhase: phase, progressMessage: data.message || "" }
     }
+    case "SKU_PROGRESS":
+      return {
+        ...state,
+        progressPhase: "fetching_sku",
+        progressCurrent: action.current,
+        progressTotal: action.total,
+        progressMessage: action.message,
+      }
     case "COMPLETE":
       return {
         ...state, phase: "done",
@@ -152,7 +161,24 @@ export default function SourcingToolPage() {
       for await (const ev of analyzeStream(formData)) {
         switch (ev.event) {
           case "phase":
-            dispatch({ type: "PROGRESS", phase: ev.data.phase, data: ev.data })
+            if (ev.data.phase === "fetching_sku" && ev.data.ready) {
+              dispatch({
+                type: "SKU_PROGRESS",
+                current: 0,
+                total: ev.data.total || 0,
+                message: ev.data.message || "",
+              })
+            } else {
+              dispatch({ type: "PROGRESS", phase: ev.data.phase, data: ev.data })
+            }
+            break
+          case "sku_progress":
+            dispatch({
+              type: "SKU_PROGRESS",
+              current: ev.data.current,
+              total: ev.data.total,
+              message: ev.data.message || "",
+            })
             break
           case "start":
             dispatch({ type: "START_ANALYZING", total: ev.data.total, message: ev.data.message })

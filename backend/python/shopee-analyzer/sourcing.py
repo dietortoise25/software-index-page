@@ -221,34 +221,42 @@ def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None =
     return row
 
 
-def _build_rows(products: list, candidates_map: dict, cost_cfg: dict, provider=None) -> list:
-    """构建所有产品行，经 SKU Provider 富化价格表"""
-    if provider is None:
-        provider = get_provider(_cfg())
-
-    # 收集所有 offer_id
-    offer_ids = set()
+def _collect_offer_ids(candidates_map: dict) -> list:
+    """按出现顺序去重收集所有候选的 1688 offer_id（原始字段 itemId）"""
+    seen, ordered = set(), []
     for cands in candidates_map.values():
         for c in cands:
             oid = c.get("itemId", "")
-            if oid:
-                offer_ids.add(oid)
+            if oid and oid not in seen:
+                seen.add(oid)
+                ordered.append(oid)
+    return ordered
 
-    # 串行经 provider 获取 SKU 价格表（万邦试用档 1-3 秒/次，并发会被打 503）；单个失败不阻塞整批
-    sku_cache = {}
-    if offer_ids and provider.ready:
-        ids = list(offer_ids)
-        logger.info(f"[sku] provider={provider.name} 串行获取 {len(ids)} 个 offer 的 SKU 价格表（间隔 {_SKU_REQUEST_INTERVAL_SEC}s）...")
-        for i, oid in enumerate(ids):
-            if i > 0:
-                time.sleep(_SKU_REQUEST_INTERVAL_SEC)
-            try:
-                sku_cache[oid] = provider.fetch_sku(oid)
-            except Exception as e:
-                logger.warning(f"[sku] {oid} provider 异常: {e}")
-                sku_cache[oid] = {"sku_count": 0, "min_price": None, "max_price": None,
-                                  "min_price_spec": None, "skus": [], "error": str(e)[:120]}
 
+def _fetch_skus_into(provider, candidates_map: dict, sku_cache: dict):
+    """串行经 provider 拉 SKU 填进 sku_cache；每拉完一个 offer yield 一条进度。
+    万邦试用档约 1-3 秒/次，整批并发会被打 503，故串行 + 请求间间隔。
+    单个 offer 失败不阻塞后续。provider 未就绪或无 offer 时不拉取、不 yield。"""
+    offer_ids = _collect_offer_ids(candidates_map)
+    total = len(offer_ids)
+    if not (offer_ids and provider.ready):
+        return
+    logger.info(f"[sku] provider={provider.name} 串行获取 {total} 个 offer 的 SKU 价格表（间隔 {_SKU_REQUEST_INTERVAL_SEC}s）...")
+    for i, oid in enumerate(offer_ids):
+        if i > 0:
+            time.sleep(_SKU_REQUEST_INTERVAL_SEC)
+        try:
+            sku_cache[oid] = provider.fetch_sku(oid)
+        except Exception as e:
+            logger.warning(f"[sku] {oid} provider 异常: {e}")
+            sku_cache[oid] = {"sku_count": 0, "min_price": None, "max_price": None,
+                              "min_price_spec": None, "skus": [], "error": str(e)[:120]}
+        yield {"current": i + 1, "total": total, "item_id": oid}
+
+
+def _build_rows(products: list, candidates_map: dict, cost_cfg: dict, sku_cache: dict | None = None) -> list:
+    """构建所有产品行；SKU 数据从预填好的 sku_cache 注入（不在此拉取）"""
+    sku_cache = sku_cache or {}
     return [_build_row(prod, candidates_map.get(prod["product_id"], []), cost_cfg, sku_cache) for prod in products]
 
 
@@ -372,7 +380,12 @@ async def sourcing_analyze(
             pid, cands, _ = fut.result()
             candidates_map[pid] = cands
 
-    rows = _build_rows(products, candidates_map, cost_cfg)
+    # 串行拉 SKU（非流式：无进度，直接跑完）→ 用服务器默认 provider
+    provider = get_provider(cfg)
+    sku_cache: dict = {}
+    for _ in _fetch_skus_into(provider, candidates_map, sku_cache):
+        pass
+    rows = _build_rows(products, candidates_map, cost_cfg, sku_cache)
 
     summary = {
         "total_products": len(rows),
@@ -448,17 +461,32 @@ async def sourcing_analyze_stream(
             executor.shutdown(wait=False)
 
         # 后端经 SKU Provider 获取价格表（不再依赖浏览器扩展回传）
-        offer_count = sum(len(c) for c in candidates_map.values())
         provider = _provider_for_request(cfg, sku_provider)
+        offer_ids = _collect_offer_ids(candidates_map)
+        offer_count = len(offer_ids)
         yield _sse("phase", {
             "phase": "fetching_sku",
-            "message": f"经 {provider.name} 获取 {offer_count} 个候选的 SKU 价格表..."
+            "message": f"经 {provider.name} 串行获取 {offer_count} 个候选的 SKU 价格表（约 {_SKU_REQUEST_INTERVAL_SEC}s/个）..."
                        if provider.ready else "未配置 SKU Provider，跳过 SKU 价格表",
             "provider": provider.name,
             "ready": provider.ready,
+            "total": offer_count,
         })
 
-        rows = await loop.run_in_executor(None, _build_rows, products, candidates_map, cost_cfg, provider)
+        # 串行拉 SKU：每拉完一个 offer 推一条进度（sleep 在线程里跑，不阻塞 event loop）
+        sku_cache: dict = {}
+        if provider.ready and offer_ids:
+            gen = _fetch_skus_into(provider, candidates_map, sku_cache)
+            while True:
+                prog = await loop.run_in_executor(None, lambda: next(gen, None))
+                if prog is None:
+                    break
+                yield _sse("sku_progress", {
+                    **prog,
+                    "message": f"SKU 价格表 {prog['current']}/{prog['total']}",
+                })
+
+        rows = await loop.run_in_executor(None, _build_rows, products, candidates_map, cost_cfg, sku_cache)
 
         sku_ok = sum(1 for r in rows for c in r["candidates"] if c.get("sku", {}).get("count", 0) > 0)
         sku_failed = sum(1 for r in rows for c in r["candidates"] if c.get("sku", {}).get("count", 0) == 0)

@@ -73,6 +73,19 @@ def test_stream_emits_fetching_sku_phase():
     assert any("fetching_sku" in (d or "") for d in phases)
 
 
+def test_stream_emits_sku_progress_per_offer():
+    """SKU 阶段逐 offer 推 sku_progress 帧（带 current/total），前端进度条不再卡死"""
+    import json
+    events = _run_stream()
+    sku_progs = [json.loads(d) for e, d in events if e == "sku_progress"]
+    assert len(sku_progs) >= 1, "未推送任何 sku_progress 帧"
+    assert sku_progs[-1]["current"] == sku_progs[-1]["total"]  # 最后一帧到达总数
+    assert all("current" in p and "total" in p for p in sku_progs)
+    # sku_progress 应在 fetching_sku phase 之后、complete 之前
+    names = [e for e, _ in events]
+    assert names.index("sku_progress") < names.index("complete")
+
+
 def test_stream_ends_with_complete():
     """流仍以 complete 收尾，含 rows + summary"""
     events = _run_stream()
