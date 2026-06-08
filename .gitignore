@@ -18,3 +18,9 @@ output/
 # 发布二进制和临时文件
 publish/
 /ppt/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
