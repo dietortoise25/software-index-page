@@ -8,7 +8,7 @@ import ProgressPanel from "@/components/sourcing/ProgressPanel"
 import ResultTable from "@/components/sourcing/ResultTable"
 import SummaryBar from "@/components/sourcing/SummaryBar"
 import ExportButton from "@/components/sourcing/ExportButton"
-import ProxyStatus, { sendToExtension } from "@/components/sourcing/ProxyStatus"
+import ProxyStatus from "@/components/sourcing/ProxyStatus"
 import WorkflowGuide from "@/components/sourcing/WorkflowGuide"
 import { analyzeStream } from "@/lib/sourcing"
 import type { SourcingRow, SourcingSummary } from "@/lib/sourcing"
@@ -28,6 +28,7 @@ interface State {
   phase: Phase
   files: FileEntry[]
   cost: CostParams
+  skuProvider: string
   progressCurrent: number
   progressTotal: number
   progressPhase: string
@@ -42,8 +43,13 @@ const initialCost: CostParams = {
   target_margin_rate: 0.15, high_margin_rate: 0.30,
 }
 
+const PROVIDER_KEY = "sourcing.sku_provider"
+function loadProvider(): string {
+  try { return localStorage.getItem(PROVIDER_KEY) || "onebound" } catch { return "onebound" }
+}
+
 const initialState: State = {
-  phase: "idle", files: [], cost: initialCost,
+  phase: "idle", files: [], cost: initialCost, skuProvider: loadProvider(),
   progressCurrent: 0, progressTotal: 0, progressPhase: "", progressMessage: "",
   productStatuses: [], rows: [], summary: null,
 }
@@ -52,10 +58,10 @@ type Action =
   | { type: "ADD_FILES"; files: File[] }
   | { type: "REMOVE_FILE"; index: number }
   | { type: "SET_COST"; cost: CostParams }
+  | { type: "SET_PROVIDER"; provider: string }
   | { type: "START_ANALYZING"; total: number; message: string }
   | { type: "PROGRESS"; phase: string; data: any }
   | { type: "COMPLETE"; rows: SourcingRow[]; summary: SourcingSummary }
-  | { type: "ENRICH_SKU"; rows: SourcingRow[]; summary: SourcingSummary }
   | { type: "ERROR"; message: string }
 
 function reducer(state: State, action: Action): State {
@@ -65,7 +71,7 @@ function reducer(state: State, action: Action): State {
         file: f, name: f.name,
         size: f.size < 1024 ? `${f.size}B` : f.size < 1048576 ? `${(f.size / 1024).toFixed(1)}KB` : `${(f.size / 1048576).toFixed(1)}MB`,
       }))
-      return { ...initialState, phase: "uploaded", files: entries, cost: state.cost }
+      return { ...initialState, phase: "uploaded", files: entries, cost: state.cost, skuProvider: state.skuProvider }
     }
     case "REMOVE_FILE": {
       const files = state.files.filter((_, i) => i !== action.index)
@@ -73,6 +79,9 @@ function reducer(state: State, action: Action): State {
     }
     case "SET_COST":
       return { ...state, cost: action.cost }
+    case "SET_PROVIDER":
+      try { localStorage.setItem(PROVIDER_KEY, action.provider) } catch { /* 忽略隐私模式写入失败 */ }
+      return { ...state, skuProvider: action.provider }
     case "START_ANALYZING":
       return {
         ...state, phase: "analyzing",
@@ -106,11 +115,6 @@ function reducer(state: State, action: Action): State {
         ...state, phase: "done",
         rows: action.rows, summary: action.summary,
       }
-    case "ENRICH_SKU":
-      return {
-        ...state, phase: "done",
-        rows: action.rows, summary: action.summary,
-      }
     case "ERROR":
       alert(action.message)
       return { ...state, phase: state.files.length > 0 ? "uploaded" : "idle" }
@@ -137,6 +141,7 @@ export default function SourcingToolPage() {
     formData.append("cost_multiplier", String(s.cost.cost_multiplier))
     formData.append("target_margin_rate", String(s.cost.target_margin_rate))
     formData.append("high_margin_rate", String(s.cost.high_margin_rate))
+    formData.append("sku_provider", s.skuProvider)
 
     dispatch({ type: "START_ANALYZING", total: 0, message: "开始分析..." })
 
@@ -155,22 +160,6 @@ export default function SourcingToolPage() {
           case "progress":
             dispatch({ type: "PROGRESS", phase: "progress", data: ev.data })
             break
-          case "awaiting_sku": {
-            const { offer_ids, analysis_id, count } = ev.data
-            console.log("[SSE] awaiting_sku:", { count, analysis_id, sample_ids: offer_ids.slice(0, 3) })
-            dispatch({ type: "PROGRESS", phase: "waiting_sku", data: { message: `搜图完成, 通过扩展获取 ${count} 个 SKU 价格...` } })
-
-            // 发送给扩展
-            console.log("[SSE] sending to extension...")
-            const result = await sendToExtension("sku-batch", { offerIds: offer_ids, backendUrl: window.location.origin, analysisId: analysis_id })
-            console.log("[SSE] extension result:", result)
-            dispatch({ type: "PROGRESS", phase: "waiting_sku", data: {
-              message: result?.ok
-                ? `扩展已采集 ${result.success}/${result.total} 个 SKU, 等待后端计算...`
-                : `扩展采集: ${result?.error || "失败"}, 使用标价...`
-            }})
-            break
-          }
           case "complete":
             dispatch({
               type: "COMPLETE",
@@ -222,6 +211,36 @@ export default function SourcingToolPage() {
           onChange={(c) => dispatch({ type: "SET_COST", cost: c })}
           disabled={s.phase === "analyzing"}
         />
+      </Card>
+
+      {/* ③ 价格数据源 */}
+      <Card className="p-4">
+        <h2 className="text-sm font-medium mb-1">3. 价格数据源</h2>
+        <p className="text-xs text-muted-foreground mb-3">
+          决定 1688 进货价怎么取。万邦提供真实分规格价（更准、但走付费配额）；不查则只用图搜返回的参考价。
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { v: "onebound", title: "万邦", desc: "真实分规格价 · 付费配额" },
+            { v: "none", title: "不查", desc: "免费 · 仅图搜参考价" },
+          ].map((opt) => {
+            const active = s.skuProvider === opt.v
+            return (
+              <button
+                key={opt.v}
+                type="button"
+                disabled={s.phase === "analyzing"}
+                onClick={() => dispatch({ type: "SET_PROVIDER", provider: opt.v })}
+                className={`text-left rounded-lg border p-3 transition disabled:opacity-50 ${
+                  active ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:border-primary/40"
+                }`}
+              >
+                <div className="text-sm font-medium">{opt.title}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{opt.desc}</div>
+              </button>
+            )
+          })}
+        </div>
       </Card>
 
       {/* 开始分析 */}

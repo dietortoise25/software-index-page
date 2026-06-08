@@ -12,10 +12,8 @@ import asyncio
 import json as _json
 import logging
 import os
-import threading
 import time
 import traceback
-import urllib.request
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Optional
@@ -25,17 +23,28 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from aibuy_client import (
-    search_by_image, reset_session,
+    search_by_image,
     configure as configure_aibuy, warmup_session,
-    fetch_sku_prices, set_auth_cookie, get_auth_cookie,
 )
 from config import load_sourcing_config, save_sourcing_config, reload_sourcing_config, deep_merge
+from sku_provider import get_provider
 
 logger = logging.getLogger("sourcing")
 
-_CONFIG_DIR = os.path.join(os.path.dirname(__file__), "config")
-
 router = APIRouter(prefix="/api/sourcing", tags=["sourcing"])
+
+
+def _provider_for_request(cfg: dict, requested: str):
+    """按本次请求选择 SKU Provider。
+    requested 为空 → 用服务器默认；"none" → 强制无；其他 → 覆盖 active。
+    凭证始终取自服务器配置，运营只选用哪个源、绝不传密钥。
+    不改动传入的 cfg。"""
+    requested = (requested or "").strip()
+    if not requested:
+        return get_provider(cfg)
+    active = "" if requested == "none" else requested
+    sp = {**(cfg.get("sku_provider") or {}), "active": active}
+    return get_provider({**cfg, "sku_provider": sp})
 
 
 def _cfg():
@@ -208,9 +217,10 @@ def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None =
     return row
 
 
-def _build_rows(products: list, candidates_map: dict, cost_cfg: dict) -> list:
-    """构建所有产品行，含 SKU 价格富化"""
-    proxy_url = _get_proxy_url()
+def _build_rows(products: list, candidates_map: dict, cost_cfg: dict, provider=None) -> list:
+    """构建所有产品行，经 SKU Provider 富化价格表"""
+    if provider is None:
+        provider = get_provider(_cfg())
 
     # 收集所有 offer_id
     offer_ids = set()
@@ -220,18 +230,20 @@ def _build_rows(products: list, candidates_map: dict, cost_cfg: dict) -> list:
             if oid:
                 offer_ids.add(oid)
 
-    # 并发获取 SKU 数据
+    # 并发经 provider 获取 SKU 价格表；单个失败不阻塞整批
     sku_cache = {}
-    if offer_ids and proxy_url:
-        logger.info(f"[sku] 通过代理 {proxy_url} 获取 {len(offer_ids)} 个 offer 的 SKU 价格...")
-        with ThreadPoolExecutor(max_workers=6) as ex:
-            futures = {ex.submit(fetch_sku_prices, oid, proxy_url): oid for oid in offer_ids}
+    if offer_ids and provider.ready:
+        logger.info(f"[sku] provider={provider.name} 获取 {len(offer_ids)} 个 offer 的 SKU 价格表...")
+        with ThreadPoolExecutor(max_workers=_cfg()["search"]["max_concurrency"]) as ex:
+            futures = {ex.submit(provider.fetch_sku, oid): oid for oid in offer_ids}
             for fut in as_completed(futures):
                 oid = futures[fut]
                 try:
                     sku_cache[oid] = fut.result()
                 except Exception as e:
-                    logger.warning(f"[sku] {oid} 失败: {e}")
+                    logger.warning(f"[sku] {oid} provider 异常: {e}")
+                    sku_cache[oid] = {"sku_count": 0, "min_price": None, "max_price": None,
+                                      "min_price_spec": None, "skus": [], "error": str(e)[:120]}
 
     return [_build_row(prod, candidates_map.get(prod["product_id"], []), cost_cfg, sku_cache) for prod in products]
 
@@ -379,6 +391,7 @@ async def sourcing_analyze_stream(
     cost_multiplier: float = Form(-1),
     target_margin_rate: float = Form(-1),
     high_margin_rate: float = Form(-1),
+    sku_provider: str = Form(""),
 ):
     """SSE 流式版 — 实时推送每个产品的搜索进度 + 成本计算结果"""
     cfg = _cfg()
@@ -401,7 +414,6 @@ async def sourcing_analyze_stream(
     cost_cfg = _cost_cfg_from(cfg, overrides if overrides else None)
 
     async def generate():
-        analysis_id = _json.dumps({"ts": int(time.time() * 1000), "offer_count": 0})
         yield _sse("phase", {"phase": "parsing", "message": f"已解析 {total} 个产品"})
         yield _sse("start", {"total": total, "message": f"开始并发搜图 ({max_workers} 线程)"})
 
@@ -431,34 +443,25 @@ async def sourcing_analyze_stream(
         finally:
             executor.shutdown(wait=False)
 
-        # 收集 offer_id 列表，发给前端
-        offer_ids = list(set(
-            c.get("itemId", "")
-            for cands in candidates_map.values()
-            for c in cands
-            if c.get("itemId")
-        ))
-        analysis_id = str(int(time.time() * 1000))
-        yield _sse("awaiting_sku", {"offer_ids": offer_ids, "analysis_id": analysis_id, "count": len(offer_ids)})
+        # 后端经 SKU Provider 获取价格表（不再依赖浏览器扩展回传）
+        offer_count = sum(len(c) for c in candidates_map.values())
+        provider = _provider_for_request(cfg, sku_provider)
+        yield _sse("phase", {
+            "phase": "fetching_sku",
+            "message": f"经 {provider.name} 获取 {offer_count} 个候选的 SKU 价格表..."
+                       if provider.ready else "未配置 SKU Provider，跳过 SKU 价格表",
+            "provider": provider.name,
+            "ready": provider.ready,
+        })
 
-        # 等待前端通过扩展获取 SKU 并 POST 回来
-        sku_event = threading.Event()
-        sku_entry = {"data": None, "event": sku_event}
-        _sku_events[analysis_id] = sku_entry
+        rows = await loop.run_in_executor(None, _build_rows, products, candidates_map, cost_cfg, provider)
 
-        yield _sse("phase", {"phase": "waiting_sku", "message": f"等待前端通过扩展获取 {len(offer_ids)} 个 SKU 价格..."})
-
-        # 最多等 120 秒
-        sku_received = await loop.run_in_executor(None, sku_event.wait, 120)
-        sku_cache = _sku_events.pop(analysis_id, sku_entry).get("data") or {}
-
-        if not sku_received or not sku_cache:
-            logger.warning(f"[stream] SKU 未收到或超时, analysis_id={analysis_id}")
-            yield _sse("phase", {"phase": "sku_timeout", "message": "SKU 获取超时, 使用搜索标价计算"})
-
-        yield _sse("phase", {"phase": "costing", "message": "成本计算中..."})
-
-        rows = _build_rows(products, candidates_map, cost_cfg)
+        sku_ok = sum(1 for r in rows for c in r["candidates"] if c.get("sku", {}).get("count", 0) > 0)
+        sku_failed = sum(1 for r in rows for c in r["candidates"] if c.get("sku", {}).get("count", 0) == 0)
+        yield _sse("phase", {
+            "phase": "costing",
+            "message": f"SKU 价格表完成（{sku_ok} 成功 / {sku_failed} 无数据），汇总中...",
+        })
 
         summary = {
             "total_products": len(rows),
@@ -531,161 +534,15 @@ async def reload_config():
     return {"status": "ok", "config": cfg}
 
 
-# ========== 1688 登录态 Cookie 管理 ==========
+# ========== SKU Provider 健康状态 ==========
 
-_COOKIE_PATH = os.path.join(_CONFIG_DIR, ".1688_auth_cookie")
-
-def _load_cookie():
-    if os.path.exists(_COOKIE_PATH):
-        with open(_COOKIE_PATH, "r", encoding="utf-8") as f:
-            return f.read().strip()
-    return ""
-
-def _save_cookie(cookie: str):
-    with open(_COOKIE_PATH, "w", encoding="utf-8") as f:
-        f.write(cookie)
-
-
-# 启动时从文件加载 cookie
-_stored_cookie = _load_cookie()
-if _stored_cookie:
-    set_auth_cookie(_stored_cookie)
-    logger.info(f"[auth] 已加载 1688 登录 cookie ({len(_stored_cookie)} 字符)")
-
-
-@router.get("/auth")
-async def get_auth():
-    """获取 1688 登录态 cookie 状态"""
-    cookie = get_auth_cookie()
+@router.get("/sku-provider/status")
+async def sku_provider_status():
+    """当前 SKU Provider 名称 + 是否就绪，供前端指示灯展示"""
+    provider = get_provider(_cfg())
     return {
-        "has_cookie": bool(cookie),
-        "cookie_len": len(cookie),
-        "sample": cookie[:30] + "..." if cookie else "",
+        "provider": provider.name,
+        "ready": provider.ready,
+        "message": (f"SKU Provider「{provider.name}」已就绪" if provider.ready
+                    else "未配置 SKU Provider，SKU 价格表将为空"),
     }
-
-
-def _check_proxy_alive(proxy_url: str) -> bool:
-    """检测本地代理是否在线"""
-    try:
-        r = urllib.request.urlopen(f"{proxy_url}/health", timeout=3)
-        return r.status == 200
-    except Exception:
-        return False
-
-
-@router.get("/proxy/healthcheck")
-async def proxy_healthcheck():
-    """检测本地代理 + SKU 连通性"""
-    proxy_url = _get_proxy_url()
-    if not proxy_url:
-        return {"proxy": "not_configured", "message": "未配置本地代理地址"}
-
-    alive = _check_proxy_alive(proxy_url)
-    if not alive:
-        return {"proxy": "offline", "message": f"无法连接到本地代理 {proxy_url}"}
-
-    # 代理在线，测试 SKU API
-    try:
-        r = urllib.request.urlopen(f"{proxy_url}/api/sku/740919115663", timeout=10)
-        data = _json.loads(r.read().decode("utf-8"))
-        if data.get("prices"):
-            return {
-                "proxy": "ok",
-                "sku": "ok",
-                "message": f"本地代理已连接，SKU API 正常 ({len(data['prices'])} 个价格)",
-                "sample_prices": data["prices"],
-            }
-        return {"proxy": "ok", "sku": "no_data", "message": "代理在线但 SKU API 未返回价格（cookie 可能过期）"}
-    except Exception as e:
-        return {"proxy": "ok", "sku": "error", "message": f"代理在线但 SKU 查询失败: {e}"}
-
-
-def _get_proxy_url() -> str:
-    return _cfg().get("system", {}).get("proxy_url", "")
-
-
-@router.post("/auth/healthcheck")
-async def auth_healthcheck():
-    """测试 1688 登录态是否有效：用已存 cookie 调 SKU API"""
-    cookie = get_auth_cookie()
-    if not cookie:
-        return {"status": "no_cookie", "message": "未配置 1688 登录态 cookie"}
-
-    # 用测试 offer_id 调 SKU API，看是否返回 SUCCESS
-    result = fetch_sku_prices("740919115663")
-
-    if result.get("error"):
-        return {
-            "status": "failed",
-            "message": f"SKU API 调用失败: {result['error']}",
-            "cookie_len": len(cookie),
-        }
-
-    if result.get("sku_count", 0) > 0:
-        return {
-            "status": "ok",
-            "message": f"登录态有效，成功获取 {result['sku_count']} 个 SKU 价格",
-            "cookie_len": len(cookie),
-            "sample_prices": {s["spec"]: s["price"] for s in result.get("skus", [])[:5]},
-        }
-
-    return {
-        "status": "failed",
-        "message": "cookie 存在但 SKU API 未返回数据（可能已过期）",
-        "cookie_len": len(cookie),
-    }
-
-
-@router.put("/auth")
-async def update_auth(body: dict):
-    """更新 1688 登录态 cookie"""
-    cookie = body.get("cookie", "")
-    if not cookie:
-        raise HTTPException(400, "缺少 cookie 字段")
-    _save_cookie(cookie)
-    set_auth_cookie(cookie)
-    logger.info(f"[auth] cookie 已更新 ({len(cookie)} 字符)")
-    return {"status": "ok", "cookie_len": len(cookie)}
-
-
-# SKU 数据等待机制：SSE 流在搜完后挂起，等待 sku-batch 注入数据
-_sku_events: dict[str, dict] = {}  # analysis_id → {"data": None, "event": threading.Event()}
-
-
-@router.post("/sku-batch")
-async def sku_batch(body: dict):
-    """接收扩展回传的 SKU 价格数据"""
-    sku_data = body.get("sku_data", {})
-    analysis_id = body.get("analysis_id", "")
-    is_complete = body.get("complete", False)
-
-    if not sku_data:
-        raise HTTPException(400, "缺少 sku_data 字段")
-
-    logger.info(f"[sku-batch] analysis_id={analysis_id}, {len(sku_data)} offers, complete={is_complete}")
-
-    # 查找等待中的 analysis_id
-    entry = _sku_events.get(analysis_id)
-    if entry:
-        entry["data"] = sku_data
-        entry["event"].set()
-        return {"status": "ok", "count": len(sku_data), "matched": True}
-
-    # 没有匹配的 analysis_id — 存储为全局兜底
-    _sku_events["_last"] = {"data": sku_data, "event": threading.Event()}
-    _sku_events["_last"]["event"].set()
-    return {"status": "ok", "count": len(sku_data), "matched": False}
-
-
-@router.get("/sku-result")
-async def sku_result():
-    last = _sku_events.get("_last", {})
-    data = last.get("data", {})
-    return {"sku_data": data, "count": len(data)}
-
-
-@router.post("/refresh-session")
-async def refresh_session():
-    """强制刷新 1688 游客 session"""
-    reset_session()
-    return {"status": "ok", "message": "session 已重置"}

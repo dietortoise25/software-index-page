@@ -17,6 +17,13 @@ thresholds:
   high_margin_rate: 0.30
 system:
   proxy_url: ""
+sku_provider:
+  active: ""        # "" | onebound | justoneapi —— 留空用 NullProvider
+  onebound:
+    key: ""         # 从 env ONEBOUND_KEY 注入，此处仅占位
+    secret: ""      # 从 env ONEBOUND_SECRET 注入
+  justoneapi:
+    token: ""       # 从 env JUSTONEAPI_TOKEN 注入
 limits:
   max_file_size_mb: 10
 columns:

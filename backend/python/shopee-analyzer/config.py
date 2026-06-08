@@ -35,6 +35,23 @@ _DEFAULTS: dict[str, Any] = {
     "system": {
         "proxy_url": "",
     },
+    "sku_provider": {
+        # active: "" | "onebound" | "justoneapi" —— 留空则用 NullProvider（SKU 列为空）
+        "active": os.environ.get("SKU_PROVIDER_ACTIVE", ""),
+        # 本地 JSON 缓存：命中不再调外部接口（省配额）。MVP 无 TTL。
+        "cache": {
+            "enabled": os.environ.get("SKU_CACHE_ENABLED", "1") != "0",
+            "path": os.environ.get("SKU_CACHE_PATH", "sku_cache.json"),
+        },
+        # 密钥从 env 读，保留空字符串 fallback，禁止硬编码
+        "onebound": {
+            "key": os.environ.get("ONEBOUND_KEY", ""),
+            "secret": os.environ.get("ONEBOUND_SECRET", ""),
+        },
+        "justoneapi": {
+            "token": os.environ.get("JUSTONEAPI_TOKEN", ""),
+        },
+    },
     "limits": {
         "max_file_size_mb": 10,
     },
@@ -60,6 +77,22 @@ def deep_merge(base: dict, overlay: dict) -> dict:
     return base
 
 
+def _apply_env_secrets(cfg: dict) -> None:
+    """凭证以环境变量为准：env 非空则覆盖 YAML 占位。
+    避免 sourcing.yaml 里的空串占位 deep_merge 时盖掉 env 注入的密钥。"""
+    sp = cfg.setdefault("sku_provider", {})
+    ob = sp.setdefault("onebound", {})
+    if os.environ.get("ONEBOUND_KEY"):
+        ob["key"] = os.environ["ONEBOUND_KEY"]
+    if os.environ.get("ONEBOUND_SECRET"):
+        ob["secret"] = os.environ["ONEBOUND_SECRET"]
+    jo = sp.setdefault("justoneapi", {})
+    if os.environ.get("JUSTONEAPI_TOKEN"):
+        jo["token"] = os.environ["JUSTONEAPI_TOKEN"]
+    if os.environ.get("SKU_PROVIDER_ACTIVE"):
+        sp["active"] = os.environ["SKU_PROVIDER_ACTIVE"]
+
+
 def load_sourcing_config() -> dict:
     """加载选品配置（带缓存）。文件不存在时返回内置默认值。"""
     global _cache
@@ -73,6 +106,7 @@ def load_sourcing_config() -> dict:
         file_cfg = {}
 
     _cache = deep_merge(_DEFAULTS.copy(), file_cfg)
+    _apply_env_secrets(_cache)
     return _cache
 
 

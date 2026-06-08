@@ -1,48 +1,15 @@
 """
-全链路单元测试 — SKU 流水线各环节
-运行: cd backend/python/shopee-analyzer && python3 -m pytest tests/test_sku_pipeline.py -v
+SKU 流水线单元测试 — _build_row 富化 + _pick_candidate 字段透传
+运行: cd backend/python/shopee-analyzer && python -m pytest tests/test_sku_pipeline.py -v
+
+注：SKU 价格表的获取已后端化为 SKU Provider，相关测试见
+    test_sku_provider.py（provider 契约）与 test_build_rows_provider.py（注入/失败隔离）。
 """
-import json
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 # ═══════════════════════════════════════════
-# 1. 后端: POST /api/sourcing/sku-batch
-# ═══════════════════════════════════════════
-
-def test_sku_batch_receives_data():
-    """后端接收含 sku_data 的 POST → 返回 ok"""
-    from fastapi.testclient import TestClient
-    from main import app
-    client = TestClient(app)
-
-    payload = {
-        "analysis_id": "test-001",
-        "sku_data": {
-            "740919115663": {"sku_count": 5, "min_price": "7.40", "max_price": "10.00", "skus": []},
-            "843731889386": {"sku_count": 3, "min_price": "5.00", "skus": []},
-        },
-    }
-    resp = client.post("/api/sourcing/sku-batch", json=payload)
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "ok"
-    assert data["count"] == 2
-
-
-def test_sku_batch_empty_rejected():
-    """空 sku_data → 400"""
-    from fastapi.testclient import TestClient
-    from main import app
-    client = TestClient(app)
-
-    resp = client.post("/api/sourcing/sku-batch", json={"sku_data": {}})
-    assert resp.status_code == 400
-
-
-# ═══════════════════════════════════════════
-# 2. _build_row 注入 SKU 缓存
+# 1. _build_row 注入 SKU 缓存
 # ═══════════════════════════════════════════
 
 def test_build_row_with_sku_enrichment():
@@ -109,7 +76,7 @@ def test_build_row_sku_absent_still_works():
 
 
 # ═══════════════════════════════════════════
-# 3. _pick_candidate 全字段透传
+# 2. _pick_candidate 全字段透传
 # ═══════════════════════════════════════════
 
 def test_pick_candidate_all_fields():
@@ -145,42 +112,3 @@ def test_pick_candidate_all_fields():
     assert result["core_attributes"][0]["label"] == "材质"
     assert result["provider_tags"][0]["tagName"] == "源头工厂"
     assert result["sku"]["count"] == 0  # 默认空
-
-
-# ═══════════════════════════════════════════
-# 4. fetch_sku_prices 代理模式
-# ═══════════════════════════════════════════
-
-def test_fetch_sku_via_proxy():
-    """代理在线 → 请求正确路由"""
-    from aibuy_client import fetch_sku_prices
-
-    mock_result = {"sku_count": 2, "min_price": "7.40", "skus": [{"spec": "A", "price": "7.40"}]}
-    mock_json = json.dumps(mock_result).encode()
-
-    with patch("aibuy_client.urllib.request.urlopen") as mock_urlopen:
-        mock_resp = MagicMock()
-        mock_resp.read.return_value = mock_json
-        mock_urlopen.return_value = mock_resp
-
-        result = fetch_sku_prices("740919115663", proxy_url="http://localhost:8766")
-        called_req = mock_urlopen.call_args[0][0]
-        assert "/api/sku/740919115663" in called_req if isinstance(called_req, str) else called_req.get_full_url()
-        assert result["sku_count"] == 2
-
-
-def test_fetch_sku_no_proxy_no_cookie():
-    """无代理无 cookie → 返回空"""
-    from aibuy_client import fetch_sku_prices, set_auth_cookie
-    set_auth_cookie("")
-    result = fetch_sku_prices("123", proxy_url="")
-    assert result["sku_count"] == 0
-
-
-def test_fetch_sku_proxy_error_handled():
-    """代理不可达 → 返回空不炸"""
-    from aibuy_client import fetch_sku_prices
-    with patch("aibuy_client.urllib.request.urlopen", side_effect=Exception("refused")):
-        result = fetch_sku_prices("123", proxy_url="http://localhost:8766")
-    assert result["sku_count"] == 0
-    assert "refused" in result["error"]

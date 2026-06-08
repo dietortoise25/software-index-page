@@ -159,27 +159,13 @@ export async function fetchConfig(): Promise<SourcingConfig> {
   return json.config
 }
 
-export async function fetchAuthStatus(): Promise<{ has_cookie: boolean; cookie_len: number }> {
-  const res = await fetch(`${BASE}/auth`)
-  return res.json()
-}
-
-export async function authHealthcheck(): Promise<{
-  status: "ok" | "no_cookie" | "failed"
+export async function fetchSkuProviderStatus(): Promise<{
+  provider: string
+  ready: boolean
   message: string
-  cookie_len?: number
-  sample_prices?: Record<string, string>
 }> {
-  const res = await fetch(`${BASE}/auth/healthcheck`, { method: "POST" })
+  const res = await fetch(`${BASE}/sku-provider/status`)
   return res.json()
-}
-
-export async function saveAuthCookie(cookie: string): Promise<void> {
-  await fetch(`${BASE}/auth`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ cookie }),
-  })
 }
 
 export async function saveConfig(config: Partial<SourcingConfig>): Promise<void> {
