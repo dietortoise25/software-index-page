@@ -82,3 +82,64 @@ def test_build_rows_default_provider_no_crash():
 
     assert len(rows) == 1
     assert rows[0]["candidates"][0]["sku"]["count"] == 0
+
+
+# ── 串行单发：万邦试用档 1-3 秒一次，整批并发会被打 503，必须串行+间隔 ──
+
+class _OverlapProvider:
+    """记录请求是否重叠的假 provider（用于验证串行执行）"""
+    name = "overlap"
+    ready = True
+
+    def __init__(self):
+        import threading
+        self._lock = threading.Lock()
+        self.inflight = 0
+        self.max_inflight = 0
+        self.calls = []
+
+    def fetch_sku(self, item_id):
+        import time
+        with self._lock:
+            self.inflight += 1
+            self.max_inflight = max(self.max_inflight, self.inflight)
+            self.calls.append(item_id)
+        time.sleep(0.01)  # 制造重叠窗口；若并发则 max_inflight>1
+        with self._lock:
+            self.inflight -= 1
+        return {"sku_count": 1, "min_price": "5.00", "max_price": "5.00", "min_price_spec": "红", "skus": [], "error": None}
+
+
+def test_build_rows_fetches_sku_serially():
+    """多个 offer 的 SKU 获取串行执行，绝不并发（峰值并发恒为 1）"""
+    from sourcing import _build_rows
+    provider = _OverlapProvider()
+    products = [_prod(f"P{i}") for i in range(5)]
+    candidates_map = {f"P{i}": [_cand(f"A{i}")] for i in range(5)}
+
+    _build_rows(products, candidates_map, COST_CFG, provider=provider)
+
+    assert provider.max_inflight == 1, f"SKU 请求未串行，峰值并发={provider.max_inflight}"
+    assert len(provider.calls) == 5
+
+
+def test_build_rows_spaces_sku_requests(monkeypatch):
+    """相邻 SKU 请求之间按 _SKU_REQUEST_INTERVAL_SEC 间隔，给万邦喘息"""
+    import sourcing
+    from sourcing import _build_rows
+    sleeps = []
+    monkeypatch.setattr(sourcing.time, "sleep", lambda s: sleeps.append(s))
+    provider = _FakeProvider(ok_map={
+        f"A{i}": {"sku_count": 1, "min_price": "5.00", "max_price": "5.00", "min_price_spec": "红", "skus": [], "error": None}
+        for i in range(3)
+    })
+    products = [_prod(f"P{i}") for i in range(3)]
+    candidates_map = {f"P{i}": [_cand(f"A{i}")] for i in range(3)}
+
+    _build_rows(products, candidates_map, COST_CFG, provider=provider)
+
+    interval = sourcing._SKU_REQUEST_INTERVAL_SEC
+    assert interval >= 1.0, "万邦默认 1-3 秒一次，间隔不应小于 1 秒"
+    # 3 个请求至少间隔 2 次
+    paced = [s for s in sleeps if s >= interval]
+    assert len(paced) >= 2, f"间隔次数不足: {sleeps}"

@@ -52,6 +52,10 @@ def _cfg():
     return load_sourcing_config()
 
 
+# 万邦试用档约 1-3 秒/次，整批并发会被打 503；SKU 请求串行 + 此间隔
+_SKU_REQUEST_INTERVAL_SEC = 1.5
+
+
 def _cost_cfg_from(cfg: dict, overrides: dict | None = None) -> dict:
     """从配置字典提取成本计算参数，支持端点参数覆盖"""
     c = cfg["cost"]
@@ -230,20 +234,20 @@ def _build_rows(products: list, candidates_map: dict, cost_cfg: dict, provider=N
             if oid:
                 offer_ids.add(oid)
 
-    # 并发经 provider 获取 SKU 价格表；单个失败不阻塞整批
+    # 串行经 provider 获取 SKU 价格表（万邦试用档 1-3 秒/次，并发会被打 503）；单个失败不阻塞整批
     sku_cache = {}
     if offer_ids and provider.ready:
-        logger.info(f"[sku] provider={provider.name} 获取 {len(offer_ids)} 个 offer 的 SKU 价格表...")
-        with ThreadPoolExecutor(max_workers=_cfg()["search"]["max_concurrency"]) as ex:
-            futures = {ex.submit(provider.fetch_sku, oid): oid for oid in offer_ids}
-            for fut in as_completed(futures):
-                oid = futures[fut]
-                try:
-                    sku_cache[oid] = fut.result()
-                except Exception as e:
-                    logger.warning(f"[sku] {oid} provider 异常: {e}")
-                    sku_cache[oid] = {"sku_count": 0, "min_price": None, "max_price": None,
-                                      "min_price_spec": None, "skus": [], "error": str(e)[:120]}
+        ids = list(offer_ids)
+        logger.info(f"[sku] provider={provider.name} 串行获取 {len(ids)} 个 offer 的 SKU 价格表（间隔 {_SKU_REQUEST_INTERVAL_SEC}s）...")
+        for i, oid in enumerate(ids):
+            if i > 0:
+                time.sleep(_SKU_REQUEST_INTERVAL_SEC)
+            try:
+                sku_cache[oid] = provider.fetch_sku(oid)
+            except Exception as e:
+                logger.warning(f"[sku] {oid} provider 异常: {e}")
+                sku_cache[oid] = {"sku_count": 0, "min_price": None, "max_price": None,
+                                  "min_price_spec": None, "skus": [], "error": str(e)[:120]}
 
     return [_build_row(prod, candidates_map.get(prod["product_id"], []), cost_cfg, sku_cache) for prod in products]
 
