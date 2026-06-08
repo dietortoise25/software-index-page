@@ -7,6 +7,7 @@ import { conversationsRouter } from "./routes/conversations.js"
 import { newsConfigRouter } from "./routes/news-config.js"
 import { newsConfigsRouter } from "./routes/news-configs.js"
 import { newsDigestRouter } from "./routes/news-digest.js"
+import { skuMatchRouter } from "./routes/sku-match.js"
 import { rebuildCronJobs } from "./lib/cron-scheduler.js"
 import { ensureTables } from "./db/setup.js"
 
@@ -31,6 +32,7 @@ app.use("/api/agent", conversationsRouter)
 app.use("/api/agent", newsConfigRouter)
 app.use("/api/agent", newsConfigsRouter)
 app.use("/api/agent", newsDigestRouter)
+app.use("/api/agent", skuMatchRouter)
 
 app.listen(PORT, async () => {
   console.log(`[agent] Agent 运行时平台已启动 → http://localhost:${PORT}`)

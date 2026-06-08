@@ -62,6 +62,7 @@ type Action =
   | { type: "START_ANALYZING"; total: number; message: string }
   | { type: "PROGRESS"; phase: string; data: any }
   | { type: "SKU_PROGRESS"; current: number; total: number; message: string }
+  | { type: "MATCH_PROGRESS"; current: number; total: number; message: string }
   | { type: "COMPLETE"; rows: SourcingRow[]; summary: SourcingSummary }
   | { type: "ERROR"; message: string }
 
@@ -119,6 +120,14 @@ function reducer(state: State, action: Action): State {
         progressTotal: action.total,
         progressMessage: action.message,
       }
+    case "MATCH_PROGRESS":
+      return {
+        ...state,
+        progressPhase: "matching_sku",
+        progressCurrent: action.current,
+        progressTotal: action.total,
+        progressMessage: action.message,
+      }
     case "COMPLETE":
       return {
         ...state, phase: "done",
@@ -168,6 +177,13 @@ export default function SourcingToolPage() {
                 total: ev.data.total || 0,
                 message: ev.data.message || "",
               })
+            } else if (ev.data.phase === "matching_sku") {
+              dispatch({
+                type: "MATCH_PROGRESS",
+                current: 0,
+                total: ev.data.total || 0,
+                message: ev.data.message || "",
+              })
             } else {
               dispatch({ type: "PROGRESS", phase: ev.data.phase, data: ev.data })
             }
@@ -175,6 +191,14 @@ export default function SourcingToolPage() {
           case "sku_progress":
             dispatch({
               type: "SKU_PROGRESS",
+              current: ev.data.current,
+              total: ev.data.total,
+              message: ev.data.message || "",
+            })
+            break
+          case "match_progress":
+            dispatch({
+              type: "MATCH_PROGRESS",
               current: ev.data.current,
               total: ev.data.total,
               message: ev.data.message || "",

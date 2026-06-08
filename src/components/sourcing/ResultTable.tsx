@@ -61,6 +61,33 @@ function ThButton({ label, sortKey, active, dir, onClick }: {
   )
 }
 
+function MatchSummary({ row }: { row: SourcingRow }) {
+  const best = row.best_1688
+  const picked = best?.matched_sku
+  if (!best || row.match_source === "none") return null
+
+  const isLlm = row.match_source === "llm"
+  return (
+    <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+      <div className="flex items-center gap-2 mb-1">
+        <Badge variant={isLlm ? "default" : "outline"} className="text-[10px]">
+          {isLlm ? "AI 智选 SKU" : "自动兜底（最低价）"}
+        </Badge>
+        {picked && (
+          <span className="text-xs">
+            <span className="text-muted-foreground">选中规格：</span>
+            <span className="font-medium">{picked.full_spec || picked.spec || "-"}</span>
+            <span className="ml-2 font-bold text-primary">¥{picked.price}</span>
+          </span>
+        )}
+      </div>
+      {isLlm && row.match_reason && (
+        <p className="text-xs text-muted-foreground leading-snug">{row.match_reason}</p>
+      )}
+    </div>
+  )
+}
+
 function Row({ row }: { row: SourcingRow }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -104,6 +131,7 @@ function Row({ row }: { row: SourcingRow }) {
               <p className="text-sm text-muted-foreground text-center py-4">未找到同款货源</p>
             ) : (
               <div className="space-y-2">
+                <MatchSummary row={row} />
                 {row.candidates.map((c, i) => (
                   <div key={i} className="rounded-md border bg-background p-3 text-sm">
                     <div className="flex items-start justify-between gap-3">
@@ -121,7 +149,7 @@ function Row({ row }: { row: SourcingRow }) {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <span className="font-medium truncate">{c.title}</span>
-                        {i === 0 && (
+                        {c.item_id === row.best_1688?.item_id && (
                           <Badge variant="outline" className="text-[10px] shrink-0">最佳</Badge>
                         )}
                       </div>
@@ -158,13 +186,21 @@ function Row({ row }: { row: SourcingRow }) {
                           </tr>
                         </thead>
                         <tbody>
-                          {c.sku.items.map((it, j) => (
-                            <tr key={j} className="border-t border-dashed">
-                              <td className="py-1 truncate max-w-[200px]">{it.full_spec || it.spec}</td>
-                              <td className="py-1 text-right tabular-nums">¥{it.price}</td>
-                              <td className="py-1 text-right tabular-nums text-muted-foreground">{it.can_book_count || "-"}</td>
-                            </tr>
-                          ))}
+                          {c.sku.items.map((it, j) => {
+                            const isPicked =
+                              c.item_id === row.best_1688?.item_id &&
+                              it.sku_id === row.best_1688?.matched_sku?.sku_id
+                            return (
+                              <tr key={j} className={`border-t border-dashed ${isPicked ? "bg-primary/10" : ""}`}>
+                                <td className="py-1 truncate max-w-[200px]">
+                                  {isPicked && <span className="text-primary mr-1">✓</span>}
+                                  {it.full_spec || it.spec}
+                                </td>
+                                <td className="py-1 text-right tabular-nums">¥{it.price}</td>
+                                <td className="py-1 text-right tabular-nums text-muted-foreground">{it.can_book_count || "-"}</td>
+                              </tr>
+                            )
+                          })}
                         </tbody>
                       </table>
                     ) : (

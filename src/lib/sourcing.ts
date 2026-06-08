@@ -57,6 +57,8 @@ export interface Candidate {
     items: { spec: string; full_spec: string; price: string; can_book_count: number; sku_id: number }[]
     error: string | null
   }
+  // step4 选中的 SKU（仅 best_1688 上有；由 LLM 选或最低价兜底确定）
+  matched_sku?: { spec: string; full_spec: string; price: string; can_book_count: number; sku_id: number } | null
 }
 
 export interface SourcingRow {
@@ -78,6 +80,9 @@ export interface SourcingRow {
   margin_brl: number | null
   margin_rate: number | null
   recommendation: "推荐" | "可考虑" | "预警" | "待补全"
+  // step4 SKU 匹配来源：llm=AI智选 / fallback=最低价兜底 / none=无SKU
+  match_source: "llm" | "fallback" | "none"
+  match_reason: string
 }
 
 export interface SourcingSummary {

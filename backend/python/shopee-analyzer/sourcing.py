@@ -28,6 +28,7 @@ from aibuy_client import (
 )
 from config import load_sourcing_config, save_sourcing_config, reload_sourcing_config, deep_merge
 from sku_provider import get_provider
+from sku_match_client import match_sku_via_agent
 
 logger = logging.getLogger("sourcing")
 
@@ -95,6 +96,16 @@ def _parse_shopee_price(val) -> Optional[float]:
         return None
 
 
+def _to_cost_float(val) -> float | None:
+    """SKU 单价字符串 → float，空/非法 → None"""
+    if val is None or val == "":
+        return None
+    try:
+        return float(str(val).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+
+
 def _calc_cost(row: dict, cost_cfg: dict) -> dict:
     """采购成本 = 1688价CNY ÷ 汇率 × 倍率"""
     rate = cost_cfg["cny_per_brl"]
@@ -103,8 +114,10 @@ def _calc_cost(row: dict, cost_cfg: dict) -> dict:
     high = cost_cfg["high_margin_rate"]
 
     best_1688 = row.get("best_1688") or {}
-    price_cny = best_1688.get("price_cny")
-    cost_cny = float(price_cny) if price_cny is not None else None
+    # 成本来自 step4 选中的 SKU 真实单价（弃用图搜 itemPrice/price_cny —— 无用且常空）
+    matched_sku = best_1688.get("matched_sku") or {}
+    sku_price = matched_sku.get("price")
+    cost_cny = _to_cost_float(sku_price)
     cost_brl = (cost_cny / rate * mult) if cost_cny is not None else None
 
     shopee_price = row.get("shopee_price_num")
@@ -190,8 +203,42 @@ def _pick_candidate(c: dict, sku_data: dict | None = None) -> dict:
     }
 
 
-def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None = None) -> dict:
-    """构建单产品分析行"""
+def _select_matched_sku(enriched: list, match: dict | None) -> tuple:
+    """决定哪个候选的哪个 SKU 作为成本基准。
+    返回 (best_candidate, matched_sku, match_source)。
+      - match 指定且命中 → (该候选, 该SKU, "llm")
+      - 否则全局最低价兜底 → (含最低价SKU的候选, 最低价SKU, "fallback")
+      - 全无 SKU → (enriched[0] 或 None, None, "none")"""
+    # step4 LLM 选中：按 item_id + sku_id 命中
+    if match:
+        item_id = match.get("matched_item_id")
+        sku_id = match.get("matched_sku_id")
+        for cand in enriched:
+            if cand.get("item_id") != item_id:
+                continue
+            for sku in cand.get("sku", {}).get("items", []):
+                if sku.get("sku_id") == sku_id:
+                    return cand, sku, "llm"
+
+    # 兜底：所有候选所有 SKU 里取价格最低的
+    best_cand = best_sku = None
+    best_price = None
+    for cand in enriched:
+        for sku in cand.get("sku", {}).get("items", []):
+            p = _to_cost_float(sku.get("price"))
+            if p is not None and (best_price is None or p < best_price):
+                best_price, best_cand, best_sku = p, cand, sku
+
+    if best_sku is not None:
+        return best_cand, best_sku, "fallback"
+
+    # 全无 SKU 价
+    return (enriched[0] if enriched else None), None, "none"
+
+
+def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None = None,
+               match: dict | None = None) -> dict:
+    """构建单产品分析行。match 为 step4 LLM 选中结果(可为 None → 兜底)"""
     pid = prod["product_id"]
     sku_cache = sku_cache or {}
 
@@ -203,7 +250,9 @@ def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None =
         enriched.append(_pick_candidate(c, sku_data))
     cands = enriched  # type: ignore
 
-    best_1688 = enriched[0] if enriched else None
+    best_1688, matched_sku, match_source = _select_matched_sku(enriched, match)
+    if best_1688 is not None:
+        best_1688 = {**best_1688, "matched_sku": matched_sku}
 
     row = {
         "product_id": pid,
@@ -217,6 +266,8 @@ def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None =
         "candidates": enriched,
         "shopee_price_num": _parse_shopee_price(prod.get("shopee_price_brl")),
         "has_1688_data": len(cands) > 0,
+        "match_source": match_source,
+        "match_reason": (match or {}).get("reason", "") if match_source == "llm" else "",
     }
     row.update(_calc_cost(row, cost_cfg))
     return row
@@ -255,10 +306,36 @@ def _fetch_skus_into(provider, candidates_map: dict, sku_cache: dict):
         yield {"current": i + 1, "total": total, "item_id": oid}
 
 
-def _build_rows(products: list, candidates_map: dict, cost_cfg: dict, sku_cache: dict | None = None) -> list:
-    """构建所有产品行；SKU 数据从预填好的 sku_cache 注入（不在此拉取）"""
+def _match_all(products: list, candidates_map: dict, sku_cache: dict, matches: dict):
+    """step4：逐货品调 agent 选最佳 SKU，结果按 pid 写入 matches。
+    每处理完一个 yield 进度。agent 返回 None（失败/无 SKU）则跳过该 pid → 上游兜底。"""
+    total = len(products)
+    for i, prod in enumerate(products):
+        pid = prod["product_id"]
+        raw_cands = candidates_map.get(pid, [])
+        enriched = [_pick_candidate(c, sku_cache.get(c.get("itemId", "")) or {}) for c in raw_cands]
+        shopee = {
+            "name": str(prod.get("product_name", "")),
+            "category": str(prod.get("category_path", "")),
+            "price_brl": _parse_shopee_price(prod.get("shopee_price_brl")),
+        }
+        match = match_sku_via_agent(shopee, enriched)
+        if match is not None:
+            matches[pid] = match
+        yield {"current": i + 1, "total": total, "item_id": pid}
+
+
+def _build_rows(products: list, candidates_map: dict, cost_cfg: dict,
+                sku_cache: dict | None = None, matches: dict | None = None) -> list:
+    """构建所有产品行；SKU 数据从预填好的 sku_cache 注入（不在此拉取）。
+    matches[pid] 为 step4 选中结果（可为 None → 该行兜底最低价 SKU）"""
     sku_cache = sku_cache or {}
-    return [_build_row(prod, candidates_map.get(prod["product_id"], []), cost_cfg, sku_cache) for prod in products]
+    matches = matches or {}
+    return [
+        _build_row(prod, candidates_map.get(prod["product_id"], []), cost_cfg, sku_cache,
+                   match=matches.get(prod["product_id"]))
+        for prod in products
+    ]
 
 
 def _sse(event: str, data: dict) -> str:
@@ -386,7 +463,11 @@ async def sourcing_analyze(
     sku_cache: dict = {}
     for _ in _fetch_skus_into(provider, candidates_map, sku_cache):
         pass
-    rows = _build_rows(products, candidates_map, cost_cfg, sku_cache)
+    # step4：调 agent 为每个货品选最佳 SKU（失败/无 SKU 则上游兜底）
+    matches: dict = {}
+    for _ in _match_all(products, candidates_map, sku_cache, matches):
+        pass
+    rows = _build_rows(products, candidates_map, cost_cfg, sku_cache, matches)
 
     summary = {
         "total_products": len(rows),
@@ -487,7 +568,25 @@ async def sourcing_analyze_stream(
                     "message": f"SKU 价格表 {prog['current']}/{prog['total']}",
                 })
 
-        rows = await loop.run_in_executor(None, _build_rows, products, candidates_map, cost_cfg, sku_cache)
+        # step4：调 agent 为每个货品智能匹配最佳 SKU（每货品一次，失败兜底）
+        matches: dict = {}
+        yield _sse("phase", {
+            "phase": "matching_sku",
+            "message": f"AI 智能匹配最佳 SKU（{len(products)} 个货品）...",
+            "ready": True,
+            "total": len(products),
+        })
+        mgen = _match_all(products, candidates_map, sku_cache, matches)
+        while True:
+            prog = await loop.run_in_executor(None, lambda: next(mgen, None))
+            if prog is None:
+                break
+            yield _sse("match_progress", {
+                **prog,
+                "message": f"AI 匹配 SKU {prog['current']}/{prog['total']}",
+            })
+
+        rows = await loop.run_in_executor(None, _build_rows, products, candidates_map, cost_cfg, sku_cache, matches)
 
         sku_ok = sum(1 for r in rows for c in r["candidates"] if c.get("sku", {}).get("count", 0) > 0)
         sku_failed = sum(1 for r in rows for c in r["candidates"] if c.get("sku", {}).get("count", 0) == 0)

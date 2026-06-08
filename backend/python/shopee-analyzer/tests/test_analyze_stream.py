@@ -51,7 +51,8 @@ def _run_stream():
                   "sales": "", "offerTags": ["高度同款"], "purchaseInfos": [{"value": "2件起批"}],
                   "providerInfo": {"companyName": "厂A"}}
     with patch("sourcing.search_by_image", return_value=([fake_offer], 1)), \
-         patch("sourcing.get_provider", return_value=_FakeProvider()):
+         patch("sourcing.get_provider", return_value=_FakeProvider()), \
+         patch("sourcing.match_sku_via_agent", return_value=None):
         resp = client.post(
             "/api/sourcing/analyze-stream",
             files={"files": ("shop.xlsx", _make_xlsx(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
@@ -84,6 +85,20 @@ def test_stream_emits_sku_progress_per_offer():
     # sku_progress 应在 fetching_sku phase 之后、complete 之前
     names = [e for e, _ in events]
     assert names.index("sku_progress") < names.index("complete")
+
+
+def test_stream_emits_matching_sku_phase():
+    """step4 接入：SKU 拉完后有 matching_sku phase + match_progress 帧，complete 之前"""
+    import json
+    events = _run_stream()
+    names = [e for e, _ in events]
+    phases = [d for e, d in events if e == "phase"]
+    assert any("matching_sku" in (d or "") for d in phases)
+    match_progs = [json.loads(d) for e, d in events if e == "match_progress"]
+    assert len(match_progs) >= 1
+    assert match_progs[-1]["current"] == match_progs[-1]["total"]
+    # 顺序：fetching_sku → matching_sku → complete
+    assert names.index("match_progress") < names.index("complete")
 
 
 def test_stream_ends_with_complete():
