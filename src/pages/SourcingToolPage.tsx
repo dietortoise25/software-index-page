@@ -1,4 +1,4 @@
-import { useReducer, useCallback, useState } from "react"
+import { useReducer, useCallback, useState, useEffect } from "react"
 import { Scale, Rocket, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -231,20 +231,25 @@ export default function SourcingToolPage() {
     }
   }, [s.files, s.cost, s.skuProvider, s.limit])
 
-  const [collapsed, setCollapsed] = useState(false)
-  const autoCollapsed = s.phase === "done" && !collapsed ? true : collapsed
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const isCollapsed = s.phase === "done" && !sidebarOpen
+
+  useEffect(() => {
+    if (s.phase === "done") setSidebarOpen(false)
+    if (s.phase === "analyzing") setSidebarOpen(true)
+  }, [s.phase])
 
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
       {/* 左侧输入面板 */}
       <aside
         className={`flex-shrink-0 border-r bg-muted/10 transition-all duration-300 overflow-y-auto ${
-          autoCollapsed && s.phase === "done" ? "w-12" : "w-[360px]"
+          isCollapsed ? "w-12" : "w-[360px]"
         }`}
       >
-        {autoCollapsed && s.phase === "done" ? (
+        {isCollapsed ? (
           <div className="flex flex-col items-center pt-4 gap-3">
-            <button onClick={() => setCollapsed(false)} className="p-2 rounded hover:bg-muted" title="展开面板">
+            <button onClick={() => setSidebarOpen(true)} className="p-2 rounded hover:bg-muted" title="展开面板">
               <ChevronRight size={18} />
             </button>
             <Scale size={18} className="text-primary" />
@@ -257,7 +262,7 @@ export default function SourcingToolPage() {
                 <h1 className="text-lg font-bold">选品比价</h1>
               </div>
               {s.phase === "done" && (
-                <button onClick={() => setCollapsed(true)} className="p-1 rounded hover:bg-muted" title="收起面板">
+                <button onClick={() => setSidebarOpen(false)} className="p-1 rounded hover:bg-muted" title="收起面板">
                   <ChevronLeft size={16} />
                 </button>
               )}
@@ -338,16 +343,6 @@ export default function SourcingToolPage() {
               {s.phase === "analyzing" ? "分析中..." : "开始分析"}
             </Button>
 
-            {/* 进度 */}
-            {s.phase === "analyzing" && (
-              <ProgressPanel
-                current={s.progressCurrent}
-                total={s.progressTotal}
-                products={s.productStatuses}
-                phase={s.progressPhase}
-                message={s.progressMessage}
-              />
-            )}
           </div>
         )}
       </aside>
@@ -363,8 +358,14 @@ export default function SourcingToolPage() {
             <ResultTable rows={s.rows} />
           </div>
         ) : s.phase === "analyzing" ? (
-          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-            正在分析，请等待左侧进度完成...
+          <div className="p-4">
+            <ProgressPanel
+              current={s.progressCurrent}
+              total={s.progressTotal}
+              products={s.productStatuses}
+              phase={s.progressPhase}
+              message={s.progressMessage}
+            />
           </div>
         ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground text-sm">

@@ -95,6 +95,12 @@ function MatchSummary({ row }: { row: SourcingRow }) {
 
         {/* 右侧：评分卡 + 综合分 + 理由 */}
         <div className="flex-1 min-w-0 space-y-2">
+          {/* 候选标题 + 店铺 */}
+          <div className="text-xs">
+            <span className="font-medium truncate block">{best.title}</span>
+            <span className="text-muted-foreground">{best.shop_name}{best.sales ? ` · 销量 ${best.sales}` : ""}</span>
+          </div>
+
           {/* 选中规格信息 */}
           {picked && (
             <div className="text-xs">
