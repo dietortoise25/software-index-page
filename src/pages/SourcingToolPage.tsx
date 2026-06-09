@@ -66,6 +66,7 @@ type Action =
   | { type: "PROGRESS"; phase: string; data: any }
   | { type: "SKU_PROGRESS"; current: number; total: number; message: string }
   | { type: "MATCH_PROGRESS"; current: number; total: number; message: string }
+  | { type: "VERIFY_PROGRESS"; current: number; total: number; message: string }
   | { type: "COMPLETE"; rows: SourcingRow[]; summary: SourcingSummary; rawColumns: string[] }
   | { type: "ERROR"; message: string }
 
@@ -133,6 +134,14 @@ function reducer(state: State, action: Action): State {
         progressTotal: action.total,
         progressMessage: action.message,
       }
+    case "VERIFY_PROGRESS":
+      return {
+        ...state,
+        progressPhase: "image_verify",
+        progressCurrent: action.current,
+        progressTotal: action.total,
+        progressMessage: action.message,
+      }
     case "COMPLETE":
       return {
         ...state, phase: "done",
@@ -190,6 +199,13 @@ export default function SourcingToolPage() {
                 total: ev.data.total || 0,
                 message: ev.data.message || "",
               })
+            } else if (ev.data.phase === "image_verify") {
+              dispatch({
+                type: "VERIFY_PROGRESS",
+                current: 0,
+                total: ev.data.total || 0,
+                message: ev.data.message || "",
+              })
             } else {
               dispatch({ type: "PROGRESS", phase: ev.data.phase, data: ev.data })
             }
@@ -205,6 +221,14 @@ export default function SourcingToolPage() {
           case "match_progress":
             dispatch({
               type: "MATCH_PROGRESS",
+              current: ev.data.current,
+              total: ev.data.total,
+              message: ev.data.message || "",
+            })
+            break
+          case "verify_progress":
+            dispatch({
+              type: "VERIFY_PROGRESS",
               current: ev.data.current,
               total: ev.data.total,
               message: ev.data.message || "",

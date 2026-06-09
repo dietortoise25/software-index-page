@@ -630,8 +630,9 @@ async def sourcing_analyze_stream(
         yield _sse("phase", {
             "phase": "image_verify",
             "message": f"图文核对 {total_cands} 个候选（GPT vision）...",
+            "total": len(products),
         })
-        for prod in products:
+        for idx, prod in enumerate(products, 1):
             pid = prod["product_id"]
             shopee_img = prod.get("image_url", "")
             raw_cands = candidates_map.get(pid, [])
@@ -639,6 +640,11 @@ async def sourcing_analyze_stream(
                              "title": c.get("title", "")} for c in raw_cands]
             conf_map[pid] = await loop.run_in_executor(
                 None, _verify_candidates, shopee_img, cand_structs)
+            yield _sse("verify_progress", {
+                "current": idx,
+                "total": len(products),
+                "message": f"图文核对 {idx}/{len(products)}",
+            })
 
         # step4：调 agent 为每个货品智能匹配最佳 SKU（每货品一次，失败兜底）
         matches: dict = {}
