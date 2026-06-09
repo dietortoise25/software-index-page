@@ -7,11 +7,12 @@ interface Props {
   disabled?: boolean
 }
 
-function escapeCsv(v: string): string {
-  if (v.includes(",") || v.includes('"') || v.includes("\n")) {
-    return `"${v.replace(/"/g, '""')}"`
+function escapeCsv(v: unknown): string {
+  const s = v == null ? "" : String(v)
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return `"${s.replace(/"/g, '""')}"`
   }
-  return v
+  return s
 }
 
 function download(filename: string, lines: string[]) {

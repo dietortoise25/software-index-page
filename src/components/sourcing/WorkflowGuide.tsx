@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react"
-import { ChevronDown, ChevronRight, FileSpreadsheet, Search, Calculator, Key, Rocket } from "lucide-react"
+import { ChevronDown, ChevronRight, FileSpreadsheet, Search, Calculator, Eye, Rocket } from "lucide-react"
 
 interface Step {
   icon: typeof FileSpreadsheet
@@ -10,34 +10,28 @@ interface Step {
 const STEPS: Step[] = [
   {
     icon: FileSpreadsheet,
-    title: "上传 Shopee Excel",
-    desc: "从 Shopee 巴西站导出商品数据（产品ID/名称/主图/价格），支持多个店铺文件一起上传。",
+    title: "上传 Shopee Excel + 设置行数",
+    desc: "导出 Shopee 巴西站商品数据，支持多文件。可设置「仅分析前 N 行」快速调试，留空则全量分析。",
   },
   {
     icon: Calculator,
     title: "调整成本参数",
-    desc: "设置汇率（1 BRL = ? CNY）和成本倍率（打包运费+清关+杂费），可保存到服务器。",
-  },
-  {
-    icon: Key,
-    title: "启动本地代理（可选，用于获取 SKU 明细价）",
-    desc: (
-      <>
-        双击项目目录中的{" "}
-        <code className="bg-muted px-1 rounded text-xs">start_proxy.bat</code>
-        {" "}启动本地代理。启动后刷新此页，状态栏显示 🟢 即可。不启动也能用，候选价格用搜索返回的标价。
-      </>
-    ),
+    desc: "设置汇率（BRL→CNY）和成本倍率（打包+运费+清关），可保存到服务器。",
   },
   {
     icon: Search,
     title: "开始分析",
-    desc: "系统并发搜索 1688 同款货源，实时显示进度，自动计算采购成本和利润率，给出推荐/预警分级。",
+    desc: "系统依次执行：搜图找货源 → 拉取 SKU 价格表 → GPT 图文核对(标记疑似不符) → AI 智选最佳 SKU → 计算落地成本和利润率。",
+  },
+  {
+    icon: Eye,
+    title: "查看 9 列结果表",
+    desc: "主表展示：产品名/Shopee售价/类目/月销量/最佳候选/选中SKU/落地成本/利润率/推荐状态。展开行可看全部候选的紧凑 SKU 明细和图文核对分数。",
   },
   {
     icon: Rocket,
-    title: "查看结果 & 导出",
-    desc: "结果表支持排序、筛选，点击行展开查看候选供应商。可一键导出 CSV 汇总报告。",
+    title: "导出 2 个 CSV",
+    desc: "点击「导出 CSV」同时下载：选品决策汇总（9列+图文置信度）和 1688候选明细（紧凑 SKU 格式）。",
   },
 ]
 
