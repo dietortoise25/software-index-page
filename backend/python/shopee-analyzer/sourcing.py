@@ -69,6 +69,7 @@ def _cost_cfg_from(cfg: dict, overrides: dict | None = None) -> dict:
         "cost_multiplier": c["cost_multiplier"],
         "target_margin_rate": t["target_margin_rate"],
         "high_margin_rate": t["high_margin_rate"],
+        "verify_threshold": t.get("verify_threshold", _DEFAULT_VERIFY_THRESHOLD),
     }
     if overrides:
         result.update(overrides)
@@ -134,6 +135,12 @@ def _calc_cost(row: dict, cost_cfg: dict) -> dict:
         rec = "可考虑"
     else:
         rec = "预警"
+
+    # 图文置信度低于核对阈值 → 疑似错配，降级（避免「疑似不符却标推荐」的矛盾）
+    verify_threshold = cost_cfg.get("verify_threshold", _DEFAULT_VERIFY_THRESHOLD)
+    image_conf = best_1688.get("image_confidence")
+    if image_conf is not None and image_conf < verify_threshold and rec in ("推荐", "可考虑"):
+        rec = "疑似不符"
 
     return {
         "cost_cny": round(cost_cny, 2) if cost_cny else None,
@@ -398,8 +405,9 @@ def _read_files(files: list, col_map: dict) -> tuple[pd.DataFrame, list[str]]:
         for c in df_src.columns:
             if c not in all_raw_cols:
                 all_raw_cols.append(c)
-        # rename 匹配列，其余保留原始中文名
-        df_src = df_src.rename(columns=available)
+        # 标准英文列用 copy 注入(供内部计算)，原始中文列保留(供导出透传，不再是空列)
+        for orig, std in available.items():
+            df_src[std] = df_src[orig]
         df_src["data_source"] = f.filename or "unknown"
         frames.append(df_src)
     df = pd.concat(frames, ignore_index=True)

@@ -13,10 +13,9 @@ export default function ExportButton({ rows, rawColumns = [], disabled }: Props)
   const handleExport = () => {
     const wb = XLSX.utils.book_new()
 
-    // Sheet1: 选品决策汇总
+    // Sheet1: 选品决策汇总（产品ID/名称/主图/价格已在 rawColumns 透传，不再重复）
     const analysisCols = [
-      "产品ID", "产品名称", "产品主图", "Shopee售价(BRL)",
-      "1688最佳候选", "选中SKU(规格)", "SKU单价(¥)", "落地成本(R$)",
+      "1688最佳候选", "选中SKU(规格)", "选中SKU单价(¥)", "落地成本(R$)",
       "利润率", "推荐状态", "匹配来源", "图文置信度", "核对结果",
     ]
     const h1 = [...rawColumns, ...analysisCols]
@@ -24,10 +23,6 @@ export default function ExportButton({ rows, rawColumns = [], disabled }: Props)
       const bestConf = r.best_1688?.image_confidence
       const rawVals = rawColumns.map((col) => r[col] ?? "")
       const analysisVals = [
-        r.product_id,
-        r.product_name,
-        r.image_url || "",
-        r.shopee_price_brl,
         r.best_1688?.title || "",
         r.best_1688?.matched_sku?.full_spec || r.best_1688?.matched_sku?.spec || "",
         r.best_1688?.matched_sku?.price || "",
@@ -43,11 +38,11 @@ export default function ExportButton({ rows, rawColumns = [], disabled }: Props)
     const ws1 = XLSX.utils.aoa_to_sheet([h1, ...data1])
     XLSX.utils.book_append_sheet(wb, ws1, "选品汇总")
 
-    // Sheet2: 1688候选明细
+    // Sheet2: 1688候选明细（产品ID/名称已在 rawColumns 透传）
     const h2 = [
-      ...rawColumns, "产品ID", "产品名称",
+      ...rawColumns,
       "候选排名", "1688标题", "店铺", "图文置信度",
-      "SKU规格", "SKU单价(¥)", "1688链接",
+      "SKU规格", "SKU最低价(¥)", "1688链接",
     ]
     const data2: unknown[][] = []
     for (const r of rows) {
@@ -61,7 +56,7 @@ export default function ExportButton({ rows, rawColumns = [], disabled }: Props)
           ? Math.min(...c.sku.items.map((it) => parseFloat(it.price) || 999))
           : ""
         data2.push([
-          ...rawVals, r.product_id, r.product_name,
+          ...rawVals,
           i + 1, c.title, c.shop_name || "",
           c.image_confidence != null ? Number(c.image_confidence.toFixed(2)) : "",
           skuStr, minPrice !== "" ? Number(minPrice.toFixed(2)) : "",

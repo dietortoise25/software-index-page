@@ -84,7 +84,7 @@ export interface SourcingRow {
   // step4 SKU 匹配来源：llm=AI智选 / 其余=需人工复核
   match_source: "llm" | "llm_failed" | "llm_mismatch" | "no_sku_data" | "no_qualified" | "none"
   match_reason: string
-  match_scores: { price: number; image_match: number; shop_credit: number; sales: number } | null
+  match_scores: { price: number; semantic_match: number; image_match: number; supply: number } | null
   match_overall_score: number | null
   [key: string]: unknown
 }

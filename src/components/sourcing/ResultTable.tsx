@@ -49,13 +49,13 @@ function ThButton({ label, sortKey, active, dir, onClick }: {
   )
 }
 
-function RadarChart({ scores }: { scores: { price: number; image_match: number; shop_credit: number; sales: number } }) {
+function RadarChart({ scores }: { scores: { price: number; semantic_match: number; image_match: number; supply: number } }) {
   const cx = 50, cy = 50, r = 38
   const labels = [
     { key: "price", label: "价格", angle: -90 },
     { key: "image_match", label: "图文", angle: 0 },
-    { key: "sales", label: "销量", angle: 90 },
-    { key: "shop_credit", label: "信誉", angle: 180 },
+    { key: "supply", label: "供货", angle: 90 },
+    { key: "semantic_match", label: "语义", angle: 180 },
   ] as const
 
   const toXY = (angle: number, ratio: number) => {
@@ -145,7 +145,7 @@ function MatchSummary({ row }: { row: SourcingRow }) {
             </div>
           )}
           {skuItems.length > 0 && (
-            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+            <div className="flex flex-col gap-y-1 text-[11px]">
               {skuItems.map((it, j) => {
                 const isSelected = picked && it.sku_id === picked.sku_id
                 return (
@@ -158,19 +158,21 @@ function MatchSummary({ row }: { row: SourcingRow }) {
           )}
         </div>
 
-        {/* 右栏：雷达图 + 综合评分 + 理由（仅 AI 智选时） */}
+        {/* 右栏：左雷达图 + 右(综合评分 + 理由)（仅 AI 智选时） */}
         {scores && (
-          <div className="shrink-0 flex flex-col items-center gap-1">
+          <div className="shrink-0 flex items-center gap-3">
             <RadarChart scores={scores} />
-            {overall != null && (
-              <div className="text-center leading-none">
-                <span className="text-xs text-muted-foreground">综合 </span>
-                <span className="text-xl font-bold text-primary tabular-nums">{overall}</span>
-              </div>
-            )}
-            {isLlm && row.match_reason && (
-              <p className="text-[10px] text-muted-foreground leading-snug text-center max-w-[120px]">{row.match_reason}</p>
-            )}
+            <div className="flex flex-col gap-1 max-w-[140px]">
+              {overall != null && (
+                <div className="leading-none">
+                  <span className="text-xs text-muted-foreground">综合 </span>
+                  <span className="text-xl font-bold text-primary tabular-nums">{overall}</span>
+                </div>
+              )}
+              {isLlm && row.match_reason && (
+                <p className="text-[10px] text-muted-foreground leading-snug">{row.match_reason}</p>
+              )}
+            </div>
           </div>
         )}
       </div>
