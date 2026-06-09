@@ -1,5 +1,6 @@
 import { Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import * as XLSX from "xlsx"
 import type { SourcingRow } from "@/lib/sourcing"
 
 interface Props {
@@ -8,70 +9,82 @@ interface Props {
   disabled?: boolean
 }
 
-function escapeCsv(v: unknown): string {
-  const s = v == null ? "" : String(v)
-  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
-    return `"${s.replace(/"/g, '""')}"`
-  }
-  return s
-}
-
-function download(filename: string, lines: string[]) {
-  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
 export default function ExportButton({ rows, rawColumns = [], disabled }: Props) {
   const handleExport = () => {
-    // CSV1: 选品决策汇总 — 原始列 + 分析列
+    const wb = XLSX.utils.book_new()
+
+    // Sheet1: 选品决策汇总
     const analysisCols = [
-      "1688最佳候选", "选中SKU(规格)", "落地成本(R$)", "利润率", "推荐状态",
-      "图文置信度", "核对结果",
+      "产品ID", "产品名称", "产品主图", "Shopee售价(BRL)",
+      "1688最佳候选", "选中SKU(规格)", "SKU单价(¥)", "落地成本(R$)",
+      "利润率", "推荐状态", "匹配来源", "图文置信度", "核对结果",
     ]
     const h1 = [...rawColumns, ...analysisCols]
-    const l1: string[] = ["﻿" + h1.map(escapeCsv).join(",")]
-    for (const r of rows) {
+    const data1 = rows.map((r) => {
       const bestConf = r.best_1688?.image_confidence
       const rawVals = rawColumns.map((col) => r[col] ?? "")
       const analysisVals = [
+        r.product_id,
+        r.product_name,
+        r.image_url || "",
+        r.shopee_price_brl,
         r.best_1688?.title || "",
         r.best_1688?.matched_sku?.full_spec || r.best_1688?.matched_sku?.spec || "",
-        r.total_cost_brl != null ? r.total_cost_brl.toFixed(2) : "",
+        r.best_1688?.matched_sku?.price || "",
+        r.total_cost_brl != null ? Number(r.total_cost_brl.toFixed(2)) : "",
         r.margin_rate != null ? `${(r.margin_rate * 100).toFixed(1)}%` : "",
         r.recommendation,
-        bestConf != null ? bestConf.toFixed(2) : "",
+        r.match_source,
+        bestConf != null ? Number(bestConf.toFixed(2)) : "",
         bestConf != null ? (bestConf < 0.5 ? "疑似不符" : "通过") : "未核对",
       ]
-      l1.push([...rawVals, ...analysisVals].map(escapeCsv).join(","))
-    }
-    download("选品决策汇总.csv", l1)
+      return [...rawVals, ...analysisVals]
+    })
+    const ws1 = XLSX.utils.aoa_to_sheet([h1, ...data1])
+    XLSX.utils.book_append_sheet(wb, ws1, "选品汇总")
 
-    // CSV2: 1688候选明细
-    const h2 = ["产品名称", "候选排名", "1688标题", "SKU紧凑格式", "链接"]
-    const l2: string[] = ["﻿" + h2.map(escapeCsv).join(",")]
+    // Sheet2: 1688候选明细
+    const h2 = [
+      ...rawColumns, "产品ID", "产品名称",
+      "候选排名", "1688标题", "店铺", "图文置信度",
+      "SKU规格", "SKU单价(¥)", "1688链接",
+    ]
+    const data2: unknown[][] = []
     for (const r of rows) {
+      const rawVals = rawColumns.map((col) => r[col] ?? "")
       for (let i = 0; i < r.candidates.length; i++) {
         const c = r.candidates[i]
-        const conf = c.image_confidence
         const skuStr = c.sku.items.map((it) =>
-          `SKU:${it.full_spec || it.spec}|价:¥${it.price}${conf != null ? `|图分:${conf.toFixed(2)}` : ""}`
+          `${it.full_spec || it.spec} ¥${it.price}`
         ).join("; ")
-        l2.push([
-          r.product_name, String(i + 1), c.title, skuStr, c.link,
-        ].map(escapeCsv).join(","))
+        const minPrice = c.sku.items.length > 0
+          ? Math.min(...c.sku.items.map((it) => parseFloat(it.price) || 999))
+          : ""
+        data2.push([
+          ...rawVals, r.product_id, r.product_name,
+          i + 1, c.title, c.shop_name || "",
+          c.image_confidence != null ? Number(c.image_confidence.toFixed(2)) : "",
+          skuStr, minPrice !== "" ? Number(minPrice.toFixed(2)) : "",
+          c.link,
+        ])
       }
     }
-    download("1688候选明细.csv", l2)
+    const ws2 = XLSX.utils.aoa_to_sheet([h2, ...data2])
+    XLSX.utils.book_append_sheet(wb, ws2, "候选明细")
+
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" })
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "选品分析结果.xlsx"
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
     <Button onClick={handleExport} disabled={disabled} variant="outline" size="sm">
-      <Download size={14} className="mr-1" />导出 CSV
+      <Download size={14} className="mr-1" />导出 Excel
     </Button>
   )
 }
