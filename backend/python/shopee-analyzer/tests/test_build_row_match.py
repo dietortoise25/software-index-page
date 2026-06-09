@@ -1,10 +1,9 @@
 """
-_build_row 接入 step4 选中结果 + 兜底最低价 SKU
+_build_row 接入 step4 选中结果 + 人工复核标记
 运行: cd backend/python/shopee-analyzer && python -m pytest tests/test_build_row_match.py -v
 
 step4(LLM)返回选中的 item_id+sku_id；_build_row 据此把选中 SKU 填入
-best_1688.matched_sku，供 _calc_cost 算成本。LLM 失败/未启用(match=None)时
-兜底取所有候选所有 SKU 的最低价，标 match_source=fallback；不阻塞。
+best_1688.matched_sku，供 _calc_cost 算成本。LLM 失败时标记需人工复核。
 """
 
 _COST = {"cny_per_brl": 1.35, "cost_multiplier": 1.3,
@@ -38,41 +37,39 @@ def _sku_cache():
 def test_match_selects_specified_candidate_and_sku():
     """match 指定 item=AAA sku_id=1 → best_1688 是 AAA，matched_sku 是那条 20.00"""
     from sourcing import _build_row
-    match = {"matched_item_id": "AAA", "matched_sku_id": 1, "confidence": 0.9, "reason": "规格贴合"}
+    match = {"data": {"matched_item_id": "AAA", "matched_sku_id": 1, "confidence": 0.9, "reason": "规格贴合"}, "fail_reason": None}
     row = _build_row(_prod(), _cands_with_sku(), _COST, _sku_cache(), match=match)
     assert row["best_1688"]["item_id"] == "AAA"
     assert row["best_1688"]["matched_sku"]["sku_id"] == 1
     assert row["best_1688"]["matched_sku"]["price"] == "20.00"
     assert row["match_source"] == "llm"
     assert row["match_reason"] == "规格贴合"
-    # 成本基于 20.00，而非 itemPrice 999
     assert row["cost_cny"] == 20.00
 
 
-def test_fallback_picks_global_min_price_sku_when_no_match():
-    """match=None(LLM 失败/未启用) → 兜底全局最低价 SKU = BBB 的 5.00，标 fallback"""
+def test_llm_failed_marks_manual_review():
+    """match fail_reason='llm_call_failed' → match_source='llm_failed'，不自动选 SKU"""
     from sourcing import _build_row
-    row = _build_row(_prod(), _cands_with_sku(), _COST, _sku_cache(), match=None)
-    assert row["match_source"] == "fallback"
-    assert row["best_1688"]["item_id"] == "BBB"
-    assert row["best_1688"]["matched_sku"]["sku_id"] == 4
-    assert row["cost_cny"] == 5.00
+    match = {"data": None, "fail_reason": "llm_call_failed"}
+    row = _build_row(_prod(), _cands_with_sku(), _COST, _sku_cache(), match=match)
+    assert row["match_source"] == "llm_failed"
+    assert row["best_1688"]["matched_sku"] is None
 
 
 def test_no_sku_anywhere_is_pending():
-    """所有候选都无 SKU 价 → 无可选，待补全，match_source=none"""
+    """所有候选都无 SKU 价 → match_source='none'"""
     from sourcing import _build_row
     empty_cache = {"AAA": {"sku_count": 0, "skus": [], "error": "未配置"},
                    "BBB": {"sku_count": 0, "skus": [], "error": "未配置"}}
-    row = _build_row(_prod(), _cands_with_sku(), _COST, empty_cache, match=None)
+    row = _build_row(_prod(), _cands_with_sku(), _COST, empty_cache, match={"data": None, "fail_reason": "no_sku_data"})
     assert row["recommendation"] == "待补全"
-    assert row["match_source"] == "none"
+    assert row["match_source"] == "no_sku_data"
 
 
-def test_match_with_unknown_sku_id_falls_back():
-    """match 指向不存在的 sku_id → 降级到兜底最低价，不崩"""
+def test_match_with_unknown_sku_id_marks_mismatch():
+    """match 指向不存在的 sku_id → match_source='llm_mismatch'，需人工复核"""
     from sourcing import _build_row
-    match = {"matched_item_id": "AAA", "matched_sku_id": 99999, "confidence": 0.5, "reason": "x"}
+    match = {"data": {"matched_item_id": "AAA", "matched_sku_id": 99999, "confidence": 0.5, "reason": "x"}, "fail_reason": None}
     row = _build_row(_prod(), _cands_with_sku(), _COST, _sku_cache(), match=match)
-    assert row["match_source"] == "fallback"
-    assert row["best_1688"]["matched_sku"]["sku_id"] == 4  # 全局最低 5.00
+    assert row["match_source"] == "llm_mismatch"
+    assert row["best_1688"]["matched_sku"] is None

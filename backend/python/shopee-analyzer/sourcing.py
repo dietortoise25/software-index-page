@@ -223,42 +223,41 @@ def _select_matched_sku(enriched: list, match: dict | None,
                         threshold: float = _DEFAULT_VERIFY_THRESHOLD) -> tuple:
     """决定哪个候选的哪个 SKU 作为成本基准。
     返回 (best_candidate, matched_sku, match_source)。
-      - 先按图文核对阈值过滤出合格池(conf<threshold 的不准当 best)
-      - match 指定且命中(且合格) → (该候选, 该SKU, "llm")
-      - 否则合格池里全局最低价兜底 → (含最低价SKU的候选, 最低价SKU, "fallback")
-      - 合格池无 SKU → (合格池[0] 或 None, None, "none")"""
+    match_source: "llm" | "llm_failed" | "llm_mismatch" | "no_sku_data" | "no_qualified" | "none"
+    除 "llm" 外均表示需人工复核，不自动兜底。"""
     qualified = _qualified_candidates(enriched, threshold)
 
-    # step4 LLM 选中：按 item_id + sku_id 命中（仅限合格候选）
-    if match:
-        item_id = match.get("matched_item_id")
-        sku_id = match.get("matched_sku_id")
+    fail_reason = (match or {}).get("fail_reason")
+    match_data = (match or {}).get("data")
+
+    # LLM 选中且在合格池命中
+    if match_data:
+        item_id = match_data.get("matched_item_id")
+        sku_id = match_data.get("matched_sku_id")
         for cand in qualified:
             if cand.get("item_id") != item_id:
                 continue
             for sku in cand.get("sku", {}).get("items", []):
                 if sku.get("sku_id") == sku_id:
                     return cand, sku, "llm"
+        # LLM 返回了结果但 ID 在合格池里找不到
+        return (qualified[0] if qualified else None), None, "llm_mismatch"
 
-    # 兜底：合格池里所有候选所有 SKU 取价格最低的
-    best_cand = best_sku = None
-    best_price = None
-    for cand in qualified:
-        for sku in cand.get("sku", {}).get("items", []):
-            p = _to_cost_float(sku.get("price"))
-            if p is not None and (best_price is None or p < best_price):
-                best_price, best_cand, best_sku = p, cand, sku
+    # LLM 未返回数据 — 区分原因
+    if fail_reason == "no_qualified_candidate":
+        return (enriched[0] if enriched else None), None, "no_qualified"
+    if fail_reason == "no_sku_data":
+        return (qualified[0] if qualified else None), None, "no_sku_data"
+    if fail_reason == "llm_call_failed":
+        return (qualified[0] if qualified else None), None, "llm_failed"
 
-    if best_sku is not None:
-        return best_cand, best_sku, "fallback"
-
-    # 合格池无 SKU 价
+    # 无 match 信息（老数据兼容或无候选）
     return (qualified[0] if qualified else None), None, "none"
 
 
 def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None = None,
                match: dict | None = None, conf_map: dict | None = None) -> dict:
-    """构建单产品分析行。match 为 step4 LLM 选中结果(可为 None → 兜底)"""
+    """构建单产品分析行。match = {"data": ..., "fail_reason": ...} 或 None"""
     pid = prod["product_id"]
     sku_cache = sku_cache or {}
     pid_confs = (conf_map or {}).get(pid, {})
@@ -275,6 +274,7 @@ def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None =
     if best_1688 is not None:
         best_1688 = {**best_1688, "matched_sku": matched_sku}
 
+    match_data = (match or {}).get("data")
     row = {
         "product_id": pid,
         "product_name": prod.get("product_name", ""),
@@ -288,9 +288,9 @@ def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None =
         "shopee_price_num": _parse_shopee_price(prod.get("shopee_price_brl")),
         "has_1688_data": len(cands) > 0,
         "match_source": match_source,
-        "match_reason": (match or {}).get("reason", "") if match_source == "llm" else "",
-        "match_scores": (match or {}).get("scores") if match_source == "llm" else None,
-        "match_overall_score": (match or {}).get("overall_score") if match_source == "llm" else None,
+        "match_reason": (match_data or {}).get("reason", "") if match_source == "llm" else "",
+        "match_scores": (match_data or {}).get("scores") if match_source == "llm" else None,
+        "match_overall_score": (match_data or {}).get("overall_score") if match_source == "llm" else None,
     }
     # 透传原始 Excel 字段（中文列名），供前端 CSV 导出
     _known_keys = {"product_id", "product_name", "data_source", "category_path",
@@ -338,6 +338,7 @@ def _fetch_skus_into(provider, candidates_map: dict, sku_cache: dict):
 def _match_all(products: list, candidates_map: dict, sku_cache: dict, matches: dict,
                conf_map: dict | None = None):
     """step4：逐货品调 agent 选最佳 SKU，结果按 pid 写入 matches。
+    matches[pid] = {"data": ..., "fail_reason": ...}
     conf_map 让 step4 只把合格候选喂给 agent（图文核对 <0.5 的不参与）。"""
     total = len(products)
     for i, prod in enumerate(products):
@@ -347,9 +348,9 @@ def _match_all(products: list, candidates_map: dict, sku_cache: dict, matches: d
         enriched = [_pick_candidate(c, sku_cache.get(c.get("itemId", "")) or {},
                                     image_confidence=pid_confs.get(c.get("itemId", "")))
                     for c in raw_cands]
-        # 只把合格候选喂给 agent（confidence<0.5 的不参与 step4 选择）
         qualified = _qualified_candidates(enriched, _DEFAULT_VERIFY_THRESHOLD)
         if not qualified:
+            matches[pid] = {"data": None, "fail_reason": "no_qualified_candidate"}
             yield {"current": i + 1, "total": total, "item_id": pid}
             continue
         shopee = {
@@ -357,9 +358,8 @@ def _match_all(products: list, candidates_map: dict, sku_cache: dict, matches: d
             "category": str(prod.get("category_path", "")),
             "price_brl": _parse_shopee_price(prod.get("shopee_price_brl")),
         }
-        match = match_sku_via_agent(shopee, qualified)
-        if match is not None:
-            matches[pid] = match
+        data, fail_reason = match_sku_via_agent(shopee, qualified)
+        matches[pid] = {"data": data, "fail_reason": fail_reason}
         yield {"current": i + 1, "total": total, "item_id": pid}
 
 

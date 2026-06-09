@@ -93,23 +93,31 @@ function RadarChart({ scores }: { scores: { price: number; image_match: number; 
   )
 }
 
+const _REVIEW_LABELS: Record<string, string> = {
+  llm_failed: "AI 匹配失败",
+  llm_mismatch: "AI 结果未命中",
+  no_sku_data: "无 SKU 数据",
+  no_qualified: "无合格候选",
+}
+
 function MatchSummary({ row }: { row: SourcingRow }) {
   const best = row.best_1688
   const picked = best?.matched_sku
   if (!best || row.match_source === "none") return null
 
   const isLlm = row.match_source === "llm"
+  const needsReview = !isLlm
   const scores = row.match_scores
   const overall = row.match_overall_score
   const skuItems = best.sku?.items ?? []
 
   return (
-    <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
+    <div className={`rounded-md border p-3 ${isLlm ? "border-primary/30 bg-primary/5" : "border-amber-400/50 bg-amber-50/50 dark:bg-amber-950/20"}`}>
       <div className="flex gap-4">
         {/* 左栏：badge + 主图 + 链接 */}
         <div className="flex flex-col items-center gap-2 shrink-0">
-          <Badge variant={isLlm ? "default" : "outline"} className="text-[10px] whitespace-nowrap">
-            {isLlm ? "AI 智选" : "兜底最低价"}
+          <Badge variant={isLlm ? "default" : "outline"} className={`text-[10px] whitespace-nowrap ${needsReview ? "border-amber-500 text-amber-700 dark:text-amber-400" : ""}`}>
+            {isLlm ? "AI 智选" : "需人工复核"}
           </Badge>
           {best.image_url ? (
             <img src={best.image_url} alt="" referrerPolicy="no-referrer"
@@ -131,6 +139,11 @@ function MatchSummary({ row }: { row: SourcingRow }) {
             <span className="font-medium line-clamp-2">{best.title}</span>
             <span className="text-muted-foreground block mt-0.5">{best.shop_name}{best.sales ? ` · 销量 ${best.sales}` : ""}</span>
           </div>
+          {needsReview && (
+            <div className="text-[11px] text-amber-700 dark:text-amber-400">
+              {_REVIEW_LABELS[row.match_source] || "未匹配"}
+            </div>
+          )}
           {skuItems.length > 0 && (
             <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
               {skuItems.map((it, j) => {
@@ -145,7 +158,7 @@ function MatchSummary({ row }: { row: SourcingRow }) {
           )}
         </div>
 
-        {/* 右栏：雷达图 + 综合评分 + 理由 */}
+        {/* 右栏：雷达图 + 综合评分 + 理由（仅 AI 智选时） */}
         {scores && (
           <div className="shrink-0 flex flex-col items-center gap-1">
             <RadarChart scores={scores} />

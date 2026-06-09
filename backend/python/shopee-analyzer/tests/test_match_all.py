@@ -30,17 +30,16 @@ def test_match_all_collects_matches_per_product(monkeypatch):
     import sourcing
 
     def fake_match(shopee, candidates):
-        # 按货品名回不同结果，验证传参正确
         if shopee["name"] == "红裙":
-            return {"matched_item_id": "AAA", "matched_sku_id": 1, "confidence": 0.9, "reason": "r"}
-        return {"matched_item_id": "BBB", "matched_sku_id": 2, "confidence": 0.8, "reason": "b"}
+            return ({"matched_item_id": "AAA", "matched_sku_id": 1, "confidence": 0.9, "reason": "r"}, None)
+        return ({"matched_item_id": "BBB", "matched_sku_id": 2, "confidence": 0.8, "reason": "b"}, None)
 
     monkeypatch.setattr(sourcing, "match_sku_via_agent", fake_match)
     matches = {}
     list(sourcing._match_all(_products(), _candidates_map(), _sku_cache(), matches))
 
-    assert matches["P1"]["matched_sku_id"] == 1
-    assert matches["P2"]["matched_sku_id"] == 2
+    assert matches["P1"]["data"]["matched_sku_id"] == 1
+    assert matches["P2"]["data"]["matched_sku_id"] == 2
 
 
 def test_match_all_passes_lean_shopee_and_candidates(monkeypatch):
@@ -51,7 +50,7 @@ def test_match_all_passes_lean_shopee_and_candidates(monkeypatch):
     def capture(shopee, candidates):
         seen["shopee"] = shopee
         seen["candidates"] = candidates
-        return None
+        return (None, "llm_call_failed")
 
     monkeypatch.setattr(sourcing, "match_sku_via_agent", capture)
     list(sourcing._match_all(_products()[:1], _candidates_map(), _sku_cache(), {}))
@@ -66,16 +65,17 @@ def test_match_all_passes_lean_shopee_and_candidates(monkeypatch):
 def test_match_all_yields_progress(monkeypatch):
     """每处理完一个货品 yield 一条进度 {current,total}"""
     import sourcing
-    monkeypatch.setattr(sourcing, "match_sku_via_agent", lambda s, c: None)
+    monkeypatch.setattr(sourcing, "match_sku_via_agent", lambda s, c: (None, "llm_call_failed"))
     progress = list(sourcing._match_all(_products(), _candidates_map(), _sku_cache(), {}))
     assert progress[-1]["current"] == 2
     assert progress[-1]["total"] == 2
 
 
-def test_match_all_none_match_not_stored(monkeypatch):
-    """agent 返回 None(失败/无SKU) → 该 pid 不写入 matches(上游兜底)"""
+def test_match_all_stores_fail_reason(monkeypatch):
+    """agent 返回 (None, reason) → matches[pid] 记录 fail_reason"""
     import sourcing
-    monkeypatch.setattr(sourcing, "match_sku_via_agent", lambda s, c: None)
+    monkeypatch.setattr(sourcing, "match_sku_via_agent", lambda s, c: (None, "llm_call_failed"))
     matches = {}
     list(sourcing._match_all(_products(), _candidates_map(), _sku_cache(), matches))
-    assert matches == {}
+    assert matches["P1"]["fail_reason"] == "llm_call_failed"
+    assert matches["P1"]["data"] is None

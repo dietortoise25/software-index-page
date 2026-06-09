@@ -15,17 +15,17 @@ def test_build_rows_applies_match_per_product():
     sku_cache = {"AAA": {"sku_count": 2, "skus": [
         {"sku_id": 1, "full_spec": "红/M", "price": "20.00"},
         {"sku_id": 2, "full_spec": "红/L", "price": "10.00"}], "error": None}}
-    matches = {"P1": {"matched_item_id": "AAA", "matched_sku_id": 1, "confidence": 0.9, "reason": "贴合"}}
+    matches = {"P1": {"data": {"matched_item_id": "AAA", "matched_sku_id": 1, "confidence": 0.9, "reason": "贴合"}, "fail_reason": None}}
 
     rows = _build_rows(products, candidates_map, _COST, sku_cache, matches)
 
     assert rows[0]["match_source"] == "llm"
     assert rows[0]["best_1688"]["matched_sku"]["sku_id"] == 1
-    assert rows[0]["cost_cny"] == 20.00  # 选中的 20，非 itemPrice 999
+    assert rows[0]["cost_cny"] == 20.00
 
 
-def test_build_rows_no_matches_falls_back():
-    """matches 为 None/缺该 pid → 该行兜底最低价 SKU"""
+def test_build_rows_no_matches_marks_none():
+    """matches 为 None/缺该 pid → match_source='none'"""
     from sourcing import _build_rows
     products = [{"product_id": "P1", "product_name": "裙", "shopee_price_brl": "R$ 39.90", "image_url": ""}]
     candidates_map = {"P1": [{"itemId": "AAA", "title": "x", "itemPrice": "999", "providerInfo": {}, "purchaseInfos": []}]}
@@ -35,5 +35,5 @@ def test_build_rows_no_matches_falls_back():
 
     rows = _build_rows(products, candidates_map, _COST, sku_cache, None)
 
-    assert rows[0]["match_source"] == "fallback"
-    assert rows[0]["cost_cny"] == 10.00  # 兜底最低价
+    assert rows[0]["match_source"] == "none"
+    assert rows[0]["best_1688"]["matched_sku"] is None

@@ -81,8 +81,8 @@ export interface SourcingRow {
   margin_brl: number | null
   margin_rate: number | null
   recommendation: "推荐" | "可考虑" | "预警" | "待补全"
-  // step4 SKU 匹配来源：llm=AI智选 / fallback=最低价兜底 / none=无SKU
-  match_source: "llm" | "fallback" | "none"
+  // step4 SKU 匹配来源：llm=AI智选 / 其余=需人工复核
+  match_source: "llm" | "llm_failed" | "llm_mismatch" | "no_sku_data" | "no_qualified" | "none"
   match_reason: string
   match_scores: { price: number; image_match: number; shop_credit: number; sales: number } | null
   match_overall_score: number | null

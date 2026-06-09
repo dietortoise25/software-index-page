@@ -43,8 +43,7 @@ def test_all_below_threshold_empty():
 
 
 def test_select_matched_sku_ignores_disqualified():
-    """_select_matched_sku 只在合格池里兜底选最低价：
-    被踢候选(conf<0.5)即使价更低也不当 best"""
+    """_select_matched_sku 只在合格池里操作：被踢候选(conf<0.5)不参与"""
     from sourcing import _select_matched_sku
     enriched = [
         {"item_id": "CHEAP", "image_confidence": 0.2,
@@ -52,9 +51,11 @@ def test_select_matched_sku_ignores_disqualified():
         {"item_id": "OK", "image_confidence": 0.9,
          "sku": {"items": [{"sku_id": 2, "price": "9.00"}]}},
     ]
+    # 无 match → 标记为 none（不再兜底选最低价）
     best, sku, source = _select_matched_sku(enriched, None, threshold=0.5)
     assert best["item_id"] == "OK"
-    assert source == "fallback"
+    assert sku is None
+    assert source == "none"
 
 
 def test_select_all_disqualified_returns_none():
