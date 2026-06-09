@@ -124,7 +124,7 @@ const SYSTEM_PROMPT = `你是跨境选品助手。给定一个虾皮(Shopee)在�
    - supply: 供货能力（库存充足度）
 5. overall_score: 综合评分 0-100（语义贴合权重最高，价格次之；image_match 仅微调，不主导）
 
-不要计算利润。不要编造 sku_id。`
+只输出一个 JSON 对象，字段为 matched_sku_id、confidence、reason、scores(含 price/semantic_match/image_match/supply)、overall_score。不要输出 JSON 以外的任何文字。不要计算利润。不要编造 sku_id。`
 
 export async function matchSku(
   model: BaseChatModel,
@@ -132,11 +132,12 @@ export async function matchSku(
   candidate: RawCandidate,
 ): Promise<SkuMatchResult> {
   const input = buildMatchInput(shopee, candidate)
-  // 不用 strict 模式：中转(new.sakurapuare.com)/gpt-5.5 不支持 OpenAI strict
-  // structured output，带 strict:true 会被上游拒成 400 openai_error。
+  // 用 jsonMode(response_format: json_object)而非 functionCalling：
+  // 中转(new.sakurapuare.com)/gpt-5.5 不支持强制 tool_choice，functionCalling 会 400。
+  // jsonMode 不自动注入 schema，故 SYSTEM_PROMPT 须显式列出输出字段并要求 JSON。
   const structured = model.withStructuredOutput(skuMatchSchema, {
     name: "sku_match",
-    method: "functionCalling",
+    method: "jsonMode",
   })
   return (await structured.invoke([
     new SystemMessage(SYSTEM_PROMPT),

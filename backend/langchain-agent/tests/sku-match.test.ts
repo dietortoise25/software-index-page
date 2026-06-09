@@ -87,7 +87,7 @@ describe("matchSku", () => {
     expect(result.overall_score).toBe(86)
   })
 
-  it("不使用 strict 模式(中转/gpt-5.5 不支持 strict structured output，会 400)", async () => {
+  it("用 jsonMode(response_format json_object)而非 functionCalling — 中转/gpt-5.5 不支持强制 tool_choice，会 400", async () => {
     const invoke = vi.fn().mockResolvedValue({
       matched_sku_id: 2, confidence: 0.85, reason: "x",
       scores: { price: 90, semantic_match: 88, image_match: 80, supply: 70 },
@@ -96,8 +96,8 @@ describe("matchSku", () => {
     const fakeModel = { withStructuredOutput: vi.fn().mockReturnValue({ invoke }) }
     await matchSku(fakeModel as any, shopee, candidate)
     const opts = fakeModel.withStructuredOutput.mock.calls[0][1]
+    expect(opts.method).toBe("jsonMode")
     expect(opts.strict).not.toBe(true)
-    expect(opts.method).toBe("functionCalling")
   })
 })
 
