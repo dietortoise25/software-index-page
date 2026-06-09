@@ -41,7 +41,7 @@ export default function ExportButton({ rows, rawColumns = [], disabled }: Props)
     // Sheet2: 1688候选明细（产品ID/名称已在 rawColumns 透传）
     const h2 = [
       ...rawColumns,
-      "候选排名", "1688标题", "店铺", "图文置信度",
+      "候选排名", "1688标题", "店铺", "图文置信度", "综合评分",
       "SKU规格", "SKU最低价(¥)", "1688链接",
     ]
     const data2: unknown[][] = []
@@ -59,6 +59,7 @@ export default function ExportButton({ rows, rawColumns = [], disabled }: Props)
           ...rawVals,
           i + 1, c.title, c.shop_name || "",
           c.image_confidence != null ? Number(c.image_confidence.toFixed(2)) : "",
+          c.match_overall_score != null ? c.match_overall_score : "",
           skuStr, minPrice !== "" ? Number(minPrice.toFixed(2)) : "",
           c.link,
         ])

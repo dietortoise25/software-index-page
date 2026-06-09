@@ -58,6 +58,9 @@ export interface Candidate {
     error: string | null
   }
   image_confidence: number | null
+  // step5 该候选的评分(逐候选评分，非只冠军；无 SKU/未调时为 null)
+  match_overall_score?: number | null
+  match_scores?: { price: number; semantic_match: number; image_match: number; supply: number } | null
   // step4 选中的 SKU（仅 best_1688 上有；由 LLM 选或最低价兜底确定）
   matched_sku?: { spec: string; full_spec: string; price: string; can_book_count: number; sku_id: number } | null
 }

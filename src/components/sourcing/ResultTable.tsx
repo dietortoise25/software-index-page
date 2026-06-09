@@ -259,6 +259,9 @@ function Row({ row }: { row: SourcingRow }) {
                             {conf != null && (
                               <span className="text-[10px] text-muted-foreground">图分:{conf.toFixed(2)}</span>
                             )}
+                            {c.match_overall_score != null && (
+                              <span className="text-[10px] text-muted-foreground">综合:{c.match_overall_score}</span>
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground mt-0.5">
                             {c.shop_name} · 销量 {c.sales || "-"}

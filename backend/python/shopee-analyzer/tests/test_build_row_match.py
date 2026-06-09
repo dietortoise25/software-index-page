@@ -73,3 +73,37 @@ def test_match_with_unknown_sku_id_marks_mismatch():
     row = _build_row(_prod(), _cands_with_sku(), _COST, _sku_cache(), match=match)
     assert row["match_source"] == "llm_mismatch"
     assert row["best_1688"]["matched_sku"] is None
+
+
+def test_candidate_scores_attached_to_each_candidate():
+    """match.candidate_scores 按 item_id 把 STEP5 评分挂到对应候选上，
+    供候选明细逐个展示(不只冠军)。"""
+    from sourcing import _build_row
+    match = {
+        "data": {"matched_item_id": "AAA", "matched_sku_id": 1, "reason": "r", "overall_score": 90},
+        "fail_reason": None,
+        "candidate_scores": {
+            "AAA": {"overall_score": 90, "scores": {"price": 80, "semantic_match": 95, "image_match": 88, "supply": 70}},
+            "BBB": {"overall_score": 62, "scores": {"price": 90, "semantic_match": 50, "image_match": 60, "supply": 55}},
+        },
+    }
+    row = _build_row(_prod(), _cands_with_sku(), _COST, _sku_cache(), match=match)
+    by_id = {c["item_id"]: c for c in row["candidates"]}
+    assert by_id["AAA"]["match_overall_score"] == 90
+    assert by_id["AAA"]["match_scores"]["semantic_match"] == 95
+    assert by_id["BBB"]["match_overall_score"] == 62
+    assert by_id["BBB"]["match_scores"]["price"] == 90
+
+
+def test_candidate_without_score_stays_none():
+    """无评分的候选(无 SKU/未调) → match_overall_score 为 None"""
+    from sourcing import _build_row
+    match = {
+        "data": {"matched_item_id": "AAA", "matched_sku_id": 1, "reason": "r", "overall_score": 90},
+        "fail_reason": None,
+        "candidate_scores": {"AAA": {"overall_score": 90, "scores": {}}},
+    }
+    row = _build_row(_prod(), _cands_with_sku(), _COST, _sku_cache(), match=match)
+    by_id = {c["item_id"]: c for c in row["candidates"]}
+    assert by_id["BBB"]["match_overall_score"] is None
+    assert by_id["BBB"]["match_scores"] is None

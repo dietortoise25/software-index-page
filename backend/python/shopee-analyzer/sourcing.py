@@ -170,8 +170,10 @@ def _search_one(prod: dict, page_size: int, same_style_only: bool):
 
 
 def _pick_candidate(c: dict, sku_data: dict | None = None,
-                    image_confidence: float | None = None) -> dict:
-    """提取单个 1688 候选的全部字段。image_confidence 为图文核对得分(可 None)"""
+                    image_confidence: float | None = None,
+                    match_score: dict | None = None) -> dict:
+    """提取单个 1688 候选的全部字段。image_confidence 为图文核对得分(可 None)；
+    match_score 为该候选的 STEP5 评分结果(可 None，供候选明细逐个展示)。"""
     prov = c.get("providerInfo") or {}
     purch = c.get("purchaseInfos") or []
     sku_data = sku_data or {}
@@ -211,6 +213,8 @@ def _pick_candidate(c: dict, sku_data: dict | None = None,
             "error": sku_data.get("error"),
         },
         "image_confidence": image_confidence,
+        "match_overall_score": match_score.get("overall_score") if match_score else None,
+        "match_scores": match_score.get("scores") if match_score else None,
     }
 
 
@@ -251,13 +255,15 @@ def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None =
     pid = prod["product_id"]
     sku_cache = sku_cache or {}
     pid_confs = (conf_map or {}).get(pid, {})
+    candidate_scores = (match or {}).get("candidate_scores") or {}
 
     # 注入 SKU 数据和图文核对分数到候选
     enriched = []
     for c in cands:
         item_id = c.get("itemId", "")
         sku_data = sku_cache.get(item_id) or {}
-        enriched.append(_pick_candidate(c, sku_data, image_confidence=pid_confs.get(item_id)))
+        enriched.append(_pick_candidate(c, sku_data, image_confidence=pid_confs.get(item_id),
+                                        match_score=candidate_scores.get(item_id)))
     cands = enriched  # type: ignore
 
     best_1688, matched_sku, match_source = _select_matched_sku(enriched, match)
@@ -346,8 +352,9 @@ def _match_all(products: list, candidates_map: dict, sku_cache: dict, matches: d
             "category": str(prod.get("category_path", "")),
             "price_brl": _parse_shopee_price(prod.get("shopee_price_brl")),
         }
-        data, fail_reason = match_sku_best(shopee, enriched)
-        matches[pid] = {"data": data, "fail_reason": fail_reason}
+        data, fail_reason, candidate_scores = match_sku_best(shopee, enriched)
+        matches[pid] = {"data": data, "fail_reason": fail_reason,
+                        "candidate_scores": candidate_scores}
         yield {"current": i + 1, "total": total, "item_id": pid}
 
 

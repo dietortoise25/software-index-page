@@ -42,19 +42,23 @@ def match_sku_for_candidate(shopee: dict, candidate: dict) -> tuple[dict | None,
     return resp.get("data"), None
 
 
-def match_sku_best(shopee: dict, candidates: list) -> tuple[dict | None, str | None]:
-    """逐候选串行调 agent，取 overall_score 最高者。返回 (best_data, fail_reason)。"""
+def match_sku_best(shopee: dict, candidates: list) -> tuple[dict | None, str | None, dict]:
+    """逐候选串行调 agent，取 overall_score 最高者。
+    返回 (best_data, fail_reason, candidate_scores)。
+    candidate_scores[item_id] = 该候选的完整评分(供候选明细逐个展示，不只留冠军)。"""
     results = []
+    candidate_scores: dict = {}
     for cand in candidates:
         if not _has_sku(cand):
             continue
         data, _ = match_sku_for_candidate(shopee, cand)
         if data is not None:
             data["matched_item_id"] = cand["item_id"]
+            candidate_scores[cand["item_id"]] = data
             results.append(data)
 
     if not results:
-        return None, "llm_call_failed"
+        return None, "llm_call_failed", {}
 
     best = max(results, key=lambda d: d.get("overall_score", 0))
-    return best, None
+    return best, None, candidate_scores

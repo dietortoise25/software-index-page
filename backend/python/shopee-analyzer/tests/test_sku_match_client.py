@@ -66,7 +66,8 @@ def test_candidate_without_sku_skips_call(monkeypatch):
 
 
 def test_match_sku_best_picks_highest_overall_score(monkeypatch):
-    """逐候选串行调，取 overall_score 最高者，并回填 matched_item_id"""
+    """逐候选串行调，取 overall_score 最高者，并回填 matched_item_id。
+    第三返回值 candidate_scores 含每个候选的完整评分(供候选明细展示)。"""
     import sku_match_client as m
 
     def fake_one(shopee, cand):
@@ -78,20 +79,25 @@ def test_match_sku_best_picks_highest_overall_score(monkeypatch):
         {"item_id": "BBB", "sku": {"items": [{"sku_id": 1, "price": "6"}]}},
         {"item_id": "CCC", "sku": {"items": [{"sku_id": 1, "price": "7"}]}},
     ]
-    best, reason = m.match_sku_best({"name": "裙"}, cands)
+    best, reason, per_cand = m.match_sku_best({"name": "裙"}, cands)
     assert best["matched_item_id"] == "BBB"
     assert best["overall_score"] == 92
     assert reason is None
+    # 每个候选的分都保留下来(不再只留冠军)
+    assert per_cand["AAA"]["overall_score"] == 70
+    assert per_cand["BBB"]["overall_score"] == 92
+    assert per_cand["CCC"]["overall_score"] == 81
 
 
 def test_match_sku_best_all_fail_returns_llm_call_failed(monkeypatch):
-    """所有候选都调失败 → (None, 'llm_call_failed')"""
+    """所有候选都调失败 → (None, 'llm_call_failed', {})"""
     import sku_match_client as m
     monkeypatch.setattr(m, "match_sku_for_candidate", lambda s, c: (None, "llm_call_failed"))
     cands = [{"item_id": "A", "sku": {"items": [{"sku_id": 1, "price": "5"}]}}]
-    best, reason = m.match_sku_best({"name": "裙"}, cands)
+    best, reason, per_cand = m.match_sku_best({"name": "裙"}, cands)
     assert best is None
     assert reason == "llm_call_failed"
+    assert per_cand == {}
 
 
 def test_match_sku_best_skips_candidates_without_sku(monkeypatch):
@@ -107,6 +113,7 @@ def test_match_sku_best_skips_candidates_without_sku(monkeypatch):
         {"item_id": "NOSKU", "sku": {"items": []}},
         {"item_id": "OK", "sku": {"items": [{"sku_id": 1, "price": "5"}]}},
     ]
-    best, _ = m.match_sku_best({"name": "裙"}, cands)
+    best, _, per_cand = m.match_sku_best({"name": "裙"}, cands)
     assert seen == ["OK"]
     assert best["matched_item_id"] == "OK"
+    assert "NOSKU" not in per_cand and per_cand["OK"]["overall_score"] == 80
