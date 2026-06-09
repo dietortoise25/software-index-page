@@ -74,18 +74,9 @@ export default function CostConfigForm({ values, onChange, disabled }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div>
-          <Label className="text-xs">汇率 (1 BRL = ? CNY)</Label>
-          <Input
-            type="number" step="0.01" min="0"
-            value={values.cny_per_brl}
-            onChange={(e) => update("cny_per_brl", e.target.value)}
-            disabled={disabled}
-          />
-        </div>
-        <div>
-          <Label className="text-xs">成本倍率</Label>
+          <Label className="text-xs">成本倍率 (进货价 × 倍率 = R$)</Label>
           <Input
             type="number" step="0.01" min="1"
             value={values.cost_multiplier}

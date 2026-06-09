@@ -57,6 +57,7 @@ export interface Candidate {
     items: { spec: string; full_spec: string; price: string; can_book_count: number; sku_id: number }[]
     error: string | null
   }
+  image_confidence: number | null
   // step4 选中的 SKU（仅 best_1688 上有；由 LLM 选或最低价兜底确定）
   matched_sku?: { spec: string; full_spec: string; price: string; can_book_count: number; sku_id: number } | null
 }

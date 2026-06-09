@@ -3,18 +3,6 @@ import { ChevronDown, ChevronRight, ExternalLink, ArrowUpDown, ArrowUp, ArrowDow
 import { Badge } from "@/components/ui/badge"
 import type { SourcingRow } from "@/lib/sourcing"
 
-function fmtCny(v: string | null | undefined) {
-  if (!v) return "-"
-  return `¥${v}`
-}
-
-function skuRange(c: { sku: { count: number; min_price: string | null; max_price: string | null } } | null | undefined): string {
-  if (!c || c.sku.count === 0 || !c.sku.min_price) return "待补全"
-  const { min_price, max_price } = c.sku
-  if (max_price && max_price !== min_price) return `¥${min_price}-¥${max_price}`
-  return `¥${min_price}`
-}
-
 type SortKey = "product_name" | "shopee_price_num" | "sku_price"
 type SortDir = "asc" | "desc"
 
@@ -97,7 +85,6 @@ function Row({ row }: { row: SourcingRow }) {
         className="border-t hover:bg-muted/30 cursor-pointer transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
-        {/* 产品名 — 有 colgroup 控制宽度, use truncate */}
         <td className="py-2 px-3 text-sm">
           <div className="flex items-center gap-2 max-w-[260px]">
             {expanded ? <ChevronDown size={14} className="shrink-0" /> : <ChevronRight size={14} className="shrink-0" />}
@@ -110,108 +97,90 @@ function Row({ row }: { row: SourcingRow }) {
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
               />
             )}
-            <div className="min-w-0">
-              <span className="truncate block text-xs leading-tight">{row.product_name}</span>
-              <span className="text-[10px] text-muted-foreground">{row.data_source}</span>
-            </div>
+            <span className="truncate text-xs leading-tight">{row.product_name}</span>
           </div>
         </td>
         <td className="py-2 px-2 text-sm text-right tabular-nums">{row.shopee_price_brl}</td>
-        <td className="py-2 px-2 text-sm text-right font-medium tabular-nums">{skuRange(row.best_1688)}</td>
+        <td className="py-2 px-2 text-xs truncate max-w-[110px]">{row.category_path || "-"}</td>
+        <td className="py-2 px-2 text-xs text-right tabular-nums">{row.shopee_monthly_sales || "-"}</td>
+        <td className="py-2 px-2 text-xs truncate max-w-[160px]">{row.best_1688?.title || "-"}</td>
+        <td className="py-2 px-2 text-xs truncate max-w-[120px]">{row.best_1688?.matched_sku?.full_spec || row.best_1688?.matched_sku?.spec || "-"}</td>
+        <td className="py-2 px-2 text-sm text-right tabular-nums font-medium">
+          {row.total_cost_brl != null ? `R$${row.total_cost_brl.toFixed(2)}` : "-"}
+        </td>
+        <td className="py-2 px-2 text-sm text-right tabular-nums">
+          {row.margin_rate != null ? `${(row.margin_rate * 100).toFixed(1)}%` : "-"}
+        </td>
         <td className="py-2 px-2 text-center">
-          <Badge variant="outline" className="text-[11px] bg-gray-100 text-gray-500 border-gray-200">
-            待推荐系统
+          <Badge variant="outline" className={
+            row.recommendation === "推荐" ? "bg-green-100 text-green-700 border-green-200" :
+            row.recommendation === "可考虑" ? "bg-blue-100 text-blue-700 border-blue-200" :
+            row.recommendation === "预警" ? "bg-red-100 text-red-700 border-red-200" :
+            "bg-gray-100 text-gray-500 border-gray-200"
+          }>
+            {row.recommendation}
           </Badge>
         </td>
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={4} className="bg-muted/20 px-4 py-3">
+          <td colSpan={9} className="bg-muted/20 px-4 py-3">
             {row.candidates.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">未找到同款货源</p>
             ) : (
               <div className="space-y-2">
                 <MatchSummary row={row} />
-                {row.candidates.map((c, i) => (
-                  <div key={i} className="rounded-md border bg-background p-3 text-sm">
-                    <div className="flex items-start justify-between gap-3">
-                    {c.image_url ? (
-                      <img
-                        src={c.image_url}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                        className="w-16 h-16 rounded border object-cover shrink-0 bg-muted"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded border bg-muted shrink-0" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-medium truncate">{c.title}</span>
-                        {c.item_id === row.best_1688?.item_id && (
-                          <Badge variant="outline" className="text-[10px] shrink-0">最佳</Badge>
+                {row.candidates.map((c, i) => {
+                  const conf = c.image_confidence
+                  const suspect = conf != null && conf < 0.5
+                  return (
+                    <div key={i} className={`rounded-md border p-3 text-sm ${suspect ? "border-red-300 bg-red-50" : "bg-background"}`}>
+                      <div className="flex items-center gap-3">
+                        {c.image_url ? (
+                          <img src={c.image_url} alt="" referrerPolicy="no-referrer"
+                            className="w-12 h-12 rounded border object-cover shrink-0 bg-muted"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }} />
+                        ) : (
+                          <div className="w-12 h-12 rounded border bg-muted shrink-0" />
                         )}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {c.shop_name} · 销量 {c.sales || "-"} · {c.min_order || "-"}
-                      </div>
-                      <div className="flex gap-1 mt-1 flex-wrap">
-                        {c.offer_tags?.map((t) => (
-                          <span key={t} className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{t}</span>
-                        ))}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-medium truncate text-xs">{c.title}</span>
+                            {c.item_id === row.best_1688?.item_id && (
+                              <Badge variant="outline" className="text-[10px] shrink-0">最佳</Badge>
+                            )}
+                            {suspect && (
+                              <Badge variant="destructive" className="text-[10px] shrink-0">疑似不符</Badge>
+                            )}
+                            {conf != null && (
+                              <span className="text-[10px] text-muted-foreground">图分:{conf.toFixed(2)}</span>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {c.shop_name} · 销量 {c.sales || "-"}
+                            <a href={c.link} target="_blank" rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="ml-2 text-blue-600 hover:underline inline-flex items-center gap-0.5">
+                              详情 <ExternalLink size={10} />
+                            </a>
+                          </div>
+                          {c.sku.count > 0 && (
+                            <div className="mt-1 text-[11px] text-muted-foreground font-mono space-x-2 flex flex-wrap gap-y-0.5">
+                              {c.sku.items.map((it, j) => (
+                                <span key={j} className={
+                                  c.item_id === row.best_1688?.item_id && it.sku_id === row.best_1688?.matched_sku?.sku_id
+                                    ? "text-primary font-semibold" : ""
+                                }>
+                                  SKU:{it.full_spec || it.spec}|价:¥{it.price}{conf != null ? `|图分:${conf.toFixed(2)}` : ""}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-base font-bold text-primary">{skuRange(c)}</div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">标价 {fmtCny(c.price_cny)}</div>
-                      <a
-                        href={c.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-xs text-blue-600 hover:underline inline-flex items-center gap-0.5 mt-1"
-                      >
-                        查看详情 <ExternalLink size={10} />
-                      </a>
-                    </div>
-                    </div>
-                    {c.sku.count > 0 ? (
-                      <table className="w-full mt-2 text-xs border-t">
-                        <thead>
-                          <tr className="text-muted-foreground">
-                            <th className="text-left font-medium py-1">规格</th>
-                            <th className="text-right font-medium py-1">单价</th>
-                            <th className="text-right font-medium py-1">可订量</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {c.sku.items.map((it, j) => {
-                            const isPicked =
-                              c.item_id === row.best_1688?.item_id &&
-                              it.sku_id === row.best_1688?.matched_sku?.sku_id
-                            return (
-                              <tr key={j} className={`border-t border-dashed ${isPicked ? "bg-primary/10" : ""}`}>
-                                <td className="py-1 truncate max-w-[200px]">
-                                  {isPicked && <span className="text-primary mr-1">✓</span>}
-                                  {it.full_spec || it.spec}
-                                </td>
-                                <td className="py-1 text-right tabular-nums">¥{it.price}</td>
-                                <td className="py-1 text-right tabular-nums text-muted-foreground">{it.can_book_count || "-"}</td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    ) : (
-                      <p className="text-[11px] text-muted-foreground mt-2 pt-2 border-t">
-                        {c.sku.error
-                          ? `暂无 SKU 价格表（${c.sku.error}）`
-                          : "暂无 SKU 价格表（未配置 SKU Provider 或该商品无数据）"}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </td>
@@ -242,25 +211,35 @@ export default function ResultTable({ rows }: Props) {
     <div className="space-y-2">
       {/* 表格 */}
       <div className="border rounded-lg overflow-x-auto">
-        <table className="w-full text-sm table-fixed">
+        <table className="w-full text-sm">
           <colgroup>
-            <col className="w-[minmax(180px,1fr)]" />
-            <col style={{ width: 110 }} />
-            <col style={{ width: 130 }} />
+            <col style={{ minWidth: 200 }} />
             <col style={{ width: 100 }} />
+            <col style={{ width: 110 }} />
+            <col style={{ width: 80 }} />
+            <col style={{ minWidth: 160 }} />
+            <col style={{ width: 120 }} />
+            <col style={{ width: 100 }} />
+            <col style={{ width: 80 }} />
+            <col style={{ width: 90 }} />
           </colgroup>
           <thead>
             <tr className="bg-muted/50 text-xs text-muted-foreground">
               <th className="py-2 px-3 text-left font-medium">
-                <ThButton label="产品" sortKey="product_name" active={sortKey === "product_name"} dir={sortDir} onClick={handleSort} />
+                <ThButton label="产品名称" sortKey="product_name" active={sortKey === "product_name"} dir={sortDir} onClick={handleSort} />
               </th>
               <th className="py-2 px-2 text-right font-medium">
-                <ThButton label="Shopee售价" sortKey="shopee_price_num" active={sortKey === "shopee_price_num"} dir={sortDir} onClick={handleSort} />
+                <ThButton label="Shopee售价(R$)" sortKey="shopee_price_num" active={sortKey === "shopee_price_num"} dir={sortDir} onClick={handleSort} />
               </th>
+              <th className="py-2 px-2 text-left font-medium">类目</th>
+              <th className="py-2 px-2 text-right font-medium">月销量</th>
+              <th className="py-2 px-2 text-left font-medium">1688最佳候选</th>
+              <th className="py-2 px-2 text-left font-medium">选中SKU(规格)</th>
               <th className="py-2 px-2 text-right font-medium">
-                <ThButton label="SKU价(范围)" sortKey="sku_price" active={sortKey === "sku_price"} dir={sortDir} onClick={handleSort} />
+                <ThButton label="落地成本(R$)" sortKey="sku_price" active={sortKey === "sku_price"} dir={sortDir} onClick={handleSort} />
               </th>
-              <th className="py-2 px-2 text-center font-medium">状态</th>
+              <th className="py-2 px-2 text-right font-medium">利润率</th>
+              <th className="py-2 px-2 text-center font-medium">推荐状态</th>
             </tr>
           </thead>
           <tbody>

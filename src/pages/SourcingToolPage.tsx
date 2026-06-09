@@ -29,6 +29,7 @@ interface State {
   files: FileEntry[]
   cost: CostParams
   skuProvider: string
+  limit: number
   progressCurrent: number
   progressTotal: number
   progressPhase: string
@@ -49,7 +50,7 @@ function loadProvider(): string {
 }
 
 const initialState: State = {
-  phase: "idle", files: [], cost: initialCost, skuProvider: loadProvider(),
+  phase: "idle", files: [], cost: initialCost, skuProvider: loadProvider(), limit: 20,
   progressCurrent: 0, progressTotal: 0, progressPhase: "", progressMessage: "",
   productStatuses: [], rows: [], summary: null,
 }
@@ -59,6 +60,7 @@ type Action =
   | { type: "REMOVE_FILE"; index: number }
   | { type: "SET_COST"; cost: CostParams }
   | { type: "SET_PROVIDER"; provider: string }
+  | { type: "SET_LIMIT"; limit: number }
   | { type: "START_ANALYZING"; total: number; message: string }
   | { type: "PROGRESS"; phase: string; data: any }
   | { type: "SKU_PROGRESS"; current: number; total: number; message: string }
@@ -73,7 +75,7 @@ function reducer(state: State, action: Action): State {
         file: f, name: f.name,
         size: f.size < 1024 ? `${f.size}B` : f.size < 1048576 ? `${(f.size / 1024).toFixed(1)}KB` : `${(f.size / 1048576).toFixed(1)}MB`,
       }))
-      return { ...initialState, phase: "uploaded", files: entries, cost: state.cost, skuProvider: state.skuProvider }
+      return { ...initialState, phase: "uploaded", files: entries, cost: state.cost, skuProvider: state.skuProvider, limit: state.limit }
     }
     case "REMOVE_FILE": {
       const files = state.files.filter((_, i) => i !== action.index)
@@ -84,6 +86,8 @@ function reducer(state: State, action: Action): State {
     case "SET_PROVIDER":
       try { localStorage.setItem(PROVIDER_KEY, action.provider) } catch { /* 忽略隐私模式写入失败 */ }
       return { ...state, skuProvider: action.provider }
+    case "SET_LIMIT":
+      return { ...state, limit: action.limit }
     case "START_ANALYZING":
       return {
         ...state, phase: "analyzing",
@@ -160,6 +164,7 @@ export default function SourcingToolPage() {
     formData.append("target_margin_rate", String(s.cost.target_margin_rate))
     formData.append("high_margin_rate", String(s.cost.high_margin_rate))
     formData.append("sku_provider", s.skuProvider)
+    formData.append("limit", String(s.limit))
 
     dispatch({ type: "START_ANALYZING", total: 0, message: "开始分析..." })
 
@@ -222,7 +227,7 @@ export default function SourcingToolPage() {
     } catch (e: any) {
       dispatch({ type: "ERROR", message: e.message || "分析失败" })
     }
-  }, [s.files, s.cost])
+  }, [s.files, s.cost, s.skuProvider, s.limit])
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
@@ -251,6 +256,26 @@ export default function SourcingToolPage() {
           onRemoveFile={(i) => dispatch({ type: "REMOVE_FILE", index: i })}
           disabled={s.phase === "analyzing"}
         />
+        <div className="mt-3 flex items-center gap-2">
+          <label htmlFor="row-limit" className="text-xs text-muted-foreground whitespace-nowrap">
+            仅分析前
+          </label>
+          <input
+            id="row-limit"
+            type="number"
+            min="0"
+            step="1"
+            value={s.limit || ""}
+            placeholder="全部"
+            disabled={s.phase === "analyzing"}
+            onChange={(e) => {
+              const n = parseInt(e.target.value, 10)
+              dispatch({ type: "SET_LIMIT", limit: isNaN(n) || n < 0 ? 0 : n })
+            }}
+            className="w-20 h-8 rounded-md border border-input bg-background px-2 text-sm disabled:opacity-50"
+          />
+          <span className="text-xs text-muted-foreground">行（留空 = 全部，调试建议先跑前 20 行）</span>
+        </div>
       </Card>
 
       {/* ② 成本配置 */}

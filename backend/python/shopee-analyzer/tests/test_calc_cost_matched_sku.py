@@ -24,7 +24,8 @@ def test_cost_from_matched_sku_price_not_itemprice():
     r = _calc_cost(row, _COST)
     # cost_cny 应来自选中 SKU 的 7.40，不是 itemPrice 的 999
     assert r["cost_cny"] == 7.40
-    expected_brl = round(7.40 / 1.35 * 1.3, 2)
+    # 老板要求：不算汇率，进货价数值 × 倍率直接标 R$
+    expected_brl = round(7.40 * 1.3, 2)
     assert r["cost_brl"] == expected_brl
 
 
@@ -36,7 +37,7 @@ def test_recommendation_from_matched_sku_margin():
         "best_1688": {"matched_sku": {"price": "7.40"}},
     }
     r = _calc_cost(row, _COST)
-    # cost_brl = 7.40/1.35*1.3 ≈ 7.13; margin = 19.90-7.13 ≈ 12.77; rate ≈ 0.64 ≥ high
+    # cost_brl = 7.40*1.3 = 9.62; margin = 19.90-9.62 = 10.28; rate ≈ 0.52 ≥ high
     assert r["recommendation"] == "推荐"
     assert r["margin_rate"] is not None and r["margin_rate"] > 0.30
 
