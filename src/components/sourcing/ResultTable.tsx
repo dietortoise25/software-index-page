@@ -49,29 +49,86 @@ function ThButton({ label, sortKey, active, dir, onClick }: {
   )
 }
 
+function ScoreBar({ label, score }: { label: string; score: number }) {
+  const color = score >= 70 ? "bg-green-500" : score >= 40 ? "bg-yellow-500" : "bg-red-400"
+  return (
+    <div className="flex items-center gap-2 text-[11px]">
+      <span className="w-16 text-muted-foreground shrink-0">{label}</span>
+      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${score}%` }} />
+      </div>
+      <span className="w-6 text-right tabular-nums">{score}</span>
+    </div>
+  )
+}
+
 function MatchSummary({ row }: { row: SourcingRow }) {
   const best = row.best_1688
   const picked = best?.matched_sku
   if (!best || row.match_source === "none") return null
 
   const isLlm = row.match_source === "llm"
+  const scores = row.match_scores
+  const overall = row.match_overall_score
+
   return (
-    <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
-      <div className="flex items-center gap-2 mb-1">
-        <Badge variant={isLlm ? "default" : "outline"} className="text-[10px]">
-          {isLlm ? "AI 智选 SKU" : "自动兜底（最低价）"}
-        </Badge>
-        {picked && (
-          <span className="text-xs">
-            <span className="text-muted-foreground">选中规格：</span>
-            <span className="font-medium">{picked.full_spec || picked.spec || "-"}</span>
-            <span className="ml-2 font-bold text-primary">¥{picked.price}</span>
-          </span>
-        )}
+    <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
+      <div className="flex gap-4">
+        {/* 左侧：badge + 主图 + 链接 */}
+        <div className="flex flex-col items-center gap-2 shrink-0">
+          <Badge variant={isLlm ? "default" : "outline"} className="text-[10px] whitespace-nowrap">
+            {isLlm ? "AI 智选" : "兜底最低价"}
+          </Badge>
+          {best.image_url ? (
+            <img src={best.image_url} alt="" referrerPolicy="no-referrer"
+              className="w-16 h-16 rounded border object-cover bg-muted"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }} />
+          ) : (
+            <div className="w-16 h-16 rounded border bg-muted" />
+          )}
+          <a href={best.link} target="_blank" rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-[10px] text-blue-600 hover:underline inline-flex items-center gap-0.5">
+            1688链接 <ExternalLink size={9} />
+          </a>
+        </div>
+
+        {/* 右侧：评分卡 + 综合分 + 理由 */}
+        <div className="flex-1 min-w-0 space-y-2">
+          {/* 选中规格信息 */}
+          {picked && (
+            <div className="text-xs">
+              <span className="text-muted-foreground">规格：</span>
+              <span className="font-medium">{picked.full_spec || picked.spec || "-"}</span>
+              <span className="ml-2 font-bold text-primary">¥{picked.price}</span>
+            </div>
+          )}
+
+          {/* 4维评分条形图 */}
+          {scores && (
+            <div className="space-y-1">
+              <ScoreBar label="价格" score={scores.price} />
+              <ScoreBar label="图文匹配" score={scores.image_match} />
+              <ScoreBar label="店铺信誉" score={scores.shop_credit} />
+              <ScoreBar label="销量" score={scores.sales} />
+            </div>
+          )}
+
+          {/* 综合评分 */}
+          {overall != null && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">综合评分</span>
+              <span className="text-lg font-bold text-primary tabular-nums">{overall}</span>
+              <span className="text-xs text-muted-foreground">/ 100</span>
+            </div>
+          )}
+
+          {/* 推荐理由 */}
+          {isLlm && row.match_reason && (
+            <p className="text-xs text-muted-foreground leading-snug">{row.match_reason}</p>
+          )}
+        </div>
       </div>
-      {isLlm && row.match_reason && (
-        <p className="text-xs text-muted-foreground leading-snug">{row.match_reason}</p>
-      )}
     </div>
   )
 }

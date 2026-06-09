@@ -4,6 +4,7 @@ import type { SourcingRow } from "@/lib/sourcing"
 
 interface Props {
   rows: SourcingRow[]
+  rawColumns?: string[]
   disabled?: boolean
 }
 
@@ -25,20 +26,19 @@ function download(filename: string, lines: string[]) {
   URL.revokeObjectURL(url)
 }
 
-export default function ExportButton({ rows, disabled }: Props) {
+export default function ExportButton({ rows, rawColumns = [], disabled }: Props) {
   const handleExport = () => {
-    // CSV1: 选品决策汇总
-    const h1 = [
-      "产品名称", "Shopee售价(R$)", "类目", "月销量",
+    // CSV1: 选品决策汇总 — 原始列 + 分析列
+    const analysisCols = [
       "1688最佳候选", "选中SKU(规格)", "落地成本(R$)", "利润率", "推荐状态",
       "图文置信度", "核对结果",
     ]
+    const h1 = [...rawColumns, ...analysisCols]
     const l1: string[] = ["﻿" + h1.map(escapeCsv).join(",")]
     for (const r of rows) {
       const bestConf = r.best_1688?.image_confidence
-      l1.push([
-        r.product_name, r.shopee_price_brl, r.category_path || "",
-        r.shopee_monthly_sales || "",
+      const rawVals = rawColumns.map((col) => r[col] ?? "")
+      const analysisVals = [
         r.best_1688?.title || "",
         r.best_1688?.matched_sku?.full_spec || r.best_1688?.matched_sku?.spec || "",
         r.total_cost_brl != null ? r.total_cost_brl.toFixed(2) : "",
@@ -46,7 +46,8 @@ export default function ExportButton({ rows, disabled }: Props) {
         r.recommendation,
         bestConf != null ? bestConf.toFixed(2) : "",
         bestConf != null ? (bestConf < 0.5 ? "疑似不符" : "通过") : "未核对",
-      ].map(escapeCsv).join(","))
+      ]
+      l1.push([...rawVals, ...analysisVals].map(escapeCsv).join(","))
     }
     download("选品决策汇总.csv", l1)
 

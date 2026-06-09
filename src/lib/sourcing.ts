@@ -84,6 +84,9 @@ export interface SourcingRow {
   // step4 SKU 匹配来源：llm=AI智选 / fallback=最低价兜底 / none=无SKU
   match_source: "llm" | "fallback" | "none"
   match_reason: string
+  match_scores: { price: number; image_match: number; shop_credit: number; sales: number } | null
+  match_overall_score: number | null
+  [key: string]: unknown
 }
 
 export interface SourcingSummary {

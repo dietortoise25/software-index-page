@@ -26,6 +26,13 @@ export const skuMatchSchema = z.object({
   matched_sku_id: z.union([z.string(), z.number()]).describe("选中候选下具体的 sku_id"),
   confidence: z.number().min(0).max(1).describe("匹配置信度 0~1"),
   reason: z.string().describe("为什么选这个 SKU（规格/名称语义匹配理由）"),
+  scores: z.object({
+    price: z.number().min(0).max(100).describe("价格竞争力 0-100"),
+    image_match: z.number().min(0).max(100).describe("图文匹配度 0-100"),
+    shop_credit: z.number().min(0).max(100).describe("店铺信誉 0-100"),
+    sales: z.number().min(0).max(100).describe("销量热度 0-100"),
+  }).describe("四维评分"),
+  overall_score: z.number().min(0).max(100).describe("综合评分 0-100"),
 })
 
 /** sku-match 端点请求体校验：shopee 货品 + 至少一个候选 */
@@ -101,7 +108,18 @@ const SYSTEM_PROMPT = `你是跨境选品助手。给定一个虾皮(Shopee)在�
 
 判断依据：货品名称/类目语义、规格(full_spec)贴合度。在语义同样贴合时，优先单价更低、库存(can_book_count)充足的 SKU。
 
-只输出选中的 item_id、sku_id、置信度和简短理由。不要计算利润。必须从给定候选里选，不要编造 id。`
+你需要输出：
+1. 选中的 item_id 和 sku_id
+2. confidence: 匹配置信度 0~1
+3. reason: 简短推荐理由（1句话）
+4. scores: 四维评分（每项 0-100 整数）
+   - price: 价格竞争力（越低价越高分）
+   - image_match: 图文匹配度（商品名称/规格语义相似度）
+   - shop_credit: 店铺信誉（根据候选标题和店铺名判断）
+   - sales: 销量热度（根据库存充足度和候选排名判断）
+5. overall_score: 综合评分 0-100（加权汇总，价格和图文匹配度权重更高）
+
+必须从给定候选里选，不要编造 id。不要计算利润。`
 
 export async function matchSku(
   model: BaseChatModel,

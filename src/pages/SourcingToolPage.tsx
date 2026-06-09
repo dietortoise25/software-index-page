@@ -1,5 +1,5 @@
-import { useReducer, useCallback } from "react"
-import { Scale, Rocket } from "lucide-react"
+import { useReducer, useCallback, useState } from "react"
+import { Scale, Rocket, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import FileDropzone from "@/components/sourcing/FileDropzone"
@@ -37,6 +37,7 @@ interface State {
   productStatuses: ProductStatus[]
   rows: SourcingRow[]
   summary: SourcingSummary | null
+  rawColumns: string[]
 }
 
 const initialCost: CostParams = {
@@ -52,7 +53,7 @@ function loadProvider(): string {
 const initialState: State = {
   phase: "idle", files: [], cost: initialCost, skuProvider: loadProvider(), limit: 20,
   progressCurrent: 0, progressTotal: 0, progressPhase: "", progressMessage: "",
-  productStatuses: [], rows: [], summary: null,
+  productStatuses: [], rows: [], summary: null, rawColumns: [],
 }
 
 type Action =
@@ -65,7 +66,7 @@ type Action =
   | { type: "PROGRESS"; phase: string; data: any }
   | { type: "SKU_PROGRESS"; current: number; total: number; message: string }
   | { type: "MATCH_PROGRESS"; current: number; total: number; message: string }
-  | { type: "COMPLETE"; rows: SourcingRow[]; summary: SourcingSummary }
+  | { type: "COMPLETE"; rows: SourcingRow[]; summary: SourcingSummary; rawColumns: string[] }
   | { type: "ERROR"; message: string }
 
 function reducer(state: State, action: Action): State {
@@ -135,7 +136,7 @@ function reducer(state: State, action: Action): State {
     case "COMPLETE":
       return {
         ...state, phase: "done",
-        rows: action.rows, summary: action.summary,
+        rows: action.rows, summary: action.summary, rawColumns: action.rawColumns,
       }
     case "ERROR":
       alert(action.message)
@@ -220,6 +221,7 @@ export default function SourcingToolPage() {
               type: "COMPLETE",
               rows: ev.data.rows as SourcingRow[],
               summary: ev.data.summary as SourcingSummary,
+              rawColumns: (ev.data.raw_columns as string[]) || [],
             })
             break
         }
@@ -229,128 +231,147 @@ export default function SourcingToolPage() {
     }
   }, [s.files, s.cost, s.skuProvider, s.limit])
 
+  const [collapsed, setCollapsed] = useState(false)
+  const autoCollapsed = s.phase === "done" && !collapsed ? true : collapsed
+
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-primary/10">
-          <Scale size={24} className="text-primary" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold">选品比价</h1>
-          <p className="text-sm text-muted-foreground">
-            Shopee 商品导出 → 1688 以图搜同款 → 成本利润计算
-          </p>
-          <ProxyStatus />
-        </div>
-      </div>
-
-      {/* 使用引导 */}
-      <WorkflowGuide />
-
-      {/* ① 文件上传 */}
-      <Card className="p-4">
-        <h2 className="text-sm font-medium mb-3">1. 上传 Shopee Excel</h2>
-        <FileDropzone
-          files={s.files}
-          onFilesAdded={(fs) => dispatch({ type: "ADD_FILES", files: fs })}
-          onRemoveFile={(i) => dispatch({ type: "REMOVE_FILE", index: i })}
-          disabled={s.phase === "analyzing"}
-        />
-        <div className="mt-3 flex items-center gap-2">
-          <label htmlFor="row-limit" className="text-xs text-muted-foreground whitespace-nowrap">
-            仅分析前
-          </label>
-          <input
-            id="row-limit"
-            type="number"
-            min="0"
-            step="1"
-            value={s.limit || ""}
-            placeholder="全部"
-            disabled={s.phase === "analyzing"}
-            onChange={(e) => {
-              const n = parseInt(e.target.value, 10)
-              dispatch({ type: "SET_LIMIT", limit: isNaN(n) || n < 0 ? 0 : n })
-            }}
-            className="w-20 h-8 rounded-md border border-input bg-background px-2 text-sm disabled:opacity-50"
-          />
-          <span className="text-xs text-muted-foreground">行（留空 = 全部，调试建议先跑前 20 行）</span>
-        </div>
-      </Card>
-
-      {/* ② 成本配置 */}
-      <Card className="p-4">
-        <h2 className="text-sm font-medium mb-3">2. 成本参数</h2>
-        <CostConfigForm
-          values={s.cost}
-          onChange={(c) => dispatch({ type: "SET_COST", cost: c })}
-          disabled={s.phase === "analyzing"}
-        />
-      </Card>
-
-      {/* ③ 价格数据源 */}
-      <Card className="p-4">
-        <h2 className="text-sm font-medium mb-1">3. 价格数据源</h2>
-        <p className="text-xs text-muted-foreground mb-3">
-          决定 1688 进货价怎么取。万邦提供真实分规格价（更准、但走付费配额）；不查则只用图搜返回的参考价。
-        </p>
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { v: "onebound", title: "万邦", desc: "真实分规格价 · 付费配额" },
-            { v: "mock", title: "模拟", desc: "假数据 · 免费调试用" },
-            { v: "none", title: "不查", desc: "免费 · 仅图搜参考价" },
-          ].map((opt) => {
-            const active = s.skuProvider === opt.v
-            return (
-              <button
-                key={opt.v}
-                type="button"
-                disabled={s.phase === "analyzing"}
-                onClick={() => dispatch({ type: "SET_PROVIDER", provider: opt.v })}
-                className={`text-left rounded-lg border p-3 transition disabled:opacity-50 ${
-                  active ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:border-primary/40"
-                }`}
-              >
-                <div className="text-sm font-medium">{opt.title}</div>
-                <div className="text-xs text-muted-foreground mt-0.5">{opt.desc}</div>
-              </button>
-            )
-          })}
-        </div>
-      </Card>
-
-      {/* 开始分析 */}
-      <Button
-        size="lg"
-        className="w-full"
-        disabled={s.files.length === 0 || s.phase === "analyzing"}
-        onClick={handleStart}
+    <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
+      {/* 左侧输入面板 */}
+      <aside
+        className={`flex-shrink-0 border-r bg-muted/10 transition-all duration-300 overflow-y-auto ${
+          autoCollapsed && s.phase === "done" ? "w-12" : "w-[360px]"
+        }`}
       >
-        <Rocket size={18} className="mr-2" />
-        {s.phase === "analyzing" ? "分析中..." : "开始分析"}
-      </Button>
-
-      {/* ③ SSE 进度 */}
-      {s.phase === "analyzing" && (
-        <ProgressPanel
-          current={s.progressCurrent}
-          total={s.progressTotal}
-          products={s.productStatuses}
-          phase={s.progressPhase}
-          message={s.progressMessage}
-        />
-      )}
-
-      {/* ④ 结果 */}
-      {s.phase === "done" && s.summary && (
-        <>
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <SummaryBar summary={s.summary} />
-            <ExportButton rows={s.rows} />
+        {autoCollapsed && s.phase === "done" ? (
+          <div className="flex flex-col items-center pt-4 gap-3">
+            <button onClick={() => setCollapsed(false)} className="p-2 rounded hover:bg-muted" title="展开面板">
+              <ChevronRight size={18} />
+            </button>
+            <Scale size={18} className="text-primary" />
           </div>
-          <ResultTable rows={s.rows} />
-        </>
-      )}
+        ) : (
+          <div className="p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Scale size={20} className="text-primary" />
+                <h1 className="text-lg font-bold">选品比价</h1>
+              </div>
+              {s.phase === "done" && (
+                <button onClick={() => setCollapsed(true)} className="p-1 rounded hover:bg-muted" title="收起面板">
+                  <ChevronLeft size={16} />
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">Shopee 导出 → 1688 以图搜同款 → 成本利润计算</p>
+            <ProxyStatus />
+            <WorkflowGuide />
+
+            {/* 文件上传 */}
+            <Card className="p-3">
+              <h2 className="text-xs font-medium mb-2">上传 Shopee Excel</h2>
+              <FileDropzone
+                files={s.files}
+                onFilesAdded={(fs) => dispatch({ type: "ADD_FILES", files: fs })}
+                onRemoveFile={(i) => dispatch({ type: "REMOVE_FILE", index: i })}
+                disabled={s.phase === "analyzing"}
+              />
+              <div className="mt-2 flex items-center gap-2">
+                <label htmlFor="row-limit" className="text-xs text-muted-foreground whitespace-nowrap">前</label>
+                <input
+                  id="row-limit" type="number" min="0" step="1"
+                  value={s.limit || ""} placeholder="全部"
+                  disabled={s.phase === "analyzing"}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10)
+                    dispatch({ type: "SET_LIMIT", limit: isNaN(n) || n < 0 ? 0 : n })
+                  }}
+                  className="w-16 h-7 rounded-md border border-input bg-background px-2 text-xs disabled:opacity-50"
+                />
+                <span className="text-xs text-muted-foreground">行</span>
+              </div>
+            </Card>
+
+            {/* 成本配置 */}
+            <Card className="p-3">
+              <h2 className="text-xs font-medium mb-2">成本参数</h2>
+              <CostConfigForm
+                values={s.cost}
+                onChange={(c) => dispatch({ type: "SET_COST", cost: c })}
+                disabled={s.phase === "analyzing"}
+              />
+            </Card>
+
+            {/* 价格数据源 */}
+            <Card className="p-3">
+              <h2 className="text-xs font-medium mb-2">价格数据源</h2>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { v: "onebound", title: "万邦", desc: "真实价" },
+                  { v: "mock", title: "模拟", desc: "调试用" },
+                  { v: "none", title: "不查", desc: "参考价" },
+                ].map((opt) => {
+                  const active = s.skuProvider === opt.v
+                  return (
+                    <button
+                      key={opt.v} type="button"
+                      disabled={s.phase === "analyzing"}
+                      onClick={() => dispatch({ type: "SET_PROVIDER", provider: opt.v })}
+                      className={`text-left rounded-md border p-2 transition text-xs disabled:opacity-50 ${
+                        active ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:border-primary/40"
+                      }`}
+                    >
+                      <div className="font-medium">{opt.title}</div>
+                      <div className="text-muted-foreground text-[10px]">{opt.desc}</div>
+                    </button>
+                  )
+                })}
+              </div>
+            </Card>
+
+            {/* 开始按钮 */}
+            <Button
+              className="w-full"
+              disabled={s.files.length === 0 || s.phase === "analyzing"}
+              onClick={handleStart}
+            >
+              <Rocket size={16} className="mr-1.5" />
+              {s.phase === "analyzing" ? "分析中..." : "开始分析"}
+            </Button>
+
+            {/* 进度 */}
+            {s.phase === "analyzing" && (
+              <ProgressPanel
+                current={s.progressCurrent}
+                total={s.progressTotal}
+                products={s.productStatuses}
+                phase={s.progressPhase}
+                message={s.progressMessage}
+              />
+            )}
+          </div>
+        )}
+      </aside>
+
+      {/* 右侧结果面板 */}
+      <main className="flex-1 overflow-y-auto p-4">
+        {s.phase === "done" && s.summary ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <SummaryBar summary={s.summary} />
+              <ExportButton rows={s.rows} rawColumns={s.rawColumns} />
+            </div>
+            <ResultTable rows={s.rows} />
+          </div>
+        ) : s.phase === "analyzing" ? (
+          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+            正在分析，请等待左侧进度完成...
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+            上传文件并点击「开始分析」后，结果将展示在此处
+          </div>
+        )}
+      </main>
     </div>
   )
 }

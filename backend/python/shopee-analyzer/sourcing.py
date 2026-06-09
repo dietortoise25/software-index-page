@@ -289,7 +289,15 @@ def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None =
         "has_1688_data": len(cands) > 0,
         "match_source": match_source,
         "match_reason": (match or {}).get("reason", "") if match_source == "llm" else "",
+        "match_scores": (match or {}).get("scores") if match_source == "llm" else None,
+        "match_overall_score": (match or {}).get("overall_score") if match_source == "llm" else None,
     }
+    # 透传原始 Excel 字段（中文列名），供前端 CSV 导出
+    _known_keys = {"product_id", "product_name", "data_source", "category_path",
+                   "shopee_price_brl", "image_url", "shopee_monthly_sales"}
+    for k, v in prod.items():
+        if k not in _known_keys and k not in row:
+            row[k] = "" if pd.isna(v) else v
     row.update(_calc_cost(row, cost_cfg))
     return row
 
@@ -390,9 +398,11 @@ def _check_files(files: list, max_mb: int):
         raise HTTPException(400, f"文件总大小超过 {max_mb}MB 限制")
 
 
-def _read_files(files: list, col_map: dict) -> pd.DataFrame:
-    """读取多个 Excel 并合并，文件名作为数据来源标签"""
+def _read_files(files: list, col_map: dict) -> tuple[pd.DataFrame, list[str]]:
+    """读取多个 Excel 并合并，文件名作为数据来源标签。
+    返回 (df, raw_columns)：df 含标准字段 + 所有原始列；raw_columns 为原始列名列表。"""
     frames = []
+    all_raw_cols: list[str] = []
     for f in files:
         f.file.seek(0)
         content = f.file.read()
@@ -403,12 +413,17 @@ def _read_files(files: list, col_map: dict) -> pd.DataFrame:
         if not available:
             raise HTTPException(400,
                 f"'{f.filename}' 列名不匹配，期望: {list(col_map.keys())}")
-        df_src = df_src[list(available.keys())].rename(columns=available)
+        # 记录所有原始列名(去重保序)
+        for c in df_src.columns:
+            if c not in all_raw_cols:
+                all_raw_cols.append(c)
+        # rename 匹配列，其余保留原始中文名
+        df_src = df_src.rename(columns=available)
         df_src["data_source"] = f.filename or "unknown"
         frames.append(df_src)
     df = pd.concat(frames, ignore_index=True)
     df["product_id"] = df["product_id"].astype(str)
-    return df
+    return df, all_raw_cols
 
 
 def _limit_products(products: list, limit: int) -> list:
@@ -433,7 +448,7 @@ async def sourcing_search(
         page_size = sc["page_size"]
 
     _check_files(files, cfg["limits"]["max_file_size_mb"])
-    df = _read_files(files, cfg["columns"])
+    df, _ = _read_files(files, cfg["columns"])
     products = df.to_dict(orient="records")
     logger.info(f"[search] {len(files)} 个文件, {len(products)} 个产品")
 
@@ -475,7 +490,7 @@ async def sourcing_analyze(
         page_size = sc["page_size"]
 
     _check_files(files, cfg["limits"]["max_file_size_mb"])
-    df = _read_files(files, cfg["columns"])
+    df, _ = _read_files(files, cfg["columns"])
     products = df.to_dict(orient="records")
     logger.info(f"[analyze] {len(files)} 个文件, {len(products)} 个产品")
 
@@ -538,7 +553,7 @@ async def sourcing_analyze_stream(
         page_size = sc["page_size"]
 
     _check_files(files, cfg["limits"]["max_file_size_mb"])
-    df = _read_files(files, cfg["columns"])
+    df, raw_columns = _read_files(files, cfg["columns"])
     products = df.to_dict(orient="records")
     products = _limit_products(products, limit)
     total = len(products)
@@ -661,7 +676,7 @@ async def sourcing_analyze_stream(
             "incomplete": sum(1 for r in rows if r["recommendation"] == "待补全"),
         }
 
-        yield _sse("complete", {"summary": summary, "rows": rows, "cost_config": cost_cfg})
+        yield _sse("complete", {"summary": summary, "rows": rows, "cost_config": cost_cfg, "raw_columns": raw_columns})
 
     return StreamingResponse(generate(), media_type="text/event-stream",
                              headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"})
