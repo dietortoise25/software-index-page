@@ -132,10 +132,11 @@ export async function matchSku(
   candidate: RawCandidate,
 ): Promise<SkuMatchResult> {
   const input = buildMatchInput(shopee, candidate)
+  // 不用 strict 模式：中转(new.sakurapuare.com)/gpt-5.5 不支持 OpenAI strict
+  // structured output，带 strict:true 会被上游拒成 400 openai_error。
   const structured = model.withStructuredOutput(skuMatchSchema, {
     name: "sku_match",
     method: "functionCalling",
-    strict: true,
   })
   return (await structured.invoke([
     new SystemMessage(SYSTEM_PROMPT),

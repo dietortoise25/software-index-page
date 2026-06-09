@@ -86,6 +86,19 @@ describe("matchSku", () => {
     expect(result.confidence).toBe(0.85)
     expect(result.overall_score).toBe(86)
   })
+
+  it("不使用 strict 模式(中转/gpt-5.5 不支持 strict structured output，会 400)", async () => {
+    const invoke = vi.fn().mockResolvedValue({
+      matched_sku_id: 2, confidence: 0.85, reason: "x",
+      scores: { price: 90, semantic_match: 88, image_match: 80, supply: 70 },
+      overall_score: 86,
+    })
+    const fakeModel = { withStructuredOutput: vi.fn().mockReturnValue({ invoke }) }
+    await matchSku(fakeModel as any, shopee, candidate)
+    const opts = fakeModel.withStructuredOutput.mock.calls[0][1]
+    expect(opts.strict).not.toBe(true)
+    expect(opts.method).toBe("functionCalling")
+  })
 })
 
 describe("skuMatchOverrides", () => {
