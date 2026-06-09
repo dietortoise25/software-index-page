@@ -28,7 +28,7 @@ from aibuy_client import (
 )
 from config import load_sourcing_config, save_sourcing_config, reload_sourcing_config, deep_merge
 from sku_provider import get_provider
-from sku_match_client import match_sku_via_agent
+from sku_match_client import match_sku_best
 
 logger = logging.getLogger("sourcing")
 
@@ -207,52 +207,35 @@ def _pick_candidate(c: dict, sku_data: dict | None = None,
     }
 
 
-def _qualified_candidates(candidates: list, threshold: float) -> list:
-    """图文核对合格池：image_confidence 明确 < threshold 的踢掉；
-    None(未评分/核对失败/未配 key)保留不惩罚。"""
-    out = []
-    for c in candidates:
-        conf = c.get("image_confidence")
-        if conf is not None and conf < threshold:
-            continue
-        out.append(c)
-    return out
-
-
-def _select_matched_sku(enriched: list, match: dict | None,
-                        threshold: float = _DEFAULT_VERIFY_THRESHOLD) -> tuple:
+def _select_matched_sku(enriched: list, match: dict | None) -> tuple:
     """决定哪个候选的哪个 SKU 作为成本基准。
     返回 (best_candidate, matched_sku, match_source)。
     match_source: "llm" | "llm_failed" | "llm_mismatch" | "no_sku_data" | "no_qualified" | "none"
     除 "llm" 外均表示需人工复核，不自动兜底。"""
-    qualified = _qualified_candidates(enriched, threshold)
-
     fail_reason = (match or {}).get("fail_reason")
     match_data = (match or {}).get("data")
 
-    # LLM 选中且在合格池命中
+    # LLM 选中 — 在全量候选里按 item_id + sku_id 定位
     if match_data:
         item_id = match_data.get("matched_item_id")
         sku_id = match_data.get("matched_sku_id")
-        for cand in qualified:
+        for cand in enriched:
             if cand.get("item_id") != item_id:
                 continue
             for sku in cand.get("sku", {}).get("items", []):
                 if sku.get("sku_id") == sku_id:
                     return cand, sku, "llm"
-        # LLM 返回了结果但 ID 在合格池里找不到
-        return (qualified[0] if qualified else None), None, "llm_mismatch"
+        return (enriched[0] if enriched else None), None, "llm_mismatch"
 
     # LLM 未返回数据 — 区分原因
     if fail_reason == "no_qualified_candidate":
         return (enriched[0] if enriched else None), None, "no_qualified"
     if fail_reason == "no_sku_data":
-        return (qualified[0] if qualified else None), None, "no_sku_data"
+        return (enriched[0] if enriched else None), None, "no_sku_data"
     if fail_reason == "llm_call_failed":
-        return (qualified[0] if qualified else None), None, "llm_failed"
+        return (enriched[0] if enriched else None), None, "llm_failed"
 
-    # 无 match 信息（老数据兼容或无候选）
-    return (qualified[0] if qualified else None), None, "none"
+    return (enriched[0] if enriched else None), None, "none"
 
 
 def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None = None,
@@ -337,9 +320,8 @@ def _fetch_skus_into(provider, candidates_map: dict, sku_cache: dict):
 
 def _match_all(products: list, candidates_map: dict, sku_cache: dict, matches: dict,
                conf_map: dict | None = None):
-    """step4：逐货品调 agent 选最佳 SKU，结果按 pid 写入 matches。
-    matches[pid] = {"data": ..., "fail_reason": ...}
-    conf_map 让 step4 只把合格候选喂给 agent（图文核对 <0.5 的不参与）。"""
+    """step5：逐货品、逐候选串行调 agent 选最佳 SKU，按 overall_score 取最高。
+    matches[pid] = {"data": ..., "fail_reason": ...}"""
     total = len(products)
     for i, prod in enumerate(products):
         pid = prod["product_id"]
@@ -348,8 +330,7 @@ def _match_all(products: list, candidates_map: dict, sku_cache: dict, matches: d
         enriched = [_pick_candidate(c, sku_cache.get(c.get("itemId", "")) or {},
                                     image_confidence=pid_confs.get(c.get("itemId", "")))
                     for c in raw_cands]
-        qualified = _qualified_candidates(enriched, _DEFAULT_VERIFY_THRESHOLD)
-        if not qualified:
+        if not enriched:
             matches[pid] = {"data": None, "fail_reason": "no_qualified_candidate"}
             yield {"current": i + 1, "total": total, "item_id": pid}
             continue
@@ -358,7 +339,7 @@ def _match_all(products: list, candidates_map: dict, sku_cache: dict, matches: d
             "category": str(prod.get("category_path", "")),
             "price_brl": _parse_shopee_price(prod.get("shopee_price_brl")),
         }
-        data, fail_reason = match_sku_via_agent(shopee, qualified)
+        data, fail_reason = match_sku_best(shopee, enriched)
         matches[pid] = {"data": data, "fail_reason": fail_reason}
         yield {"current": i + 1, "total": total, "item_id": pid}
 

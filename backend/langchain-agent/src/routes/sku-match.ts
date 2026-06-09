@@ -17,8 +17,8 @@ skuMatchRouter.post("/sku-match", async (req, res) => {
 
   try {
     const model = getModel(skuMatchOverrides())
-    const { shopee, candidates } = parsed.data
-    const result = await matchSku(model, shopee, candidates)
+    const { shopee, candidate } = parsed.data
+    const result = await matchSku(model, shopee, candidate)
     res.json({ ok: true, data: result })
   } catch (error) {
     const message = error instanceof Error ? error.message : "SKU 匹配失败"

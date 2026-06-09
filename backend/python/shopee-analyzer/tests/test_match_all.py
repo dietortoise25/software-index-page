@@ -34,7 +34,7 @@ def test_match_all_collects_matches_per_product(monkeypatch):
             return ({"matched_item_id": "AAA", "matched_sku_id": 1, "confidence": 0.9, "reason": "r"}, None)
         return ({"matched_item_id": "BBB", "matched_sku_id": 2, "confidence": 0.8, "reason": "b"}, None)
 
-    monkeypatch.setattr(sourcing, "match_sku_via_agent", fake_match)
+    monkeypatch.setattr(sourcing, "match_sku_best", fake_match)
     matches = {}
     list(sourcing._match_all(_products(), _candidates_map(), _sku_cache(), matches))
 
@@ -52,7 +52,7 @@ def test_match_all_passes_lean_shopee_and_candidates(monkeypatch):
         seen["candidates"] = candidates
         return (None, "llm_call_failed")
 
-    monkeypatch.setattr(sourcing, "match_sku_via_agent", capture)
+    monkeypatch.setattr(sourcing, "match_sku_best", capture)
     list(sourcing._match_all(_products()[:1], _candidates_map(), _sku_cache(), {}))
 
     assert seen["shopee"]["name"] == "红裙"
@@ -65,7 +65,7 @@ def test_match_all_passes_lean_shopee_and_candidates(monkeypatch):
 def test_match_all_yields_progress(monkeypatch):
     """每处理完一个货品 yield 一条进度 {current,total}"""
     import sourcing
-    monkeypatch.setattr(sourcing, "match_sku_via_agent", lambda s, c: (None, "llm_call_failed"))
+    monkeypatch.setattr(sourcing, "match_sku_best", lambda s, c: (None, "llm_call_failed"))
     progress = list(sourcing._match_all(_products(), _candidates_map(), _sku_cache(), {}))
     assert progress[-1]["current"] == 2
     assert progress[-1]["total"] == 2
@@ -74,7 +74,7 @@ def test_match_all_yields_progress(monkeypatch):
 def test_match_all_stores_fail_reason(monkeypatch):
     """agent 返回 (None, reason) → matches[pid] 记录 fail_reason"""
     import sourcing
-    monkeypatch.setattr(sourcing, "match_sku_via_agent", lambda s, c: (None, "llm_call_failed"))
+    monkeypatch.setattr(sourcing, "match_sku_best", lambda s, c: (None, "llm_call_failed"))
     matches = {}
     list(sourcing._match_all(_products(), _candidates_map(), _sku_cache(), matches))
     assert matches["P1"]["fail_reason"] == "llm_call_failed"

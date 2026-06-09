@@ -52,7 +52,7 @@ def _run_stream():
                   "providerInfo": {"companyName": "厂A"}}
     with patch("sourcing.search_by_image", return_value=([fake_offer], 1)), \
          patch("sourcing.get_provider", return_value=_FakeProvider()), \
-         patch("sourcing.match_sku_via_agent", return_value=(None, "llm_call_failed")):
+         patch("sourcing.match_sku_best", return_value=(None, "llm_call_failed")):
         resp = client.post(
             "/api/sourcing/analyze-stream",
             files={"files": ("shop.xlsx", _make_xlsx(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
