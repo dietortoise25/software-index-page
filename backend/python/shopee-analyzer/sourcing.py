@@ -376,6 +376,27 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {_json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+# SSE 心跳间隔：远小于 nginx 默认 proxy_read_timeout(60s)，慢阶段也不断流
+_HEARTBEAT_INTERVAL_SEC = float(os.environ.get("SSE_HEARTBEAT_INTERVAL_SEC", "15"))
+
+
+def _heartbeat_frame() -> str:
+    """SSE 注释帧——前端 EventSource 自动忽略，仅用于重置 nginx 读超时计时器。"""
+    return ": hb\n\n"
+
+
+async def _run_with_heartbeat(loop, fn, *, interval: float = _HEARTBEAT_INTERVAL_SEC):
+    """在线程池跑阻塞 fn，等待期间每 interval 秒 yield 一次 ("heartbeat", None)；
+    完成后 yield ("result", 返回值)。任何单步 >interval 的阶段都不会帧间静默。"""
+    fut = loop.run_in_executor(None, fn)
+    while True:
+        done, _pending = await asyncio.wait({fut}, timeout=interval)
+        if fut in done:
+            yield ("result", fut.result())
+            return
+        yield ("heartbeat", None)
+
+
 def _check_files(files: list, max_mb: int):
     """校验上传文件列表"""
     if not files:
@@ -634,8 +655,12 @@ async def sourcing_analyze_stream(
             raw_cands = candidates_map.get(pid, [])
             cand_structs = [{"item_id": c.get("itemId", ""), "image_url": c.get("imageUrl", ""),
                              "title": c.get("title", "")} for c in raw_cands]
-            conf_map[pid] = await loop.run_in_executor(
-                None, _verify_candidates, shopee_img, cand_structs)
+            async for kind, payload in _run_with_heartbeat(
+                loop, lambda: _verify_candidates(shopee_img, cand_structs)):
+                if kind == "heartbeat":
+                    yield _heartbeat_frame()
+                else:
+                    conf_map[pid] = payload
             yield _sse("verify_progress", {
                 "current": idx,
                 "total": len(products),
@@ -660,7 +685,13 @@ async def sourcing_analyze_stream(
                 "message": f"AI 匹配 SKU {prog['current']}/{prog['total']}",
             })
 
-        rows = await loop.run_in_executor(None, _build_rows, products, candidates_map, cost_cfg, sku_cache, matches, conf_map)
+        rows = None
+        async for kind, payload in _run_with_heartbeat(
+            loop, lambda: _build_rows(products, candidates_map, cost_cfg, sku_cache, matches, conf_map)):
+            if kind == "heartbeat":
+                yield _heartbeat_frame()
+            else:
+                rows = payload
 
         sku_ok = sum(1 for r in rows for c in r["candidates"] if c.get("sku", {}).get("count", 0) > 0)
         sku_failed = sum(1 for r in rows for c in r["candidates"] if c.get("sku", {}).get("count", 0) == 0)
