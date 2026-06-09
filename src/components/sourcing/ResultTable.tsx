@@ -49,16 +49,47 @@ function ThButton({ label, sortKey, active, dir, onClick }: {
   )
 }
 
-function ScoreBar({ label, score }: { label: string; score: number }) {
-  const color = score >= 70 ? "bg-green-500" : score >= 40 ? "bg-yellow-500" : "bg-red-400"
+function RadarChart({ scores }: { scores: { price: number; image_match: number; shop_credit: number; sales: number } }) {
+  const cx = 50, cy = 50, r = 38
+  const labels = [
+    { key: "price", label: "价格", angle: -90 },
+    { key: "image_match", label: "图文", angle: 0 },
+    { key: "sales", label: "销量", angle: 90 },
+    { key: "shop_credit", label: "信誉", angle: 180 },
+  ] as const
+
+  const toXY = (angle: number, ratio: number) => {
+    const rad = (angle * Math.PI) / 180
+    return [cx + r * ratio * Math.cos(rad), cy + r * ratio * Math.sin(rad)]
+  }
+
+  const dataPoints = labels.map((l) => toXY(l.angle, (scores[l.key] || 0) / 100))
+  const polygon = dataPoints.map((p) => p.join(",")).join(" ")
+
   return (
-    <div className="flex items-center gap-2 text-[11px]">
-      <span className="w-16 text-muted-foreground shrink-0">{label}</span>
-      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${score}%` }} />
-      </div>
-      <span className="w-6 text-right tabular-nums">{score}</span>
-    </div>
+    <svg viewBox="0 0 100 100" className="w-24 h-24 shrink-0">
+      {/* 背景网格 */}
+      {[0.25, 0.5, 0.75, 1].map((s) => (
+        <polygon key={s} points={labels.map((l) => toXY(l.angle, s).join(",")).join(" ")}
+          fill="none" stroke="currentColor" className="text-muted-foreground/20" strokeWidth="0.5" />
+      ))}
+      {/* 轴线 */}
+      {labels.map((l) => {
+        const [x, y] = toXY(l.angle, 1)
+        return <line key={l.key} x1={cx} y1={cy} x2={x} y2={y} stroke="currentColor" className="text-muted-foreground/20" strokeWidth="0.5" />
+      })}
+      {/* 数据区域 */}
+      <polygon points={polygon} fill="hsl(var(--primary))" fillOpacity="0.2" stroke="hsl(var(--primary))" strokeWidth="1.5" />
+      {/* 数据点 */}
+      {dataPoints.map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r="2" fill="hsl(var(--primary))" />
+      ))}
+      {/* 标签 */}
+      {labels.map((l) => {
+        const [x, y] = toXY(l.angle, 1.25)
+        return <text key={l.key} x={x} y={y} textAnchor="middle" dominantBaseline="middle" className="fill-muted-foreground text-[7px]">{l.label}</text>
+      })}
+    </svg>
   )
 }
 
@@ -70,11 +101,12 @@ function MatchSummary({ row }: { row: SourcingRow }) {
   const isLlm = row.match_source === "llm"
   const scores = row.match_scores
   const overall = row.match_overall_score
+  const skuItems = best.sku?.items ?? []
 
   return (
     <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
       <div className="flex gap-4">
-        {/* 左侧：badge + 主图 + 链接 */}
+        {/* 左栏：badge + 主图 + 链接 */}
         <div className="flex flex-col items-center gap-2 shrink-0">
           <Badge variant={isLlm ? "default" : "outline"} className="text-[10px] whitespace-nowrap">
             {isLlm ? "AI 智选" : "兜底最低价"}
@@ -93,47 +125,41 @@ function MatchSummary({ row }: { row: SourcingRow }) {
           </a>
         </div>
 
-        {/* 右侧：评分卡 + 综合分 + 理由 */}
-        <div className="flex-1 min-w-0 space-y-2">
-          {/* 候选标题 + 店铺 */}
+        {/* 中栏：商品名 + 店铺 + SKU列表 */}
+        <div className="flex-1 min-w-0 space-y-1.5">
           <div className="text-xs">
-            <span className="font-medium truncate block">{best.title}</span>
-            <span className="text-muted-foreground">{best.shop_name}{best.sales ? ` · 销量 ${best.sales}` : ""}</span>
+            <span className="font-medium line-clamp-2">{best.title}</span>
+            <span className="text-muted-foreground block mt-0.5">{best.shop_name}{best.sales ? ` · 销量 ${best.sales}` : ""}</span>
           </div>
-
-          {/* 选中规格信息 */}
-          {picked && (
-            <div className="text-xs">
-              <span className="text-muted-foreground">规格：</span>
-              <span className="font-medium">{picked.full_spec || picked.spec || "-"}</span>
-              <span className="ml-2 font-bold text-primary">¥{picked.price}</span>
+          {skuItems.length > 0 && (
+            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+              {skuItems.map((it, j) => {
+                const isSelected = picked && it.sku_id === picked.sku_id
+                return (
+                  <span key={j} className={isSelected ? "text-primary font-semibold" : "text-muted-foreground"}>
+                    {it.full_spec || it.spec} <span className="font-medium">¥{it.price}</span>
+                  </span>
+                )
+              })}
             </div>
-          )}
-
-          {/* 4维评分条形图 */}
-          {scores && (
-            <div className="space-y-1">
-              <ScoreBar label="价格" score={scores.price} />
-              <ScoreBar label="图文匹配" score={scores.image_match} />
-              <ScoreBar label="店铺信誉" score={scores.shop_credit} />
-              <ScoreBar label="销量" score={scores.sales} />
-            </div>
-          )}
-
-          {/* 综合评分 */}
-          {overall != null && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">综合评分</span>
-              <span className="text-lg font-bold text-primary tabular-nums">{overall}</span>
-              <span className="text-xs text-muted-foreground">/ 100</span>
-            </div>
-          )}
-
-          {/* 推荐理由 */}
-          {isLlm && row.match_reason && (
-            <p className="text-xs text-muted-foreground leading-snug">{row.match_reason}</p>
           )}
         </div>
+
+        {/* 右栏：雷达图 + 综合评分 + 理由 */}
+        {scores && (
+          <div className="shrink-0 flex flex-col items-center gap-1">
+            <RadarChart scores={scores} />
+            {overall != null && (
+              <div className="text-center leading-none">
+                <span className="text-xs text-muted-foreground">综合 </span>
+                <span className="text-xl font-bold text-primary tabular-nums">{overall}</span>
+              </div>
+            )}
+            {isLlm && row.match_reason && (
+              <p className="text-[10px] text-muted-foreground leading-snug text-center max-w-[120px]">{row.match_reason}</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
