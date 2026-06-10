@@ -12,7 +12,9 @@
   函数均作为参数传入，便于单测注入 fake，pipeline 不直接持有全局单例。
 """
 import logging
+import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from models.errors import SourcingError
 from services.cost_calculator import parse_shopee_price
@@ -21,6 +23,9 @@ logger = logging.getLogger("sourcing")
 
 # 万邦试用档约 1-3 秒/次，整批并发会被打 503；SKU 请求串行 + 此间隔
 SKU_REQUEST_INTERVAL_SEC = 1.5
+
+# 候选间 LLM 匹配并发度（候选间，非货品间）。中转 LLM 限流情况未知，默认保守。
+SKU_MATCH_CONCURRENCY = max(1, int(os.environ.get("SKU_MATCH_CONCURRENCY", "4")))
 
 
 def collect_offer_ids(candidates_map: dict) -> list:
@@ -94,28 +99,46 @@ def match_one(client, shopee: dict, candidate: dict, *, api_key: str, base_url: 
 def match_best(client, shopee: dict, candidates: list, *, api_key: str, base_url: str,
                model: str, on_token=None, on_retry=None, on_candidate_scored=None,
                match_sku_fn=None) -> tuple[dict | None, str | None, dict]:
-    """逐候选串行调 LLM，取 overall_score 最高者（等价旧 sku_match_client.match_sku_best）。
+    """候选间并发调 LLM，取 overall_score 最高者（等价旧 sku_match_client.match_sku_best）。
     返回 (best_data, fail_reason, candidate_scores)。
-    单候选失败(catch SourcingError/Exception)被跳过、不阻塞其他候选；
+    每个有 SKU 的候选提交一个 task 到线程池（max_workers=SKU_MATCH_CONCURRENCY）。
+    单候选失败(match_one 返回 None / worker 抛异常)被跳过、不阻塞其他候选；
     全部候选失败 → (None, 'llm_call_failed', {})。
     on_token(item_id, tok) / on_retry(item_id) / on_candidate_scored(item_id, overall_score):
-    逐候选事件回调，已绑定当前候选的 item_id（供 SSE 透传到前端）。"""
-    results = []
-    candidate_scores: dict = {}
-    for cand in candidates:
-        if not _has_sku(cand):
-            continue
+    逐候选事件回调，已绑定当前候选的 item_id（供 SSE 透传到前端）。
+    线程安全：worker 只调 match_one（其 on_token/on_retry 走线程安全的 queue），
+    返回 (iid, data)；candidate_scores/results 的写入与 on_candidate_scored 触发
+    全在主线程 as_completed 循环里完成，避免对共享结构的并发写。
+    on_candidate_scored 触发时机由「按候选顺序」变为「按完成顺序」（语义不变）。"""
+    eligible = [c for c in candidates if _has_sku(c)]
+    if not eligible:
+        return None, "llm_call_failed", {}
+
+    def _worker(cand):
         iid = cand["item_id"]
         cand_on_token = (lambda tok, _iid=iid: on_token(_iid, tok)) if on_token else None
         cand_on_retry = (lambda _iid=iid: on_retry(_iid)) if on_retry else None
-        data, _ = match_one(client, shopee, cand, api_key=api_key, base_url=base_url,
-                            model=model, on_token=cand_on_token, on_retry=cand_on_retry,
-                            match_sku_fn=match_sku_fn)
-        if data is not None:
-            candidate_scores[iid] = data
-            results.append(data)
-            if on_candidate_scored:
-                on_candidate_scored(iid, data.get("overall_score"))
+        try:
+            data, _ = match_one(client, shopee, cand, api_key=api_key, base_url=base_url,
+                                model=model, on_token=cand_on_token, on_retry=cand_on_retry,
+                                match_sku_fn=match_sku_fn)
+        except Exception as e:  # 兜底：单候选异常视为失败，不炸整个批次
+            logger.warning(f"[match] item={iid} worker 异常: {str(e)[:120]}")
+            data = None
+        return iid, data
+
+    results = []
+    candidate_scores: dict = {}
+    max_workers = min(SKU_MATCH_CONCURRENCY, len(eligible))
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futs = [pool.submit(_worker, cand) for cand in eligible]
+        for fut in as_completed(futs):
+            iid, data = fut.result()
+            if data is not None:
+                candidate_scores[iid] = data
+                results.append(data)
+                if on_candidate_scored:
+                    on_candidate_scored(iid, data.get("overall_score"))
 
     if not results:
         return None, "llm_call_failed", {}
