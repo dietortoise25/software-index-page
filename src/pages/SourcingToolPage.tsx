@@ -24,7 +24,7 @@ interface ProductStatus {
   candidates_count?: number; error?: string
 }
 
-interface ActiveMatch { itemId: string; text: string; retrying?: boolean }
+type ActiveMatches = Record<string, { text: string; retrying?: boolean }>
 
 interface State {
   phase: Phase
@@ -37,7 +37,7 @@ interface State {
   progressPhase: string
   progressMessage: string
   productStatuses: ProductStatus[]
-  activeMatch: ActiveMatch | null
+  activeMatches: ActiveMatches
   scoredCandidates: Record<string, number>
   rows: SourcingRow[]
   summary: SourcingSummary | null
@@ -57,7 +57,7 @@ function loadProvider(): string {
 const initialState: State = {
   phase: "idle", files: [], cost: initialCost, skuProvider: loadProvider(), limit: 20,
   progressCurrent: 0, progressTotal: 0, progressPhase: "", progressMessage: "",
-  productStatuses: [], activeMatch: null, scoredCandidates: {}, rows: [], summary: null, rawColumns: [],
+  productStatuses: [], activeMatches: {}, scoredCandidates: {}, rows: [], summary: null, rawColumns: [],
 }
 
 type Action =
@@ -102,7 +102,7 @@ function reducer(state: State, action: Action): State {
         ...state, phase: "analyzing",
         progressCurrent: 0, progressTotal: action.total,
         progressMessage: action.message, progressPhase: "searching",
-        productStatuses: [], activeMatch: null, scoredCandidates: {},
+        productStatuses: [], activeMatches: {}, scoredCandidates: {},
         rows: [], summary: null,
       }
     case "PROGRESS": {
@@ -151,29 +151,33 @@ function reducer(state: State, action: Action): State {
         progressMessage: action.message,
       }
     case "LLM_TOKEN": {
-      // 同一候选追加 token；切到新候选则重开累积
-      const same = state.activeMatch?.itemId === action.itemId
+      // 并发：按 item_id 分组累积，互不覆盖；该候选已存在则追加 token，否则新建
+      const prev = state.activeMatches[action.itemId]
       return {
         ...state,
-        activeMatch: {
-          itemId: action.itemId,
-          text: (same ? state.activeMatch!.text : "") + action.token,
-          retrying: false,
+        activeMatches: {
+          ...state.activeMatches,
+          [action.itemId]: {
+            text: (prev?.text ?? "") + action.token,
+            retrying: false,
+          },
         },
       }
     }
     case "CANDIDATE_SCORED": {
-      // 定格该候选最终综合分；若正是当前活跃候选则清空活跃区等待下一个
+      // 定格该候选最终综合分；从活跃区不可变删除该 itemId
       const scoredCandidates = { ...state.scoredCandidates, [action.itemId]: action.score }
-      const activeMatch = state.activeMatch?.itemId === action.itemId ? null : state.activeMatch
-      return { ...state, scoredCandidates, activeMatch }
+      const { [action.itemId]: _removed, ...activeMatches } = state.activeMatches
+      return { ...state, scoredCandidates, activeMatches }
     }
     case "LLM_RETRY": {
-      // 当前候选 LLM 中断重试，清空已累积文本重新开始
-      if (state.activeMatch?.itemId !== action.itemId) return state
+      // 该候选 LLM 中断重试，清空其已累积文本重新开始（不存在则新建）
       return {
         ...state,
-        activeMatch: { itemId: action.itemId, text: "", retrying: true },
+        activeMatches: {
+          ...state.activeMatches,
+          [action.itemId]: { text: "", retrying: true },
+        },
       }
     }
     case "COMPLETE":
@@ -440,7 +444,7 @@ export default function SourcingToolPage() {
               products={s.productStatuses}
               phase={s.progressPhase}
               message={s.progressMessage}
-              activeMatch={s.activeMatch}
+              activeMatches={s.activeMatches}
               scoredCount={Object.keys(s.scoredCandidates).length}
             />
           </div>
