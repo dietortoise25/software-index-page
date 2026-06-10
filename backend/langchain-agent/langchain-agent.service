@@ -10,24 +10,13 @@ ExecStart=/usr/bin/node /var/www/software-index/agent/dist/index.js
 Restart=always
 RestartSec=5
 
-# 端口
+# 端口（非密配置可留在此处）
 Environment=AGENT_PORT=8001
 
-# LLM（与 relay 共享 DeepSeek API Key）
-Environment=LLM_PROVIDER=deepseek
-Environment=LLM_MODEL=deepseek-v4-flash
-Environment=LLM_API_KEY=REDACTED_DEEPSEEK_API_KEY
-Environment=LLM_BASE_URL=https://api.deepseek.com
-Environment=LLM_TEMPERATURE=0.7
-Environment=LLM_MAX_TOKENS=4096
-
-# Supabase（与 relay 共享数据库）
-Environment=SUPABASE_URL=https://fjumpvhftsdcgmewjtxc.supabase.co
-Environment=SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-Environment=DATABASE_URL=postgresql://postgres.fjumpvhftsdcgmewjtxc:REDACTED_DB_PASSWORD@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres
-
-# Better Auth（复用 relay 的 session 验证）
-Environment=AUTH_BASE_URL=http://localhost:8765
+# 所有密钥/连接串从 git 忽略的 .env 注入，不再硬编码进本文件。
+# 需含：LLM_*（DeepSeek 默认）、NEW_API_*/NEWS_SUMMARY_MODEL（新闻专用 gpt-5.5）、
+# SUPABASE_*、DATABASE_URL、AUTH_BASE_URL。该文件由运维在服务器维护，不进版本库。
+EnvironmentFile=/var/www/software-index/agent/.env
 
 [Install]
 WantedBy=multi-user.target
