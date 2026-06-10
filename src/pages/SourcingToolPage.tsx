@@ -24,6 +24,8 @@ interface ProductStatus {
   candidates_count?: number; error?: string
 }
 
+interface ActiveMatch { itemId: string; text: string; retrying?: boolean }
+
 interface State {
   phase: Phase
   files: FileEntry[]
@@ -35,6 +37,8 @@ interface State {
   progressPhase: string
   progressMessage: string
   productStatuses: ProductStatus[]
+  activeMatch: ActiveMatch | null
+  scoredCandidates: Record<string, number>
   rows: SourcingRow[]
   summary: SourcingSummary | null
   rawColumns: string[]
@@ -53,7 +57,7 @@ function loadProvider(): string {
 const initialState: State = {
   phase: "idle", files: [], cost: initialCost, skuProvider: loadProvider(), limit: 20,
   progressCurrent: 0, progressTotal: 0, progressPhase: "", progressMessage: "",
-  productStatuses: [], rows: [], summary: null, rawColumns: [],
+  productStatuses: [], activeMatch: null, scoredCandidates: {}, rows: [], summary: null, rawColumns: [],
 }
 
 type Action =
@@ -67,6 +71,9 @@ type Action =
   | { type: "SKU_PROGRESS"; current: number; total: number; message: string }
   | { type: "MATCH_PROGRESS"; current: number; total: number; message: string }
   | { type: "VERIFY_PROGRESS"; current: number; total: number; message: string }
+  | { type: "LLM_TOKEN"; itemId: string; token: string }
+  | { type: "CANDIDATE_SCORED"; itemId: string; score: number }
+  | { type: "LLM_RETRY"; itemId: string }
   | { type: "COMPLETE"; rows: SourcingRow[]; summary: SourcingSummary; rawColumns: string[] }
   | { type: "ERROR"; message: string }
 
@@ -95,7 +102,8 @@ function reducer(state: State, action: Action): State {
         ...state, phase: "analyzing",
         progressCurrent: 0, progressTotal: action.total,
         progressMessage: action.message, progressPhase: "searching",
-        productStatuses: [], rows: [], summary: null,
+        productStatuses: [], activeMatch: null, scoredCandidates: {},
+        rows: [], summary: null,
       }
     case "PROGRESS": {
       const { phase, data } = action
@@ -142,6 +150,32 @@ function reducer(state: State, action: Action): State {
         progressTotal: action.total,
         progressMessage: action.message,
       }
+    case "LLM_TOKEN": {
+      // 同一候选追加 token；切到新候选则重开累积
+      const same = state.activeMatch?.itemId === action.itemId
+      return {
+        ...state,
+        activeMatch: {
+          itemId: action.itemId,
+          text: (same ? state.activeMatch!.text : "") + action.token,
+          retrying: false,
+        },
+      }
+    }
+    case "CANDIDATE_SCORED": {
+      // 定格该候选最终综合分；若正是当前活跃候选则清空活跃区等待下一个
+      const scoredCandidates = { ...state.scoredCandidates, [action.itemId]: action.score }
+      const activeMatch = state.activeMatch?.itemId === action.itemId ? null : state.activeMatch
+      return { ...state, scoredCandidates, activeMatch }
+    }
+    case "LLM_RETRY": {
+      // 当前候选 LLM 中断重试，清空已累积文本重新开始
+      if (state.activeMatch?.itemId !== action.itemId) return state
+      return {
+        ...state,
+        activeMatch: { itemId: action.itemId, text: "", retrying: true },
+      }
+    }
     case "COMPLETE":
       return {
         ...state, phase: "done",
@@ -234,6 +268,23 @@ export default function SourcingToolPage() {
               message: ev.data.message || "",
             })
             break
+          case "llm_token": {
+            const itemId: string = String(ev.data.item_id ?? "")
+            const token: string = String(ev.data.token ?? "")
+            if (itemId) dispatch({ type: "LLM_TOKEN", itemId, token })
+            break
+          }
+          case "candidate_scored": {
+            const itemId: string = String(ev.data.item_id ?? "")
+            const score: number = Number(ev.data.match_overall_score ?? 0)
+            if (itemId) dispatch({ type: "CANDIDATE_SCORED", itemId, score })
+            break
+          }
+          case "llm_retry": {
+            const itemId: string = String(ev.data.item_id ?? "")
+            if (itemId) dispatch({ type: "LLM_RETRY", itemId })
+            break
+          }
           case "start":
             dispatch({ type: "START_ANALYZING", total: ev.data.total, message: ev.data.message })
             break
@@ -389,6 +440,8 @@ export default function SourcingToolPage() {
               products={s.productStatuses}
               phase={s.progressPhase}
               message={s.progressMessage}
+              activeMatch={s.activeMatch}
+              scoredCount={Object.keys(s.scoredCandidates).length}
             />
           </div>
         ) : (

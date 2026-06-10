@@ -1,4 +1,4 @@
-import { Check, Search, Clock, XCircle } from "lucide-react"
+import { Check, Search, Clock, XCircle, Sparkles, RotateCw } from "lucide-react"
 
 interface ProductStatus {
   product_id: string
@@ -9,12 +9,20 @@ interface ProductStatus {
   error?: string
 }
 
+interface ActiveMatch {
+  itemId: string
+  text: string
+  retrying?: boolean
+}
+
 interface Props {
   current: number
   total: number
   products: ProductStatus[]
   phase?: string
   message?: string
+  activeMatch?: ActiveMatch | null
+  scoredCount?: number
 }
 
 const statusIcon = (s: ProductStatus) => {
@@ -35,11 +43,34 @@ const statusText = (s: ProductStatus) => {
   }
 }
 
-export default function ProgressPanel({ current, total, products, phase, message }: Props) {
+export default function ProgressPanel({ current, total, products, phase, message, activeMatch, scoredCount }: Props) {
   const pct = total > 0 ? Math.round((current / total) * 100) : 0
 
   return (
     <div className="space-y-3 rounded-lg border p-4">
+      {/* 当前评分活跃区：逐字展示 LLM 正在输出的 SKU 评分文本 */}
+      {activeMatch && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-1.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="inline-flex items-center gap-1.5 font-medium text-primary">
+              {activeMatch.retrying ? (
+                <RotateCw size={12} className="animate-spin" />
+              ) : (
+                <Sparkles size={12} className="animate-pulse" />
+              )}
+              {activeMatch.retrying ? "重试中…" : `正在评分候选 ${activeMatch.itemId}`}
+            </span>
+            {typeof scoredCount === "number" && scoredCount > 0 && (
+              <span className="text-muted-foreground tabular-nums">已评分 {scoredCount}</span>
+            )}
+          </div>
+          <pre className="max-h-32 overflow-y-auto whitespace-pre-wrap break-all font-mono text-[11px] leading-relaxed text-muted-foreground">
+            {activeMatch.text}
+            <span className="ml-0.5 inline-block h-3 w-1.5 translate-y-0.5 animate-pulse bg-primary align-middle" />
+          </pre>
+        </div>
+      )}
+
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">
           {phase === "costing" ? "成本计算中..." : message || "搜图中"}
