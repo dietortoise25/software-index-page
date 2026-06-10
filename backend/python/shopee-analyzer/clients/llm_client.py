@@ -1,6 +1,7 @@
 """统一中转 LLM 客户端:流式调用,传输 token 与解析结构化结果分离。"""
 import json
 import re
+import time
 from collections.abc import Callable
 import httpx
 from tenacity import (Retrying, retry_if_exception_type, stop_after_attempt,
@@ -11,19 +12,25 @@ from models.llm import SkuMatchResult
 def stream_chat(client: httpx.Client, *, model: str, messages: list,
                 api_key: str, base_url: str,
                 on_token: Callable[[str], None] | None = None,
-                temperature: float = 0, max_tokens: int = 1024) -> str:
-    """流式调 chat/completions,累积并返回完整文本;每个 token 经 on_token 吐出。"""
+                temperature: float = 0, max_tokens: int = 1024,
+                max_stream_sec: float = 90.0) -> str:
+    """流式调 chat/completions,累积并返回完整文本;每个 token 经 on_token 吐出。
+    max_stream_sec 是整条流的墙钟硬上限:httpx read timeout 只管两次读的间隔,
+    对慢滴/半挂的 SSE 流可能永不触发,故再加一道总时长闸防永久 hang。"""
     url = f"{base_url.rstrip('/')}/chat/completions"
     payload = {"model": model, "messages": messages, "temperature": temperature,
                "max_tokens": max_tokens, "stream": True}
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     buf = []
+    start = time.monotonic()
     try:
         with client.stream("POST", url, json=payload, headers=headers) as resp:
             if resp.status_code >= 400:
                 resp.read()
                 raise classify_http_status(resp.status_code, resp.text[:200])
             for line in resp.iter_lines():
+                if time.monotonic() - start > max_stream_sec:
+                    raise RetryableError(f"流式读取超过 {max_stream_sec:.0f}s 未结束")
                 if not line or not line.startswith("data: "):
                     continue
                 data = line[6:]

@@ -31,6 +31,7 @@ from sourcing import (
     _cfg, _check_files, _read_files, _limit_products, _cost_cfg_from,
     _collect_offer_ids, _fetch_skus_into, _build_rows,
     _sse, _heartbeat_frame, _run_with_heartbeat, _SKU_REQUEST_INTERVAL_SEC,
+    _HEARTBEAT_INTERVAL_SEC,
 )
 from config import (
     load_sourcing_config, save_sourcing_config, reload_sourcing_config, deep_merge,
@@ -276,43 +277,60 @@ async def sourcing_analyze_stream(
         })
 
         evt_q: "queue.Queue" = queue.Queue()
-
-        def _drain():
-            """把 queue 里已积累的事件转成 SSE 帧（在 next() 返回后调用）。"""
-            frames = []
-            while True:
-                try:
-                    kind, item_id, extra = evt_q.get_nowait()
-                except queue.Empty:
-                    break
-                if kind == "llm_token":
-                    frames.append(_sse("llm_token", {
-                        "item_id": item_id, "phase": "sku_match", "token": extra}))
-                elif kind == "candidate_scored":
-                    frames.append(_sse("candidate_scored", {
-                        "item_id": item_id, "match_overall_score": extra}))
-                elif kind == "llm_retry":
-                    frames.append(_sse("llm_retry", {"item_id": item_id}))
-            return frames
+        _DONE = object()
 
         on_token = lambda iid, tok: evt_q.put(("llm_token", iid, tok))
         on_retry = lambda iid: evt_q.put(("llm_retry", iid, None))
         on_candidate_scored = lambda iid, score: evt_q.put(("candidate_scored", iid, score))
 
-        mgen = sourcing._match_all(products, candidates_map, sku_cache, matches,
-                                   conf_map=conf_map, on_token=on_token, on_retry=on_retry,
-                                   on_candidate_scored=on_candidate_scored)
+        def _run_match_all():
+            """后台线程：消费整个 _match_all generator。token/retry/candidate_scored
+            由回调实时 put；每货品 step 完成后把 match_progress 也 put 进同一队列。
+            结束（含异常）推哨兵 _DONE，async 侧据此收尾。"""
+            try:
+                mgen = sourcing._match_all(products, candidates_map, sku_cache, matches,
+                                           conf_map=conf_map, on_token=on_token,
+                                           on_retry=on_retry,
+                                           on_candidate_scored=on_candidate_scored)
+                for prog in mgen:
+                    evt_q.put(("match_progress", None, prog))
+            except Exception as exc:
+                evt_q.put(("error", None, exc))
+            finally:
+                evt_q.put((_DONE, None, None))
+
+        # 后台线程跑匹配，async 主协程实时抽队列：token 一产生就 yield（真逐字），
+        # 拿不到事件则按心跳间隔发心跳，任何慢阶段都不会帧间静默。
+        match_fut = loop.run_in_executor(None, _run_match_all)
+        match_err = None
         while True:
-            prog = await loop.run_in_executor(None, lambda: next(mgen, None))
-            # next() 期间 match_sku 已同步往 queue 推了一货品的事件，先冲刷再发进度
-            for frame in _drain():
-                yield frame
-            if prog is None:
+            try:
+                kind, item_id, extra = await loop.run_in_executor(
+                    None, lambda: evt_q.get(timeout=_HEARTBEAT_INTERVAL_SEC))
+            except queue.Empty:
+                yield _heartbeat_frame()
+                continue
+            if kind is _DONE:
                 break
-            yield _sse("match_progress", {
-                **prog,
-                "message": f"AI 匹配 SKU {prog['current']}/{prog['total']}",
-            })
+            if kind == "error":
+                match_err = extra
+                continue
+            if kind == "llm_token":
+                yield _sse("llm_token", {
+                    "item_id": item_id, "phase": "sku_match", "token": extra})
+            elif kind == "candidate_scored":
+                yield _sse("candidate_scored", {
+                    "item_id": item_id, "match_overall_score": extra})
+            elif kind == "llm_retry":
+                yield _sse("llm_retry", {"item_id": item_id})
+            elif kind == "match_progress":
+                yield _sse("match_progress", {
+                    **extra,
+                    "message": f"AI 匹配 SKU {extra['current']}/{extra['total']}",
+                })
+        await match_fut
+        if match_err is not None:
+            raise match_err
 
         rows = None
         async for kind, payload in _run_with_heartbeat(
