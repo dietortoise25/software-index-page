@@ -214,7 +214,9 @@
       "WebFetch(domain:ui.shadcn.com)",
       "WebFetch(domain:base-ui.com)",
       "Bash(timeout *)",
-      "Skill(shadcn-ui)"
+      "Skill(shadcn-ui)",
+      "WebFetch(domain:open.onebound.cn)",
+      "Bash(python -m pytest tests/test_calc_cost_matched_sku.py -v)"
     ]
   },
   "skipWebFetchPreflight": true

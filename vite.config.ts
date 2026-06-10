@@ -15,6 +15,12 @@ export default defineConfig({
     proxy: {
       "/api/return-workflow": "http://localhost:3002",
       "/api/agent": "http://localhost:8001",
+      // 本地联调:前端用 /api/shopee/sourcing,后端 router 前缀是 /api/sourcing,剥掉 /shopee 段
+      "/api/shopee/sourcing": {
+        target: "http://localhost:8765",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/shopee\/sourcing/, "/api/sourcing"),
+      },
       "/api": "http://localhost:8765",
     },
   },

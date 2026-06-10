@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>选品工具 · 价格数据来源说明</title>
+<style>
+  :root{
+    --ink:#1f2933; --soft:#52606d; --line:#e4e7eb; --bg:#f7f8fa;
+    --brand:#2563eb; --warn:#d97706; --warnbg:#fff7ed; --good:#059669;
+    --bad:#dc2626; --card:#fff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    color:var(--ink);background:var(--bg);line-height:1.75;padding:32px 16px}
+  .wrap{max-width:860px;margin:0 auto}
+  header{text-align:center;margin-bottom:8px}
+  header h1{font-size:26px;letter-spacing:1px}
+  header p{color:var(--soft);font-size:14px;margin-top:6px}
+  .meta{text-align:center;color:#9aa5b1;font-size:12px;margin-bottom:28px}
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:22px 24px;margin-bottom:18px}
+  h2{font-size:18px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  h2 .dot{width:8px;height:8px;border-radius:50%;background:var(--brand);display:inline-block}
+  p.lead{color:var(--soft);font-size:15px}
+  .metaphor{background:var(--warnbg);border-left:4px solid var(--warn);
+    border-radius:8px;padding:12px 16px;margin:14px 0;font-size:14px;color:#7c4a03}
+  .metaphor b{color:var(--warn)}
+  .callout{background:#eef4ff;border:1px solid #c7dbff;border-radius:12px;
+    padding:18px 22px;margin-bottom:18px}
+  .callout .q{font-size:16px;font-weight:700;color:var(--brand);margin-bottom:8px}
+  .callout .q::before{content:"“";font-size:22px}
+  .callout .q::after{content:"”";font-size:22px}
+  .grid{display:grid;gap:14px;margin-top:6px}
+  .opt{border:1px solid var(--line);border-radius:12px;padding:16px 18px;position:relative}
+  .opt .num{position:absolute;top:-12px;left:16px;background:var(--brand);color:#fff;
+    width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
+    font-size:13px;font-weight:700}
+  .opt h3{font-size:16px;margin:6px 0 8px}
+  .opt .body{font-size:14px;color:var(--soft)}
+  .tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .tag{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--line)}
+  .tag.cost{background:#f0f4ff;color:#3b5bdb;border-color:#d0dbff}
+  .tag.free{background:#ecfdf5;color:var(--good);border-color:#a7f3d0}
+  .tag.risk{background:#fef2f2;color:var(--bad);border-color:#fecaca}
+  .tag.need{background:#fffbeb;color:var(--warn);border-color:#fde68a}
+  .tag.dev{background:#f3f0ff;color:#6d28d9;border-color:#ddd6fe}
+  .effort{font-size:13px;color:#6d28d9;margin-top:10px;padding-top:10px;
+    border-top:1px dashed var(--line)}
+  .effort b{color:#5b21b6}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+  th,td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}
+  th{background:#f1f5f9;font-weight:600}
+  td .y{color:var(--good);font-weight:700}
+  td .n{color:var(--bad);font-weight:700}
+  td .m{color:var(--warn);font-weight:700}
+  footer{text-align:center;color:#9aa5b1;font-size:12px;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>选品工具 · 价格数据来源说明</h1>
+    <p>关于「1688 进货价怎么拿」的几条路 — 给决策参考</p>
+  </header>
+  <div class="meta">内部汇报材料 · 2026-06-08</div>
+
+  <!-- 一、为什么这件事要紧 -->
+  <section>
+    <h2><span class="dot"></span>一、问题出在哪</h2>
+    <p class="lead">选品工具现在能「以图找同款」，但它抓到的进货价，往往是商品的<b>最低起步价</b>，不是真实成交价。结果就是：算出来的利润看着很美，实际进货一掏钱才发现差一大截。</p>
+    <div class="metaphor">
+      🍲 <b>打个比方：</b>就像看一家餐厅菜单上最便宜的那道凉菜 3 块钱，就断定「这餐厅真便宜」。可真点一桌菜，账单翻好几倍。我们现在的工具，就是只看到了那道 3 块的凉菜价，于是把利润算高了。<b>要让分析靠谱，必须拿到「每个规格各自的真实价格」。</b>
+    </div>
+  </section>
+
+  <!-- 老板的问题 -->
+  <div class="callout">
+    <div class="q">我不追求速度，能不能不走接口？</div>
+    <p style="font-size:14px;color:#3b4a6b">
+      能。这里说的「接口」，相当于<b>花钱请一家专业的「代查公司」</b>替我们去 1688 抄价目表——稳、快，但要付费。<br><br>
+      不走接口，就是<b>我们自己用浏览器去 1688 上一条条看价</b>，不花一分钱。代价是：1688 这个大卖场有「保安」（系统风控），看到有人短时间内疯狂抄遍全场每个价签，会觉得可疑，轻则不让你再查、重则封掉账号。<b>我们之前就一直被这个「保安」盯上、拦下来。</b><br><br>
+      所以「不走接口」不是不行，而是<b>用「免费但有被拦风险」换「花钱但安稳」</b>。下面五条路就是围绕这个取舍。
+    </p>
+  </div>
+
+  <!-- 二、五条路 -->
+  <section>
+    <h2><span class="dot"></span>二、摆在面前的五条路</h2>
+    <div class="grid">
+
+      <div class="opt">
+        <div class="num">1</div>
+        <h3>自己用浏览器查（不走接口 · 0 成本）</h3>
+        <div class="body">不花钱，靠我们自己的电脑/浏览器在逛 1688 时顺手把价格记下来回传。能拿到真实分规格价。<b>但这正是老板问的那条路——会被卖场「保安」（风控）盯上，查多了就被拦、被限制甚至封号。</b>我之前一直卡在这。</div>
+        <div class="tags"><span class="tag free">0 元</span><span class="tag risk">风控风险高（我一直被拦）</span><span class="tag need">需装个浏览器小插件并保持登录</span></div>
+        <div class="effort">🛠 <b>开发：</b>中等（早期代码还能复活，约 2-3 天）。<b>维护：</b>很重——风控规则和登录态经常变，<b>三天两头要修</b>，是个反复填坑的活。</div>
+      </div>
+
+      <div class="opt">
+        <div class="num">2</div>
+        <h3>万邦（付费代查公司 · 数据最全）</h3>
+        <div class="body">一家成熟的「代查公司」，替我们去抄 1688 的价目表。<b>数据最全——每个规格的真实价格都有</b>，正好治我们的病。稳、不怕封号。门槛是要先<b>充 1000 元起步</b>，之后每查一次约 2 分钱（一次分析几十款，也就几毛到一块钱，1000 元能用很久）。</div>
+        <div class="tags"><span class="tag cost">1000 元起充 + 约 2 分/次</span><span class="tag free">数据最全 · 稳</span></div>
+        <div class="effort">🛠 <b>开发：</b>最省事（已拿到样本、逻辑清晰，约 1-2 天接好）。<b>维护：</b>省心——付费的稳定服务，基本不用管。</div>
+      </div>
+
+      <div class="opt">
+        <div class="num">3</div>
+        <h3>JustOneApi（另一家代查 · 仅作探索）</h3>
+        <div class="body">我们已经拿到了它的试用钥匙，探过路。<b>但实测发现它给不了「每个规格的价格」</b>——治不了我们的病，而且每次还更贵（约 1 毛）。<b>列在这里只为说明「我们认真比较过、不是没试」，不建议主用。</b></div>
+        <div class="tags"><span class="tag cost">约 1 毛/次（更贵）</span><span class="tag risk">关键数据缺失 · 仅探索</span></div>
+        <div class="effort">🛠 <b>开发：</b>本身简单，但因为拿不到规格价，<b>接了也是白接</b>。<b>维护：</b>不适用——不进入候选。</div>
+      </div>
+
+      <div class="opt">
+        <div class="num">4</div>
+        <h3>阿里官方接口（最正规 · 但有门槛）</h3>
+        <div class="body">直接找 1688/阿里官方要授权的数据，最名正言顺、最稳定。<b>门槛是需要「企业支付宝」做企业身份认证，老板这边暂时还没有。</b>等企业资质齐了，这是最干净的长远选择。</div>
+        <div class="tags"><span class="tag free">最正规 · 长远最稳</span><span class="tag need">需企业支付宝（暂缺）</span></div>
+        <div class="effort">🛠 <b>开发：</b>偏重——除了写代码，还要走官方申请认证流程（要等审批，不全在我们手上）。<b>维护：</b>最省心——官方授权，最稳定、最不容易坏。</div>
+      </div>
+
+      <div class="opt">
+        <div class="num">5</div>
+        <h3>自研逆向（自己破解取价 · 0 付费但维护地狱）</h3>
+        <div class="body">不付费、也不靠第三方，我们自己研究破解 1688 的内部取价方式，自建一套抓价系统。理论上能拿到全部真实数据。<b>但这是一场和官方没完没了的「猫鼠游戏」</b>：官方一更新防护我们就失效，得反复重新破解；同样躲不开风控封号，且处于合规灰色地带。</div>
+        <div class="tags"><span class="tag free">0 付费</span><span class="tag risk">猫鼠游戏 · 灰色地带</span></div>
+        <div class="effort">🛠 <b>开发：</b>最难——前期研究破解就不确定要多久（数周起步）。<b>维护：</b>无底洞——官方每改一次防护就得重来一次，<b>人力持续被拖住，是最贵的隐性成本</b>。</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 三、一张表看懂 -->
+  <section>
+    <h2><span class="dot"></span>三、一张表对比</h2>
+    <table>
+      <tr><th>方案</th><th>花钱吗</th><th>数据全不全</th><th>稳不稳</th><th>开发难度</th><th>维护成本</th><th>门槛</th></tr>
+      <tr><td>1. 自己浏览器查</td><td class="y">免费</td><td class="y">全</td><td class="n">易被风控拦</td><td class="m">中（复活旧码）</td><td class="n">高·三天两头修</td><td>装插件+保持登录</td></tr>
+      <tr><td>2. 万邦</td><td class="m">1000 起 + 2 分/次</td><td class="y">最全</td><td class="y">稳</td><td class="y">低·1-2天</td><td class="y">省心</td><td>先充值</td></tr>
+      <tr><td>3. JustOneApi</td><td class="n">约 1 毛/次</td><td class="n">缺规格价</td><td class="y">稳</td><td class="m">低但白做</td><td>—</td><td>仅探索</td></tr>
+      <tr><td>4. 阿里官方</td><td class="m">视套餐</td><td class="y">全</td><td class="y">最稳</td><td class="m">偏重+等认证</td><td class="y">最省心</td><td class="n">需企业支付宝</td></tr>
+      <tr><td>5. 自研逆向</td><td class="y">0 付费</td><td class="y">全</td><td class="n">官方一改就失效</td><td class="n">最难·数周起</td><td class="n">无底洞</td><td class="n">灰色地带</td></tr>
+    </table>
+  </section>
+
+  <!-- 四、核心取舍 -->
+  <section>
+    <h2><span class="dot"></span>四、核心取舍</h2>
+    <p class="lead">归根到底就一句：<b>免费的方案（自己浏览器查 / 自研逆向）都躲不开卖场风控，还要持续填维护的坑；省心稳定的方案（万邦、阿里官方）要么先花钱、要么要企业资质。</b>没有「又免费、又稳、又省事」的选项——这是平台规则决定的，不是技术能不能做到的问题。开发难度和维护成本（尤其逆向那条的「无底洞」）往往比一次性花的钱更值得算进去。</p>
+  </section>
+
+  <footer>本材料为内部决策参考 · 涉及金额/门槛以各平台最新公示为准</footer>
+</div>
+</body>
+</html>

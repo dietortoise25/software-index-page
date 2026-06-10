@@ -4,18 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-公司内部软件发布站 + 运营数据看板，面向全公司同事。包含工具发布、文章系统、AI需求助手、需求审查面板、订单看板、运营管理等功能。
+公司内部软件发布站 + 运营数据看板，面向全公司同事。包含工具发布、文章系统、AI需求助手、需求审查面板、订单看板、运营管理、AI 选品工具等功能。
 
 ## 技术栈
 
+前端 + 5 个独立后端服务，全部由 `git push deploy main` 一次构建并部署（见部署规范）。
+
 - **前端**: React 19 + Vite 8 + TypeScript 6 + Tailwind CSS v4 + shadcn/ui v4 + react-router v7
-- **后端**: Express + TypeScript（端口 8765，systemd 服务名 `relay`）
-- **数据中台**: 千易ERP SDK + 定时同步调度器（systemd 服务名 `qianyi-scheduler`）
-- **退货工作流**: Express + TypeScript（端口 3002，systemd 服务名 `return-workflow`）
-- **Shopee 分析器**: Python FastAPI（端口 8000，systemd 服务名 `shopee-analyzer`）
-- **数据库**: Supabase（前端直连 + 后端服务端使用）
-- **AI**: DeepSeek API（通过 `@ai-sdk/deepseek`）
-- **外部集成**: 飞书 API（消息推送、日历日程、审批回调）
+- **后端（relay）**: Express + TypeScript（端口 8765，systemd `relay`）— AI 对话、需求生成、审批、Shopee 选品代理等
+- **AI Agent（langchain-agent）**: Express + LangChain v1（端口 8001，前缀 `/api/agent`，systemd `langchain-agent`）— Agent 对话、SKU 选品匹配、新闻摘要定时任务、会话记忆
+- **数据中台（qianyi-scheduler）**: 千易ERP SDK + 定时同步调度器（systemd `qianyi-scheduler`）
+- **退货工作流（return-workflow）**: Express + TypeScript（端口 3002，systemd `return-workflow`）
+- **Shopee 分析器（shopee-analyzer）**: Python FastAPI（端口 8000，systemd `shopee-analyzer`）
+- **数据库**: Supabase（前端直连 + relay/platform 服务端）；langchain-agent 直连 Postgres（`pg`，存会话/记忆/better-auth 表）
+- **AI**: DeepSeek API（relay，经 `@ai-sdk/deepseek`）；LangChain + OpenAI 兼容模型（langchain-agent，经中转 API）
+- **外部集成**: 飞书 API（消息推送、日历日程、审批回调、Agent 卡片）；Tavily/Jina（langchain-agent 联网搜索）
 
 ## 开发命令
 

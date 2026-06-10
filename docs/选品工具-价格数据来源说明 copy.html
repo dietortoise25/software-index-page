@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>选品工具 · 价格数据来源说明</title>
+<style>
+  :root{
+    --ink:#1f2933; --soft:#52606d; --line:#e4e7eb; --bg:#f7f8fa;
+    --brand:#2563eb; --warn:#d97706; --warnbg:#fff7ed; --good:#059669;
+    --bad:#dc2626; --card:#fff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    color:var(--ink);background:var(--bg);line-height:1.75;padding:32px 16px}
+  .wrap{max-width:860px;margin:0 auto}
+  header{text-align:center;margin-bottom:8px}
+  header h1{font-size:26px;letter-spacing:1px}
+  header p{color:var(--soft);font-size:14px;margin-top:6px}
+  .meta{text-align:center;color:#9aa5b1;font-size:12px;margin-bottom:28px}
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:22px 24px;margin-bottom:18px}
+  h2{font-size:18px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  h2 .dot{width:8px;height:8px;border-radius:50%;background:var(--brand);display:inline-block}
+  p.lead{color:var(--soft);font-size:15px}
+  .metaphor{background:var(--warnbg);border-left:4px solid var(--warn);
+    border-radius:8px;padding:12px 16px;margin:14px 0;font-size:14px;color:#7c4a03}
+  .metaphor b{color:var(--warn)}
+  .callout{background:#eef4ff;border:1px solid #c7dbff;border-radius:12px;
+    padding:18px 22px;margin-bottom:18px}
+  .callout .q{font-size:16px;font-weight:700;color:var(--brand);margin-bottom:8px}
+  .callout .q::before{content:"“";font-size:22px}
+  .callout .q::after{content:"”";font-size:22px}
+  .grid{display:grid;gap:14px;margin-top:6px}
+  .opt{border:1px solid var(--line);border-radius:12px;padding:16px 18px;position:relative}
+  .opt .num{position:absolute;top:-12px;left:16px;background:var(--brand);color:#fff;
+    width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
+    font-size:13px;font-weight:700}
+  .opt h3{font-size:16px;margin:6px 0 8px}
+  .opt .body{font-size:14px;color:var(--soft)}
+  .tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .tag{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--line)}
+  .tag.cost{background:#f0f4ff;color:#3b5bdb;border-color:#d0dbff}
+  .tag.free{background:#ecfdf5;color:var(--good);border-color:#a7f3d0}
+  .tag.risk{background:#fef2f2;color:var(--bad);border-color:#fecaca}
+  .tag.need{background:#fffbeb;color:var(--warn);border-color:#fde68a}
+  .tag.dev{background:#f3f0ff;color:#6d28d9;border-color:#ddd6fe}
+  .effort{font-size:13px;color:#6d28d9;margin-top:10px;padding-top:10px;
+    border-top:1px dashed var(--line)}
+  .effort b{color:#5b21b6}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+  th,td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}
+  th{background:#f1f5f9;font-weight:600}
+  td .y{color:var(--good);font-weight:700}
+  td .n{color:var(--bad);font-weight:700}
+  td .m{color:var(--warn);font-weight:700}
+  footer{text-align:center;color:#9aa5b1;font-size:12px;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>选品工具 · 价格数据来源说明</h1>
+    <p>1688 进货价格获取路径分析与决策建议</p>
+  </header>
+  <div class="meta">内部汇报材料 · 2026-06-08</div>
+
+  <!-- 一、问题背景 -->
+  <section>
+    <h2><span class="dot"></span>一、问题背景</h2>
+    <p class="lead">当前选品工具已支持以图搜同款功能，但获取的价格通常为商品展示起步价，而非各规格的真实成交价格。由此导致利润测算存在系统性偏差：前端展示价格偏低，实际采购时按具体规格下单，成本显著高于预期。</p>
+    <div class="metaphor">
+      <b>核心矛盾：</b>现有数据仅覆盖商品最低价，未建立规格与价格的一一映射关系。要实现准确的利润分析，必须获取「每个 SKU 对应的真实价格」。
+    </div>
+  </section>
+
+  <!-- 核心问题 -->
+  <div class="callout">
+    <div class="q">能否不通过第三方接口获取数据？</div>
+    <p style="font-size:14px;color:#3b4a6b">
+      可以。第三方接口的本质是委托专业数据服务商代为采集 1688 平台的价格信息，优势在于稳定、完整，但需支付服务费用。<br><br>
+      若不使用第三方接口，则需通过自有浏览器或脚本直接访问 1688 页面进行数据采集，无需付费。但 1688 平台设有风控机制，对高频、批量访问行为会进行识别和限制，轻则触发验证码或限流，重则导致账号封禁。<b>此前已有多次因访问频率过高而被平台拦截的记录。</b><br><br>
+      因此，该问题的实质是在「零成本但需承担风控风险」与「付费但获取稳定服务」之间进行权衡。以下五条路径均围绕这一核心取舍展开。
+    </p>
+  </div>
+
+  <!-- 二、五条路径 -->
+  <section>
+    <h2><span class="dot"></span>二、可选路径</h2>
+    <div class="grid">
+
+      <div class="opt">
+        <div class="num">1</div>
+        <h3>自主浏览器采集（无接口费用）</h3>
+        <div class="body">通过自有浏览器或脚本直接访问 1688 商品页面，提取各规格的真实价格与库存数据。可获取完整的 SKU 级价格信息。<b>但需直面平台风控机制，高频访问易触发限流或账号封禁，此前已多次出现访问受限的情况。</b>此外，需安装浏览器插件并维持稳定的登录状态。</div>
+        <div class="tags"><span class="tag free">零费用</span><span class="tag risk">风控风险高</span><span class="tag need">需浏览器插件及持续登录</span></div>
+        <div class="effort">🛠 <b>开发：</b>中等（可复用早期代码，预计 2–3 个工作日）。<b>维护：</b>较高——平台风控规则与登录态验证策略频繁变更，需持续跟进修复。</div>
+      </div>
+
+      <div class="opt">
+        <div class="num">2</div>
+        <h3>万邦数据服务（付费 · 数据完整）</h3>
+        <div class="body">第三方专业数据服务商，提供 1688 商品全量数据接口，<b>覆盖每个 SKU 的规格、价格、库存等完整字段</b>，可精准解决当前数据缺失问题。服务稳定，不受平台风控影响。采用预充值模式，<b>起充金额 1000 元</b>，单次调用成本约 0.02 元（单次分析涉及数十个商品，综合成本约几毛至一元，1000 元可用较长时间）。</div>
+        <div class="tags"><span class="tag cost">1000 元起充 + 约 0.02 元/次</span><span class="tag free">数据完整 · 服务稳定</span></div>
+        <div class="effort">🛠 <b>开发：</b>最低（已获取接口文档与样本数据，逻辑清晰，预计 1–2 个工作日完成接入）。<b>维护：</b>低——付费商业服务，接口稳定性由服务商保障。</div>
+      </div>
+
+      <div class="opt">
+        <div class="num">3</div>
+        <h3>JustOneApi（付费 · 仅作评估）</h3>
+        <div class="body">已获取试用权限并完成初步评估。<b>实测发现该服务无法返回 SKU 级别的分规格价格</b>，无法满足当前业务需求；且单次调用成本较高（约 0.1 元）。<b>此处仅作为已进行横向对比的佐证，不建议纳入主选方案。</b></div>
+        <div class="tags"><span class="tag cost">约 0.1 元/次（成本更高）</span><span class="tag risk">关键数据缺失 · 仅评估</span></div>
+        <div class="effort">🛠 <b>开发：</b>接入本身简单，但因数据字段不满足需求，<b>接入后无法解决核心问题</b>。<b>维护：</b>不适用——不进入候选名单。</div>
+      </div>
+
+      <div class="opt">
+        <div class="num">4</div>
+        <h3>阿里巴巴官方开放平台（最正规 · 有资质门槛）</h3>
+        <div class="body">直接对接 1688/阿里巴巴官方数据开放平台，数据授权合法合规，长期稳定性最佳。<b>门槛是需要以企业身份完成认证，当前尚不具备企业支付宝等必要资质。</b>待企业资质完备后，该路径为长期最优解。</div>
+        <div class="tags"><span class="tag free">最正规 · 长期最稳</span><span class="tag need">需企业资质认证（暂缺）</span></div>
+        <div class="effort">🛠 <b>开发：</b>偏重——除代码开发外，需同步推进官方资质申请与审批流程（周期不完全可控）。<b>维护：</b>最低——官方授权，稳定性与合规性最优。</div>
+      </div>
+
+      <div class="opt">
+        <div class="num">5</div>
+        <h3>自主逆向工程（零费用 · 维护成本极高）</h3>
+        <div class="body">不依赖任何第三方服务，自行研究 1688 内部接口协议，自建数据采集系统。理论上可获取全量真实数据。<b>但该路径需与平台持续进行技术对抗：平台每次升级防护策略，采集逻辑即可能失效，需反复重新破解；且同样面临风控封禁风险，同时处于合规灰色地带。</b></div>
+        <div class="tags"><span class="tag free">零费用</span><span class="tag risk">持续对抗 · 合规风险</span></div>
+        <div class="effort">🛠 <b>开发：</b>最高——前期逆向研究周期不确定，预计数周起步。<b>维护：</b>极高——平台每轮防护升级均需重新适配，<b>人力投入呈持续性消耗，隐性成本最高</b>。</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 三、对比表 -->
+  <section>
+    <h2><span class="dot"></span>三、综合对比</h2>
+    <table>
+      <tr><th>方案</th><th>费用</th><th>数据完整性</th><th>稳定性</th><th>开发难度</th><th>维护成本</th><th>准入门槛</th></tr>
+      <tr><td>1. 自主浏览器采集</td><td class="y">免费</td><td class="y">完整</td><td class="n">易受风控限制</td><td class="m">中（复用旧代码）</td><td class="n">高·需持续修复</td><td>浏览器插件+持续登录</td></tr>
+      <tr><td>2. 万邦数据服务</td><td class="m">1000 起充 + 0.02 元/次</td><td class="y">最完整</td><td class="y">稳定</td><td class="y">低·1–2 天</td><td class="y">低</td><td>预充值</td></tr>
+      <tr><td>3. JustOneApi</td><td class="n">约 0.1 元/次</td><td class="n">缺规格价</td><td class="y">稳定</td><td class="m">低但无效</td><td>—</td><td>仅评估</td></tr>
+      <tr><td>4. 阿里官方开放平台</td><td class="m">视套餐</td><td class="y">完整</td><td class="y">最稳定</td><td class="m">偏重+等审批</td><td class="y">最低</td><td class="n">需企业资质</td></tr>
+      <tr><td>5. 自主逆向工程</td><td class="y">免费</td><td class="y">完整</td><td class="n">平台升级即失效</td><td class="n">最高·数周起</td><td class="n">极高·无底洞</td><td class="n">合规灰色地带</td></tr>
+    </table>
+  </section>
+
+  <!-- 四、核心结论 -->
+  <section>
+    <h2><span class="dot"></span>四、核心结论</h2>
+    <p class="lead">免费路径（自主浏览器采集、自主逆向工程）均无法规避平台风控，且伴随高昂的持续性维护成本；稳定路径（万邦数据服务、阿里官方开放平台）则需前置投入（充值费用或企业资质）。<b>不存在「零成本、高稳定、低维护」的三全方案</b>——这是平台商业规则所决定，而非技术可行性问题。在决策时，建议将维护成本与人力投入的持续性消耗纳入总成本测算，其权重往往高于一次性费用支出。</p>
+  </section>
+
+  <footer>本材料为内部决策参考 · 涉及金额及准入门槛以各平台最新公示为准</footer>
+</div>
+</body>
+</html>
