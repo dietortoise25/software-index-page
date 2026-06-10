@@ -16,7 +16,12 @@ import time
 import urllib.request
 import urllib.parse
 import http.cookiejar
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Optional, Tuple, List, Dict, Any, Callable
+
+import httpx
+
+from clients.http import make_client, make_retry, request_json
+from models.errors import classify_exception
 
 logger = logging.getLogger("aibuy")
 
@@ -33,6 +38,23 @@ _cs: str = ""
 _tk: str = ""
 _api_config: dict = {}
 _lock = threading.Lock()
+
+# 统一 httpx 客户端 + tenacity 重试。测试时可注入 MockTransport 客户端 / 零退避工厂。
+_client: Optional[httpx.Client] = None
+_retry_factory: Optional[Callable] = None
+
+
+def _get_client() -> httpx.Client:
+    """惰性创建模块级共享客户端;测试可直接赋值 _client 注入 MockTransport。"""
+    global _client
+    if _client is None:
+        _client = make_client(read_timeout=30.0)
+    return _client
+
+
+def _get_retry():
+    factory = _retry_factory or make_retry
+    return factory()
 
 
 def configure(api_config: dict):
@@ -109,35 +131,33 @@ def reset_session():
 
 
 def _mtop_get(api: str, data_obj: dict) -> dict:
-    """mtop GET 请求"""
+    """mtop GET 请求。签名计算保持不变,仅 HTTP 发送改走 request_json(httpx+重试+错误分类)。"""
     cs, tk = get_session()
     d = json.dumps(data_obj, separators=(",", ":"))
     t = int(time.time() * 1000)
     s = hashlib.md5(f"{tk}&{t}&{APP_KEY}&{d}".encode()).hexdigest()
     p = f"jsv=2.7.5&appKey={APP_KEY}&t={t}&sign={s}&type=originaljson&v=1.0&ecode=0&dataType=json"
     u = f"{H5API}/h5/{api}?{p}&data={urllib.parse.quote(d)}"
-    r = urllib.request.urlopen(urllib.request.Request(u, headers={
+    return request_json(_get_client(), "GET", u, retry=_get_retry(), headers={
         "Cookie": cs, "User-Agent": "Mozilla/5.0",
         "Referer": "https://aibuy.1688.com/",
-    }), timeout=30)
-    return json.loads(r.read().decode("utf-8"))
+    })
 
 
 def _mtop_post(api: str, data_obj: dict) -> dict:
-    """mtop POST 请求"""
+    """mtop POST 请求。签名计算保持不变,仅 HTTP 发送改走 request_json(httpx+重试+错误分类)。"""
     cs, tk = get_session()
     d = json.dumps(data_obj, separators=(",", ":"))
     t = int(time.time() * 1000)
     s = hashlib.md5(f"{tk}&{t}&{APP_KEY}&{d}".encode()).hexdigest()
     p = f"jsv=2.7.5&appKey={APP_KEY}&t={t}&sign={s}&type=originaljson&v=1.0&ecode=0&dataType=json"
     u = f"{H5API}/h5/{api}?{p}"
-    f = urllib.parse.urlencode({"data": d}).encode()
-    r = urllib.request.urlopen(urllib.request.Request(u, data=f, method="POST", headers={
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Cookie": cs, "User-Agent": "Mozilla/5.0",
-        "Referer": "https://aibuy.1688.com/",
-    }), timeout=30)
-    return json.loads(r.read().decode("utf-8"))
+    return request_json(_get_client(), "POST", u, retry=_get_retry(),
+                        data={"data": d}, headers={
+                            "Content-Type": "application/x-www-form-urlencoded",
+                            "Cookie": cs, "User-Agent": "Mozilla/5.0",
+                            "Referer": "https://aibuy.1688.com/",
+                        })
 
 
 def _detect_mime(data: bytes) -> str:
@@ -175,7 +195,12 @@ def search_by_image(
     """
     # 1. 加载图片
     if image_input.startswith("http://") or image_input.startswith("https://"):
-        data = urllib.request.urlopen(image_input, timeout=15).read()
+        try:
+            resp = _get_client().get(image_input, timeout=15)
+            resp.raise_for_status()
+            data = resp.content
+        except Exception as e:
+            raise classify_exception(e)
     else:
         with open(image_input, "rb") as f:
             data = f.read()
