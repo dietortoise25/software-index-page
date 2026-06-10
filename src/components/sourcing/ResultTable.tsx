@@ -50,7 +50,7 @@ function ThButton({ label, sortKey, active, dir, onClick }: {
 }
 
 function RadarChart({ scores }: { scores: { price: number; semantic_match: number; image_match: number; supply: number } }) {
-  const cx = 50, cy = 50, r = 38
+  const cx = 50, cy = 50, r = 32
   const labels = [
     { key: "price", label: "价格", angle: -90 },
     { key: "image_match", label: "图文", angle: 0 },
@@ -67,27 +67,32 @@ function RadarChart({ scores }: { scores: { price: number; semantic_match: numbe
   const polygon = dataPoints.map((p) => p.join(",")).join(" ")
 
   return (
-    <svg viewBox="0 0 100 100" className="w-24 h-24 shrink-0">
+    <svg viewBox="-14 -14 128 128" className="w-40 h-40 shrink-0">
       {/* 背景网格 */}
       {[0.25, 0.5, 0.75, 1].map((s) => (
         <polygon key={s} points={labels.map((l) => toXY(l.angle, s).join(",")).join(" ")}
-          fill="none" stroke="currentColor" className="text-muted-foreground/20" strokeWidth="0.5" />
+          fill="none" stroke="currentColor" className="text-muted-foreground/30" strokeWidth="0.5" />
       ))}
       {/* 轴线 */}
       {labels.map((l) => {
         const [x, y] = toXY(l.angle, 1)
-        return <line key={l.key} x1={cx} y1={cy} x2={x} y2={y} stroke="currentColor" className="text-muted-foreground/20" strokeWidth="0.5" />
+        return <line key={l.key} x1={cx} y1={cy} x2={x} y2={y} stroke="currentColor" className="text-muted-foreground/30" strokeWidth="0.5" />
       })}
       {/* 数据区域 */}
-      <polygon points={polygon} fill="hsl(var(--primary))" fillOpacity="0.2" stroke="hsl(var(--primary))" strokeWidth="1.5" />
+      <polygon points={polygon} fill="hsl(var(--primary))" fillOpacity="0.25" stroke="hsl(var(--primary))" strokeWidth="1.5" />
       {/* 数据点 */}
       {dataPoints.map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r="2" fill="hsl(var(--primary))" />
+        <circle key={i} cx={x} cy={y} r="1.8" fill="hsl(var(--primary))" />
       ))}
-      {/* 标签 */}
+      {/* 标签 + 数值 */}
       {labels.map((l) => {
-        const [x, y] = toXY(l.angle, 1.25)
-        return <text key={l.key} x={x} y={y} textAnchor="middle" dominantBaseline="middle" className="fill-muted-foreground text-[7px]">{l.label}</text>
+        const [x, y] = toXY(l.angle, 1.42)
+        return (
+          <text key={l.key} x={x} y={y} textAnchor="middle" dominantBaseline="middle" className="text-[8px]">
+            <tspan className="fill-foreground font-medium">{l.label} </tspan>
+            <tspan className="fill-primary font-bold">{scores[l.key] ?? 0}</tspan>
+          </text>
+        )
       })}
     </svg>
   )
