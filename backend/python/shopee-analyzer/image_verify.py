@@ -11,8 +11,12 @@ import json
 import logging
 import os
 import re
-import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+
+import httpx
+
+from clients.http import make_client
+from clients.llm_client import stream_chat
 
 logger = logging.getLogger("image_verify")
 
@@ -57,33 +61,42 @@ def _build_messages(shopee_img: str, cand_img: str, cand_title: str):
     ]
 
 
-def verify_one(shopee_img: str, cand_img: str, cand_title: str):
-    """单次图文核对 → confidence(0~1) 或 None。缺图/未配 key/异常 → None。"""
+def verify_one(shopee_img: str, cand_img: str, cand_title: str,
+               client: httpx.Client | None = None):
+    """单次图文核对 → confidence(0~1) 或 None。缺图/未配 key/异常 → None。
+
+    通过 clients.llm_client.stream_chat 走 httpx 流式调用;可注入 client 便于测试,
+    默认 None 时内部用 clients.http.make_client() 创建。失败一律 catch 后返回 None,
+    绝不向上抛(保持"失败不阻塞整批"语义)。
+    """
     if not _API_KEY or not shopee_img or not cand_img:
         return None
-    payload = json.dumps({
-        "model": _MODEL,
-        "messages": _build_messages(shopee_img, cand_img, cand_title or ""),
-        "temperature": 0,
-        "max_tokens": 200,
-    }).encode("utf-8")
-    req = urllib.request.Request(
-        f"{_BASE_URL}/chat/completions", data=payload,
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {_API_KEY}"},
-        method="POST",
-    )
+    messages = _build_messages(shopee_img, cand_img, cand_title or "")
+    owns_client = client is None
+    if owns_client:
+        client = make_client(read_timeout=float(_TIMEOUT_SEC))
     try:
-        with urllib.request.urlopen(req, timeout=_TIMEOUT_SEC) as r:
-            resp = json.loads(r.read().decode("utf-8"))
-        content = resp["choices"][0]["message"]["content"]
+        content = stream_chat(
+            client, model=_MODEL, messages=messages,
+            api_key=_API_KEY, base_url=_BASE_URL,
+            temperature=0, max_tokens=200,
+        )
     except Exception as e:
         logger.warning(f"[image_verify] 调用失败: {str(e)[:160]}")
         return None
+    finally:
+        if owns_client:
+            client.close()
     return _parse_confidence(content)
 
 
-def verify_candidates(shopee_img: str, candidates: list) -> dict:
-    """并发对一批候选打图文分。返回 {item_id: confidence|None}。"""
+def verify_candidates(shopee_img: str, candidates: list,
+                      client: httpx.Client | None = None) -> dict:
+    """并发对一批候选打图文分。返回 {item_id: confidence|None}。
+
+    client 为可选注入(默认 None);为不破坏现有调用点 verify_candidates(img, cands),
+    新增参数带默认值。client 透传给每个 verify_one。
+    """
     if not _API_KEY or not shopee_img:
         return {}
     jobs = [(c.get("item_id", ""), c.get("image_url", ""), c.get("title", ""))
@@ -92,7 +105,7 @@ def verify_candidates(shopee_img: str, candidates: list) -> dict:
         return {}
     out: dict = {}
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as ex:
-        fut_map = {ex.submit(verify_one, shopee_img, img, title): iid
+        fut_map = {ex.submit(verify_one, shopee_img, img, title, client): iid
                    for iid, img, title in jobs}
         for fut in fut_map:
             iid = fut_map[fut]
