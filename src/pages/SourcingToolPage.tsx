@@ -8,7 +8,6 @@ import ProgressPanel from "@/components/sourcing/ProgressPanel"
 import ResultTable from "@/components/sourcing/ResultTable"
 import SummaryBar from "@/components/sourcing/SummaryBar"
 import ExportButton from "@/components/sourcing/ExportButton"
-import ProxyStatus from "@/components/sourcing/ProxyStatus"
 import WorkflowGuide from "@/components/sourcing/WorkflowGuide"
 import { analyzeStream } from "@/lib/sourcing"
 import type { SourcingRow, SourcingSummary } from "@/lib/sourcing"
@@ -346,8 +345,6 @@ export default function SourcingToolPage() {
                 </button>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">Shopee 导出 → 1688 以图搜同款 → 成本利润计算</p>
-            <ProxyStatus />
             <WorkflowGuide />
 
             {/* 文件上传 */}
