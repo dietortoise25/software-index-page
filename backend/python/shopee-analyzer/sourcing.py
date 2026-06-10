@@ -28,8 +28,9 @@ from aibuy_client import (
 )
 from config import load_sourcing_config, save_sourcing_config, reload_sourcing_config, deep_merge
 from sku_provider import get_provider
-from sku_match_client import match_sku_best
 from services.cost_calculator import calc_cost, parse_shopee_price, to_cost_float
+from services import sourcing_pipeline
+from clients.http import make_client
 
 logger = logging.getLogger("sourcing")
 
@@ -55,10 +56,23 @@ def _cfg():
 
 
 # 万邦试用档约 1-3 秒/次，整批并发会被打 503；SKU 请求串行 + 此间隔
-_SKU_REQUEST_INTERVAL_SEC = 1.5
+# 单一来源在 services.sourcing_pipeline，此处保留同名常量维持既有测试入口
+_SKU_REQUEST_INTERVAL_SEC = sourcing_pipeline.SKU_REQUEST_INTERVAL_SEC
 
 # 图文核对置信度阈值：< 此值的候选不准当 best_1688(Q13=B)
 _DEFAULT_VERIFY_THRESHOLD = 0.5
+
+
+def _llm_match_config() -> dict:
+    """SKU 匹配 LLM 凭证/模型 —— 与 image_verify 共用同一中转渠道(env)。"""
+    return {
+        "api_key": os.environ.get("SKU_MATCH_API_KEY", ""),
+        "base_url": os.environ.get("SKU_MATCH_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
+        "model": os.environ.get("SKU_MATCH_MODEL", "gpt-5.5"),
+    }
+
+
+_SKU_MATCH_TIMEOUT_SEC = float(os.environ.get("SKU_MATCH_TIMEOUT_SEC", "45"))
 
 
 def _cost_cfg_from(cfg: dict, overrides: dict | None = None) -> dict:
@@ -241,63 +255,35 @@ def _build_row(prod: dict, cands: list, cost_cfg: dict, sku_cache: dict | None =
 
 
 def _collect_offer_ids(candidates_map: dict) -> list:
-    """按出现顺序去重收集所有候选的 1688 offer_id（原始字段 itemId）"""
-    seen, ordered = set(), []
-    for cands in candidates_map.values():
-        for c in cands:
-            oid = c.get("itemId", "")
-            if oid and oid not in seen:
-                seen.add(oid)
-                ordered.append(oid)
-    return ordered
+    """按出现顺序去重收集所有候选的 1688 offer_id（原始字段 itemId）。
+    编排逻辑已搬到 services.sourcing_pipeline，此处薄封装维持既有调用/测试入口。"""
+    return sourcing_pipeline.collect_offer_ids(candidates_map)
 
 
 def _fetch_skus_into(provider, candidates_map: dict, sku_cache: dict):
     """串行经 provider 拉 SKU 填进 sku_cache；每拉完一个 offer yield 一条进度。
-    万邦试用档约 1-3 秒/次，整批并发会被打 503，故串行 + 请求间间隔。
-    单个 offer 失败不阻塞后续。provider 未就绪或无 offer 时不拉取、不 yield。"""
-    offer_ids = _collect_offer_ids(candidates_map)
-    total = len(offer_ids)
-    if not (offer_ids and provider.ready):
-        return
-    logger.info(f"[sku] provider={provider.name} 串行获取 {total} 个 offer 的 SKU 价格表（间隔 {_SKU_REQUEST_INTERVAL_SEC}s）...")
-    for i, oid in enumerate(offer_ids):
-        if i > 0:
-            time.sleep(_SKU_REQUEST_INTERVAL_SEC)
-        try:
-            sku_cache[oid] = provider.fetch_sku(oid)
-        except Exception as e:
-            logger.warning(f"[sku] {oid} provider 异常: {e}")
-            sku_cache[oid] = {"sku_count": 0, "min_price": None, "max_price": None,
-                              "min_price_spec": None, "skus": [], "error": str(e)[:120]}
-        yield {"current": i + 1, "total": total, "item_id": oid}
+    实际编排在 services.sourcing_pipeline.fetch_skus；间隔取本模块常量以兼容现有测试
+    (test_build_rows_provider 读 sourcing._SKU_REQUEST_INTERVAL_SEC 并 patch sourcing.time.sleep)。"""
+    yield from sourcing_pipeline.fetch_skus(provider, candidates_map, sku_cache,
+                                            interval=_SKU_REQUEST_INTERVAL_SEC)
 
 
 def _match_all(products: list, candidates_map: dict, sku_cache: dict, matches: dict,
                conf_map: dict | None = None):
-    """step5：逐货品、逐候选串行调 agent 选最佳 SKU，按 overall_score 取最高。
-    matches[pid] = {"data": ..., "fail_reason": ...}"""
-    total = len(products)
-    for i, prod in enumerate(products):
-        pid = prod["product_id"]
-        raw_cands = candidates_map.get(pid, [])
-        pid_confs = (conf_map or {}).get(pid, {})
-        enriched = [_pick_candidate(c, sku_cache.get(c.get("itemId", "")) or {},
-                                    image_confidence=pid_confs.get(c.get("itemId", "")))
-                    for c in raw_cands]
-        if not enriched:
-            matches[pid] = {"data": None, "fail_reason": "no_qualified_candidate"}
-            yield {"current": i + 1, "total": total, "item_id": pid}
-            continue
-        shopee = {
-            "name": str(prod.get("product_name", "")),
-            "category": str(prod.get("category_path", "")),
-            "price_brl": _parse_shopee_price(prod.get("shopee_price_brl")),
-        }
-        data, fail_reason, candidate_scores = match_sku_best(shopee, enriched)
-        matches[pid] = {"data": data, "fail_reason": fail_reason,
-                        "candidate_scores": candidate_scores}
-        yield {"current": i + 1, "total": total, "item_id": pid}
+    """step5：逐货品、逐候选调本地 LLM(clients.llm_client.match_sku) 选最佳 SKU，
+    按 overall_score 取最高。单候选/单货品失败不阻塞批次。
+    编排在 services.sourcing_pipeline.match_all；本函数注入 httpx client + LLM 配置 +
+    _pick_candidate，并复用同一 client 跑完整批后关闭。
+    matches[pid] = {"data": ..., "fail_reason": ..., "candidate_scores": ...}"""
+    cfg = _llm_match_config()
+    client = make_client(read_timeout=_SKU_MATCH_TIMEOUT_SEC)
+    try:
+        yield from sourcing_pipeline.match_all(
+            products, candidates_map, sku_cache, matches,
+            client=client, api_key=cfg["api_key"], base_url=cfg["base_url"],
+            model=cfg["model"], conf_map=conf_map, pick_candidate_fn=_pick_candidate)
+    finally:
+        client.close()
 
 
 def _build_rows(products: list, candidates_map: dict, cost_cfg: dict,
