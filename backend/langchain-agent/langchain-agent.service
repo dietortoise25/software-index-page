@@ -14,9 +14,10 @@ RestartSec=5
 Environment=AGENT_PORT=8001
 
 # 所有密钥/连接串从 git 忽略的 .env 注入，不再硬编码进本文件。
+# 与 shopee-analyzer 共用 /home/ubuntu/.env（由 scripts/sync-env.sh 从本地根 .env 同步）。
 # 需含：LLM_*（DeepSeek 默认）、NEW_API_*/NEWS_SUMMARY_MODEL（新闻专用 gpt-5.5）、
-# SUPABASE_*、DATABASE_URL、AUTH_BASE_URL。该文件由运维在服务器维护，不进版本库。
-EnvironmentFile=/var/www/software-index/agent/.env
+# SUPABASE_*、DATABASE_URL、AUTH_BASE_URL。前缀 - 表示文件缺失不报错。
+EnvironmentFile=-/home/ubuntu/.env
 
 [Install]
 WantedBy=multi-user.target
