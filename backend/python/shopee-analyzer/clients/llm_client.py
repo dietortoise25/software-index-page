@@ -78,8 +78,9 @@ def _parse_sku_match(text: str) -> SkuMatchResult:
 
 
 def match_sku(client, shopee: dict, candidate: dict, *, api_key: str, base_url: str,
-              model: str, on_token=None, attempts: int = 3, max_wait: float = 20.0):
-    """流式调 LLM 选 SKU。返回 (SkuMatchResult, raw_text)。流中断/解析失败 → 整条重试。"""
+              model: str, on_token=None, on_retry=None, attempts: int = 3, max_wait: float = 20.0):
+    """流式调 LLM 选 SKU。返回 (SkuMatchResult, raw_text)。流中断/解析失败 → 整条重试。
+    on_retry(): 每次重试前(上一轮流中断/解析失败)回调一次，供上层通知前端清空已显示 token。"""
     lean = {"shopee": {"name": shopee.get("name"), "category": shopee.get("category"),
                        "price_brl": shopee.get("price_brl")},
             "candidate": _lean_candidate(candidate)}
@@ -91,7 +92,12 @@ def match_sku(client, shopee: dict, candidate: dict, *, api_key: str, base_url: 
                           base_url=base_url, on_token=on_token, max_tokens=512)
         return _parse_sku_match(raw), raw
 
+    def _before_sleep(_state):
+        if on_retry:
+            on_retry()
+
     retry = Retrying(stop=stop_after_attempt(attempts),
                      wait=wait_random_exponential(multiplier=1, max=max_wait),
-                     retry=retry_if_exception_type(RetryableError), reraise=True)
+                     retry=retry_if_exception_type(RetryableError), reraise=True,
+                     before_sleep=_before_sleep)
     return retry(_once)

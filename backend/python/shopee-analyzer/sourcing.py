@@ -1,40 +1,34 @@
-"""
-选品比价 API 路由 — 上传 Shopee Excel，批量以图搜货 + 成本计算
+﻿"""
+选品比价 —— 纯计算 / 取数 / SSE 辅助 + 业务符号命名空间（MVC 的 Model/工具层）。
 
-前端调用:
-  POST  /api/shopee/sourcing/search          批量搜图
-  POST  /api/shopee/sourcing/analyze         搜图 + 成本计算
-  POST  /api/shopee/sourcing/analyze-stream  SSE 流式版
-  GET   /api/shopee/sourcing/config          读取配置
-  PUT   /api/shopee/sourcing/config          更新配置
+HTTP 路由已抽到 routers/sourcing.py；本模块保留：
+  - 搜图/SKU 拉取/匹配编排的薄封装(_search_one/_fetch_skus_into/_match_all/_build_rows)
+  - SSE 辅助(_sse/_heartbeat_frame/_run_with_heartbeat)
+  - 文件校验/读取(_check_files/_read_files)
+  - search_by_image / get_provider / make_client 等符号驻留此命名空间，
+    既供 routers 以 `sourcing.xxx` 调用，也作为既有测试 patch("sourcing.xxx") 的入口。
 """
 import asyncio
 import json as _json
 import logging
 import os
 import time
-import traceback
 from io import BytesIO
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Optional
 
 import pandas as pd
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import HTTPException
 
 from aibuy_client import (
     search_by_image,
     configure as configure_aibuy, warmup_session,
 )
-from config import load_sourcing_config, save_sourcing_config, reload_sourcing_config, deep_merge
+from config import load_sourcing_config
 from sku_provider import get_provider
 from services.cost_calculator import calc_cost, parse_shopee_price, to_cost_float
 from services import sourcing_pipeline
 from clients.http import make_client
 
 logger = logging.getLogger("sourcing")
-
-router = APIRouter(prefix="/api/sourcing", tags=["sourcing"])
 
 
 def _provider_for_request(cfg: dict, requested: str):
@@ -269,11 +263,14 @@ def _fetch_skus_into(provider, candidates_map: dict, sku_cache: dict):
 
 
 def _match_all(products: list, candidates_map: dict, sku_cache: dict, matches: dict,
-               conf_map: dict | None = None):
+               conf_map: dict | None = None, on_token=None, on_retry=None,
+               on_candidate_scored=None):
     """step5：逐货品、逐候选调本地 LLM(clients.llm_client.match_sku) 选最佳 SKU，
     按 overall_score 取最高。单候选/单货品失败不阻塞批次。
     编排在 services.sourcing_pipeline.match_all；本函数注入 httpx client + LLM 配置 +
     _pick_candidate，并复用同一 client 跑完整批后关闭。
+    on_token(item_id, tok)/on_retry(item_id)/on_candidate_scored(item_id, score)：
+    SSE 逐字透传回调，透传到 pipeline（按候选 item_id 绑定）。
     matches[pid] = {"data": ..., "fail_reason": ..., "candidate_scores": ...}"""
     cfg = _llm_match_config()
     client = make_client(read_timeout=_SKU_MATCH_TIMEOUT_SEC)
@@ -281,7 +278,8 @@ def _match_all(products: list, candidates_map: dict, sku_cache: dict, matches: d
         yield from sourcing_pipeline.match_all(
             products, candidates_map, sku_cache, matches,
             client=client, api_key=cfg["api_key"], base_url=cfg["base_url"],
-            model=cfg["model"], conf_map=conf_map, pick_candidate_fn=_pick_candidate)
+            model=cfg["model"], conf_map=conf_map, pick_candidate_fn=_pick_candidate,
+            on_token=on_token, on_retry=on_retry, on_candidate_scored=on_candidate_scored)
     finally:
         client.close()
 
@@ -376,338 +374,3 @@ def _limit_products(products: list, limit: int) -> list:
     if limit and limit > 0:
         return products[:limit]
     return products
-
-
-# ========== 业务端点 ==========
-
-@router.post("/search")
-async def sourcing_search(
-    files: List[UploadFile] = File(...),
-    page_size: int = Form(0),
-    same_style_only: bool = Form(True),
-):
-    """上传多个 Shopee Excel，批量以图搜货，返回候选商品（不做成本计算）"""
-    cfg = _cfg()
-    sc = cfg["search"]
-    if page_size <= 0:
-        page_size = sc["page_size"]
-
-    _check_files(files, cfg["limits"]["max_file_size_mb"])
-    df, _ = _read_files(files, cfg["columns"])
-    products = df.to_dict(orient="records")
-    logger.info(f"[search] {len(files)} 个文件, {len(products)} 个产品")
-
-    results = []
-    max_workers = sc["max_concurrency"]
-
-    with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futures = {ex.submit(_search_one, p, page_size, same_style_only): p for p in products}
-        for fut in as_completed(futures):
-            pid, _name, cands, err = fut.result()
-            results.append({
-                "product_id": pid,
-                "candidates": cands,
-                "total": len(cands),
-                "error": err,
-            })
-
-    results.sort(key=lambda r: next(
-        i for i, p in enumerate(products) if p["product_id"] == r["product_id"]
-    ))
-
-    return {"products": products, "results": results}
-
-
-@router.post("/analyze")
-async def sourcing_analyze(
-    files: List[UploadFile] = File(...),
-    page_size: int = Form(0),
-    same_style_only: bool = Form(True),
-    cny_per_brl: float = Form(0),
-    cost_multiplier: float = Form(-1),
-    target_margin_rate: float = Form(-1),
-    high_margin_rate: float = Form(-1),
-):
-    """上传多个 Shopee Excel → 搜图 + 成本计算 + 推荐"""
-    cfg = _cfg()
-    sc = cfg["search"]
-    if page_size <= 0:
-        page_size = sc["page_size"]
-
-    _check_files(files, cfg["limits"]["max_file_size_mb"])
-    df, _ = _read_files(files, cfg["columns"])
-    products = df.to_dict(orient="records")
-    logger.info(f"[analyze] {len(files)} 个文件, {len(products)} 个产品")
-
-    # 成本参数：传了就用传的，没传就用配置默认值
-    overrides = {}
-    if cny_per_brl > 0: overrides["cny_per_brl"] = cny_per_brl
-    if cost_multiplier >= 0: overrides["cost_multiplier"] = cost_multiplier
-    if target_margin_rate >= 0: overrides["target_margin_rate"] = target_margin_rate
-    if high_margin_rate >= 0: overrides["high_margin_rate"] = high_margin_rate
-    cost_cfg = _cost_cfg_from(cfg, overrides if overrides else None)
-
-    candidates_map = {}
-    max_workers = sc["max_concurrency"]
-
-    with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futures = {ex.submit(_search_one, p, page_size, same_style_only): p for p in products}
-        for fut in as_completed(futures):
-            pid, cands, _ = fut.result()
-            candidates_map[pid] = cands
-
-    # 串行拉 SKU（非流式：无进度，直接跑完）→ 用服务器默认 provider
-    provider = get_provider(cfg)
-    sku_cache: dict = {}
-    for _ in _fetch_skus_into(provider, candidates_map, sku_cache):
-        pass
-    # step4：调 agent 为每个货品选最佳 SKU（失败/无 SKU 则上游兜底）
-    matches: dict = {}
-    for _ in _match_all(products, candidates_map, sku_cache, matches):
-        pass
-    rows = _build_rows(products, candidates_map, cost_cfg, sku_cache, matches)
-
-    summary = {
-        "total_products": len(rows),
-        "with_1688_data": sum(1 for r in rows if r["has_1688_data"]),
-        "recommended": sum(1 for r in rows if r["recommendation"] == "推荐"),
-        "consider": sum(1 for r in rows if r["recommendation"] == "可考虑"),
-        "warning": sum(1 for r in rows if r["recommendation"] == "预警"),
-        "incomplete": sum(1 for r in rows if r["recommendation"] == "待补全"),
-    }
-
-    return {"summary": summary, "rows": rows, "cost_config": cost_cfg}
-
-
-@router.post("/analyze-stream")
-async def sourcing_analyze_stream(
-    files: List[UploadFile] = File(...),
-    page_size: int = Form(0),
-    same_style_only: bool = Form(True),
-    cny_per_brl: float = Form(0),
-    cost_multiplier: float = Form(-1),
-    target_margin_rate: float = Form(-1),
-    high_margin_rate: float = Form(-1),
-    sku_provider: str = Form(""),
-    limit: int = Form(0),
-):
-    """SSE 流式版 — 实时推送每个产品的搜索进度 + 成本计算结果"""
-    cfg = _cfg()
-    sc = cfg["search"]
-    if page_size <= 0:
-        page_size = sc["page_size"]
-
-    _check_files(files, cfg["limits"]["max_file_size_mb"])
-    df, raw_columns = _read_files(files, cfg["columns"])
-    products = df.to_dict(orient="records")
-    products = _limit_products(products, limit)
-    total = len(products)
-    max_workers = sc["max_concurrency"]
-    logger.info(f"[stream] {len(files)} 个文件, {total} 个产品")
-
-    overrides = {}
-    if cny_per_brl > 0: overrides["cny_per_brl"] = cny_per_brl
-    if cost_multiplier >= 0: overrides["cost_multiplier"] = cost_multiplier
-    if target_margin_rate >= 0: overrides["target_margin_rate"] = target_margin_rate
-    if high_margin_rate >= 0: overrides["high_margin_rate"] = high_margin_rate
-    cost_cfg = _cost_cfg_from(cfg, overrides if overrides else None)
-
-    async def generate():
-        yield _sse("phase", {"phase": "parsing", "message": f"已解析 {total} 个产品"})
-        yield _sse("start", {"total": total, "message": f"开始并发搜图 ({max_workers} 线程)"})
-
-        loop = asyncio.get_event_loop()
-        executor = ThreadPoolExecutor(max_workers=max_workers)
-        candidates_map = {}
-        done = 0
-
-        try:
-            fut_map = {}
-            for p in products:
-                fut = loop.run_in_executor(executor, _search_one, p, page_size, same_style_only)
-                fut_map[fut] = p
-
-            for fut in asyncio.as_completed(fut_map):
-                pid, name, cands, err = await fut
-                done += 1
-                candidates_map[pid] = cands
-                yield _sse("progress", {
-                    "current": done,
-                    "total": total,
-                    "product_id": pid,
-                    "product_name": name,
-                    "candidates_count": len(cands),
-                    "error": err,
-                })
-        finally:
-            executor.shutdown(wait=False)
-
-        # 后端经 SKU Provider 获取价格表（不再依赖浏览器扩展回传）
-        provider = _provider_for_request(cfg, sku_provider)
-        offer_ids = _collect_offer_ids(candidates_map)
-        offer_count = len(offer_ids)
-        yield _sse("phase", {
-            "phase": "fetching_sku",
-            "message": f"经 {provider.name} 串行获取 {offer_count} 个候选的 SKU 价格表（约 {_SKU_REQUEST_INTERVAL_SEC}s/个）..."
-                       if provider.ready else "未配置 SKU Provider，跳过 SKU 价格表",
-            "provider": provider.name,
-            "ready": provider.ready,
-            "total": offer_count,
-        })
-
-        # 串行拉 SKU：每拉完一个 offer 推一条进度（sleep 在线程里跑，不阻塞 event loop）
-        sku_cache: dict = {}
-        if provider.ready and offer_ids:
-            gen = _fetch_skus_into(provider, candidates_map, sku_cache)
-            while True:
-                prog = await loop.run_in_executor(None, lambda: next(gen, None))
-                if prog is None:
-                    break
-                yield _sse("sku_progress", {
-                    **prog,
-                    "message": f"SKU 价格表 {prog['current']}/{prog['total']}",
-                })
-
-        # 图文核对：对每个货品的全部候选并发打图文分（gpt-5.5 vision）
-        from image_verify import verify_candidates as _verify_candidates
-        conf_map: dict = {}
-        total_cands = sum(len(v) for v in candidates_map.values())
-        yield _sse("phase", {
-            "phase": "image_verify",
-            "message": f"图文核对 {total_cands} 个候选（GPT vision）...",
-            "total": len(products),
-        })
-        for idx, prod in enumerate(products, 1):
-            pid = prod["product_id"]
-            shopee_img = prod.get("image_url", "")
-            raw_cands = candidates_map.get(pid, [])
-            cand_structs = [{"item_id": c.get("itemId", ""), "image_url": c.get("imageUrl", ""),
-                             "title": c.get("title", "")} for c in raw_cands]
-            async for kind, payload in _run_with_heartbeat(
-                loop, lambda: _verify_candidates(shopee_img, cand_structs)):
-                if kind == "heartbeat":
-                    yield _heartbeat_frame()
-                else:
-                    conf_map[pid] = payload
-            yield _sse("verify_progress", {
-                "current": idx,
-                "total": len(products),
-                "message": f"图文核对 {idx}/{len(products)}",
-            })
-
-        # step4：调 agent 为每个货品智能匹配最佳 SKU（每货品一次，失败兜底）
-        matches: dict = {}
-        yield _sse("phase", {
-            "phase": "matching_sku",
-            "message": f"AI 智能匹配最佳 SKU（{len(products)} 个货品）...",
-            "ready": True,
-            "total": len(products),
-        })
-        mgen = _match_all(products, candidates_map, sku_cache, matches, conf_map=conf_map)
-        while True:
-            prog = await loop.run_in_executor(None, lambda: next(mgen, None))
-            if prog is None:
-                break
-            yield _sse("match_progress", {
-                **prog,
-                "message": f"AI 匹配 SKU {prog['current']}/{prog['total']}",
-            })
-
-        rows = None
-        async for kind, payload in _run_with_heartbeat(
-            loop, lambda: _build_rows(products, candidates_map, cost_cfg, sku_cache, matches, conf_map)):
-            if kind == "heartbeat":
-                yield _heartbeat_frame()
-            else:
-                rows = payload
-
-        sku_ok = sum(1 for r in rows for c in r["candidates"] if c.get("sku", {}).get("count", 0) > 0)
-        sku_failed = sum(1 for r in rows for c in r["candidates"] if c.get("sku", {}).get("count", 0) == 0)
-        yield _sse("phase", {
-            "phase": "costing",
-            "message": f"SKU 价格表完成（{sku_ok} 成功 / {sku_failed} 无数据），汇总中...",
-        })
-
-        summary = {
-            "total_products": len(rows),
-            "with_1688_data": sum(1 for r in rows if r["has_1688_data"]),
-            "recommended": sum(1 for r in rows if r["recommendation"] == "推荐"),
-            "consider": sum(1 for r in rows if r["recommendation"] == "可考虑"),
-            "warning": sum(1 for r in rows if r["recommendation"] == "预警"),
-            "incomplete": sum(1 for r in rows if r["recommendation"] == "待补全"),
-        }
-
-        yield _sse("complete", {"summary": summary, "rows": rows, "cost_config": cost_cfg, "raw_columns": raw_columns})
-
-    return StreamingResponse(generate(), media_type="text/event-stream",
-                             headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"})
-
-
-# ========== 配置 CRUD ==========
-
-@router.get("/config")
-async def get_config():
-    """读取选品全局配置"""
-    return {"config": _cfg()}
-
-
-@router.put("/config")
-async def update_config(body: dict):
-    """更新选品全局配置（合并写入 YAML，热生效）"""
-    partial = body.get("config", {})
-    if not partial:
-        raise HTTPException(400, "缺少 config 字段")
-    try:
-        current = _cfg()
-        merged = deep_merge(current.copy(), partial)
-        save_sourcing_config(merged)
-        configure_aibuy(merged.get("api", {}))
-        warmup_session()
-        logger.info("[config] 配置已更新")
-        return {"status": "ok", "config": merged}
-    except Exception:
-        logger.exception("[config] 保存失败")
-        raise HTTPException(500, traceback.format_exc())
-
-
-@router.get("/system")
-async def get_system_config():
-    """读取系统配置（proxy_url 等）"""
-    cfg = _cfg()
-    return {"system": cfg.get("system", {})}
-
-
-@router.put("/system")
-async def update_system_config(body: dict):
-    """更新系统配置"""
-    system_cfg = body.get("system", {})
-    if not system_cfg:
-        raise HTTPException(400, "缺少 system 字段")
-    current = _cfg()
-    merged = deep_merge(current.copy(), {"system": system_cfg})
-    save_sourcing_config(merged)
-    logger.info("[config] 系统配置已更新")
-    return {"status": "ok", "system": merged.get("system", {})}
-
-
-@router.post("/config/reload")
-async def reload_config():
-    """强制从 YAML 重新加载配置（清除缓存）"""
-    cfg = reload_sourcing_config()
-    configure_aibuy(cfg["api"])
-    warmup_session()
-    return {"status": "ok", "config": cfg}
-
-
-# ========== SKU Provider 健康状态 ==========
-
-@router.get("/sku-provider/status")
-async def sku_provider_status():
-    """当前 SKU Provider 名称 + 是否就绪，供前端指示灯展示"""
-    provider = get_provider(_cfg())
-    return {
-        "provider": provider.name,
-        "ready": provider.ready,
-        "message": (f"SKU Provider「{provider.name}」已就绪" if provider.ready
-                    else "未配置 SKU Provider，SKU 价格表将为空"),
-    }

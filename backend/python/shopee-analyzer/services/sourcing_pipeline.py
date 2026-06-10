@@ -68,16 +68,17 @@ def _default_match_sku(*args, **kwargs):
 
 
 def match_one(client, shopee: dict, candidate: dict, *, api_key: str, base_url: str,
-              model: str, on_token=None, match_sku_fn=None) -> tuple[dict | None, str | None]:
+              model: str, on_token=None, on_retry=None, match_sku_fn=None) -> tuple[dict | None, str | None]:
     """对单个候选调 LLM 选最佳 SKU。返回 (match_data, fail_reason)。
     无 SKU → (None, 'no_sku_data')；LLM 异常(Permanent/Retryable 耗尽) → (None, 'llm_call_failed')。
-    match_data 为 SkuMatchResult 转的 dict + 回填 matched_item_id（对齐 _build_row 所需字段）。"""
+    match_data 为 SkuMatchResult 转的 dict + 回填 matched_item_id（对齐 _build_row 所需字段）。
+    on_token(tok): 透传 match_sku 的逐字回调；on_retry(): 流中断重试前回调一次。"""
     if not _has_sku(candidate):
         return None, "no_sku_data"
     fn = match_sku_fn or _default_match_sku
     try:
         result, _raw = fn(client, shopee, candidate, api_key=api_key, base_url=base_url,
-                          model=model, on_token=on_token)
+                          model=model, on_token=on_token, on_retry=on_retry)
     except SourcingError as e:
         logger.warning(f"[match] item={candidate.get('item_id','')} LLM 失败: {str(e)[:120]}")
         return None, "llm_call_failed"
@@ -91,21 +92,30 @@ def match_one(client, shopee: dict, candidate: dict, *, api_key: str, base_url: 
 
 
 def match_best(client, shopee: dict, candidates: list, *, api_key: str, base_url: str,
-               model: str, on_token=None, match_sku_fn=None) -> tuple[dict | None, str | None, dict]:
+               model: str, on_token=None, on_retry=None, on_candidate_scored=None,
+               match_sku_fn=None) -> tuple[dict | None, str | None, dict]:
     """逐候选串行调 LLM，取 overall_score 最高者（等价旧 sku_match_client.match_sku_best）。
     返回 (best_data, fail_reason, candidate_scores)。
     单候选失败(catch SourcingError/Exception)被跳过、不阻塞其他候选；
-    全部候选失败 → (None, 'llm_call_failed', {})。"""
+    全部候选失败 → (None, 'llm_call_failed', {})。
+    on_token(item_id, tok) / on_retry(item_id) / on_candidate_scored(item_id, overall_score):
+    逐候选事件回调，已绑定当前候选的 item_id（供 SSE 透传到前端）。"""
     results = []
     candidate_scores: dict = {}
     for cand in candidates:
         if not _has_sku(cand):
             continue
+        iid = cand["item_id"]
+        cand_on_token = (lambda tok, _iid=iid: on_token(_iid, tok)) if on_token else None
+        cand_on_retry = (lambda _iid=iid: on_retry(_iid)) if on_retry else None
         data, _ = match_one(client, shopee, cand, api_key=api_key, base_url=base_url,
-                            model=model, on_token=on_token, match_sku_fn=match_sku_fn)
+                            model=model, on_token=cand_on_token, on_retry=cand_on_retry,
+                            match_sku_fn=match_sku_fn)
         if data is not None:
-            candidate_scores[cand["item_id"]] = data
+            candidate_scores[iid] = data
             results.append(data)
+            if on_candidate_scored:
+                on_candidate_scored(iid, data.get("overall_score"))
 
     if not results:
         return None, "llm_call_failed", {}
@@ -117,10 +127,12 @@ def match_best(client, shopee: dict, candidates: list, *, api_key: str, base_url
 def match_all(products: list, candidates_map: dict, sku_cache: dict, matches: dict,
               *, client, api_key: str, base_url: str, model: str,
               conf_map: dict | None = None, pick_candidate_fn=None,
-              match_sku_fn=None, on_token=None):
+              match_sku_fn=None, on_token=None, on_retry=None,
+              on_candidate_scored=None):
     """step5：逐货品、逐候选调 LLM 选最佳 SKU，按 overall_score 取最高。
     matches[pid] = {"data": ..., "fail_reason": ..., "candidate_scores": ...}。
-    单货品全部候选失败 → 该货品标 fail_reason，不影响其他货品。"""
+    单货品全部候选失败 → 该货品标 fail_reason，不影响其他货品。
+    on_token/on_retry/on_candidate_scored 透传到 match_best（按候选 item_id 绑定）。"""
     pick = pick_candidate_fn or _default_pick_candidate
     total = len(products)
     for i, prod in enumerate(products):
@@ -141,7 +153,8 @@ def match_all(products: list, candidates_map: dict, sku_cache: dict, matches: di
         }
         data, fail_reason, candidate_scores = match_best(
             client, shopee, enriched, api_key=api_key, base_url=base_url,
-            model=model, on_token=on_token, match_sku_fn=match_sku_fn)
+            model=model, on_token=on_token, on_retry=on_retry,
+            on_candidate_scored=on_candidate_scored, match_sku_fn=match_sku_fn)
         matches[pid] = {"data": data, "fail_reason": fail_reason,
                         "candidate_scores": candidate_scores}
         yield {"current": i + 1, "total": total, "item_id": pid}
