@@ -20,7 +20,6 @@
 import asyncio
 import logging
 import queue
-import traceback
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
@@ -370,7 +369,7 @@ async def update_config(body: dict):
         return {"status": "ok", "config": merged}
     except Exception:
         logger.exception("[config] 保存失败")
-        raise HTTPException(500, traceback.format_exc())
+        raise HTTPException(500, {"code": "CONFIG_SAVE_FAILED", "message": "配置保存失败"})
 
 
 @router.get("/system")
