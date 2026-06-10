@@ -268,3 +268,103 @@ def test_env_credentials_override_yaml_placeholder(monkeypatch):
     assert ob["key"] == "envkey"
     assert ob["secret"] == "envsecret"
     reload_sourcing_config()  # 清理缓存，避免污染后续用例
+
+
+# ═══════════════════════════════════════════
+# 6. OneboundProvider HTTP 层迁移（httpx + tenacity 4 次退避）
+#    用 MockTransport 注入网络，零退避工厂避免空等。
+# ═══════════════════════════════════════════
+
+import httpx
+from clients.http import make_retry
+
+
+def _zero_retry(attempts=4):
+    """复用真实重试策略（只对 RetryableError 重试），但 max_wait=0 免空等。"""
+    return make_retry(attempts=attempts, max_wait=0)
+
+
+def test_onebound_request_parses_200(monkeypatch):
+    """① 200 正常响应 → _request 拿到 dict，fetch_sku 解析出 SKU 列表"""
+    from sku_provider import OneboundProvider
+    body = _load_fixture()
+
+    def handler(req):
+        assert "num_iid" in str(req.url)
+        return httpx.Response(200, json=body)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    p = OneboundProvider({"key": "k", "secret": "s"}, client=client)
+    monkeypatch.setattr(p, "_retry_factory", lambda: _zero_retry(4))
+    result = p.fetch_sku("740919115663")
+    assert result["error"] is None
+    assert result["sku_count"] == 6
+
+
+def test_onebound_429_retries_then_exhausts():
+    """② 429 → 触发重试，最多 4 次后耗尽（计数验证）；fetch_sku 不抛、返回带 error 空结果"""
+    from sku_provider import OneboundProvider
+    calls = {"n": 0}
+
+    def handler(req):
+        calls["n"] += 1
+        return httpx.Response(429, text="rate limited")
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    p = OneboundProvider({"key": "k", "secret": "s"}, client=client)
+    p._retry_factory = lambda: _zero_retry(4)
+    result = p.fetch_sku("123")
+    assert calls["n"] == 4  # 恰好 4 次后耗尽
+    assert result["sku_count"] == 0
+    assert "onebound 请求失败" in result["error"]
+
+
+def test_onebound_400_permanent_no_retry():
+    """③ 400 → PermanentError，不重试（仅调用 1 次）"""
+    from sku_provider import OneboundProvider
+    calls = {"n": 0}
+
+    def handler(req):
+        calls["n"] += 1
+        return httpx.Response(400, text="bad request")
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    p = OneboundProvider({"key": "k", "secret": "s"}, client=client)
+    p._retry_factory = lambda: _zero_retry(4)
+    result = p.fetch_sku("123")
+    assert calls["n"] == 1  # 不可恢复，立即失败
+    assert result["sku_count"] == 0
+    assert result["error"] is not None
+
+
+def test_onebound_uses_attempts_4_by_default():
+    """_request 默认重试策略 attempts=4（万邦试用档易 429/503，需慢退多试）"""
+    from sku_provider import OneboundProvider
+    calls = {"n": 0}
+
+    def handler(req):
+        calls["n"] += 1
+        return httpx.Response(503, text="unavailable")
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    p = OneboundProvider({"key": "k", "secret": "s"}, client=client)
+    # 用零退避包装真实工厂以验证“次数”而非空等真实退避时长
+    import sku_provider as _sp
+    orig = _sp.make_retry
+    _sp.make_retry = lambda attempts=3, max_wait=30.0: orig(attempts=attempts, max_wait=0)
+    try:
+        result = p.fetch_sku("123")
+    finally:
+        _sp.make_retry = orig
+    assert calls["n"] == 4
+    assert result["sku_count"] == 0
+
+
+def test_onebound_fetch_sku_swallows_underlying_error(monkeypatch):
+    """④ 底层抛任意异常 → fetch_sku 仍返回带 error 空结果，不向上抛（不阻塞上游）"""
+    from sku_provider import OneboundProvider
+    p = OneboundProvider({"key": "k", "secret": "s"})
+    monkeypatch.setattr(p, "_request", lambda iid: (_ for _ in ()).throw(RuntimeError("boom")))
+    result = p.fetch_sku("123")  # 不应抛
+    assert result["sku_count"] == 0
+    assert "onebound 请求失败" in result["error"]

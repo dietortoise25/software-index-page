@@ -18,9 +18,11 @@ import logging
 import os
 import threading
 import hashlib
-import urllib.parse
-import urllib.request
-from typing import Any
+from typing import Any, Callable, Optional
+
+import httpx
+
+from clients.http import make_client, make_retry, request_json
 
 logger = logging.getLogger("sku_provider")
 
@@ -126,23 +128,36 @@ class OneboundProvider(SkuProvider):
     name = "onebound"
     BASE_URL = "https://api-gw.onebound.cn/1688/item_get"
 
-    def __init__(self, conf: dict[str, Any] | None = None):
+    def __init__(self, conf: dict[str, Any] | None = None,
+                 client: Optional[httpx.Client] = None):
         conf = conf or {}
         self._key = conf.get("key", "")
         self._secret = conf.get("secret", "")
         self.ready = bool(self._key and self._secret)
+        # 可注入 httpx client（测试用 MockTransport）；默认惰性创建共享 client
+        self._client = client
+        # 可注入重试工厂（测试用零退避）；默认 make_retry(attempts=4) — 万邦试用档易 429/503，慢退多试
+        self._retry_factory: Optional[Callable] = None
+
+    def _get_client(self) -> httpx.Client:
+        if self._client is None:
+            self._client = make_client(read_timeout=40.0)
+        return self._client
+
+    def _get_retry(self):
+        if self._retry_factory is not None:
+            return self._retry_factory()
+        return make_retry(attempts=4, max_wait=30.0)
 
     def _request(self, item_id: str) -> dict[str, Any]:
-        params = urllib.parse.urlencode({
+        params = {
             "key": self._key, "secret": self._secret,
             "num_iid": item_id, "lang": "cn",
-        })
-        with urllib.request.urlopen(f"{self.BASE_URL}?{params}", timeout=40) as r:
-            raw = r.read()
-        try:
-            return json.loads(raw.decode("utf-8"))
-        except UnicodeDecodeError:
-            return json.loads(raw.decode("gbk"))  # 万邦报错信息常为 GBK
+        }
+        return request_json(
+            self._get_client(), "GET", self.BASE_URL,
+            retry=self._get_retry(), params=params,
+        )
 
     def fetch_sku(self, item_id: str) -> dict[str, Any]:
         try:
