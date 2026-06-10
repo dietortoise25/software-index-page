@@ -47,3 +47,27 @@ export function getModel(overrides?: ModelOverrides): BaseChatModel {
     modelKwargs: c.modelKwargs,
   })
 }
+
+// 新闻汇总专用 LLM 配置：优先读 NEW_API_*/NEWS_SUMMARY_MODEL，缺失时回落到全局 LLM_* 配置
+function newsConfig(): ResolvedConfig {
+  const g = globalConfig()
+  return {
+    ...g,
+    model: process.env.NEWS_SUMMARY_MODEL || g.model,
+    apiKey: process.env.NEW_API_KEY || g.apiKey,
+    baseURL: process.env.NEW_API_URL || g.baseURL,
+  }
+}
+
+export function getNewsModel(overrides?: ModelOverrides): BaseChatModel {
+  const c = { ...newsConfig(), ...overrides }
+
+  return new ChatOpenAI({
+    apiKey: c.apiKey,
+    model: c.model,
+    temperature: c.temperature,
+    maxTokens: c.maxTokens,
+    configuration: { baseURL: c.baseURL },
+    modelKwargs: c.modelKwargs,
+  })
+}

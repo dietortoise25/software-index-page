@@ -1,7 +1,7 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages"
 import { z } from "zod"
 import { jsonrepair } from "jsonrepair"
-import { getModel } from "../config/model.js"
+import { getNewsModel } from "../config/model.js"
 import { getNewsConfig, type NewsConfig, type NewsSourceOptions } from "../db/queries/news-config.js"
 
 function robustJsonParse(raw: string): unknown {
@@ -101,7 +101,7 @@ export async function runNewsDigest(
     if (goal && goal.trim()) {
       onStage({ status: "generating_topics" })
 
-      const topicModel = getModel({ temperature: 0.5 })
+      const topicModel = getNewsModel({ temperature: 0.5 })
       const topicResponse = await topicModel.invoke([
         new SystemMessage(`根据用户目标生成新闻搜索策略。输出JSON格式（只输出JSON，不要其他文字）：
 {
@@ -205,7 +205,7 @@ export async function runNewsDigest(
 
     const topicTagList = searchTopics.map(t => `"${t}"`).join(", ")
 
-    const model = getModel({ temperature: 0.3 })
+    const model = getNewsModel({ temperature: 0.3 })
     const response = await model.invoke([
       new SystemMessage(`你是新闻摘要助手。从搜索结果中挑选最重要的新闻（最多${config.card_count}条），输出JSON格式的新闻卡片。
 注意：所有内容必须翻译成中文，包括标题、摘要、标签。
@@ -245,7 +245,7 @@ export async function runNewsDigest(
           await finishRun(runId, "failed", { error: errMsg, result_count: rawResults.length })
           return
         }
-        const retryModel = getModel({ temperature: 0.1 })
+        const retryModel = getNewsModel({ temperature: 0.1 })
         const retryResponse = await retryModel.invoke([
           new SystemMessage(`你之前的输出格式有误，请修正后重新输出（只输出完整JSON，必须包含 items 和 tags 数组字段）。`),
           new HumanMessage(`错误：${(e as Error).message}\n\n之前输出：${content.slice(0, 2000)}\n\n修正后重新输出完整JSON。`),
@@ -254,7 +254,11 @@ export async function runNewsDigest(
       }
     }
 
-    if (!cardData) return
+    if (!cardData) {
+      onStage({ status: "error", stage: "summarizing", error: "未能生成有效卡片数据" })
+      await finishRun(runId, "failed", { error: "未能生成有效卡片数据", result_count: rawResults.length })
+      return
+    }
 
     onStage({ status: "summarize_done", thinking: content.slice(0, 800) })
 
