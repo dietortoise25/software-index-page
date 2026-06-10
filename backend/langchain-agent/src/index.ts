@@ -7,9 +7,9 @@ import { conversationsRouter } from "./routes/conversations.js"
 import { newsConfigRouter } from "./routes/news-config.js"
 import { newsConfigsRouter } from "./routes/news-configs.js"
 import { newsDigestRouter } from "./routes/news-digest.js"
-import { skuMatchRouter } from "./routes/sku-match.js"
 import { rebuildCronJobs } from "./lib/cron-scheduler.js"
 import { ensureTables } from "./db/setup.js"
+import { failStaleRuns } from "./db/queries/news-digest-runs.js"
 
 // 注册内置工具（side-effect import）
 import "./tools/built-in/get-current-time.js"
@@ -32,7 +32,6 @@ app.use("/api/agent", conversationsRouter)
 app.use("/api/agent", newsConfigRouter)
 app.use("/api/agent", newsConfigsRouter)
 app.use("/api/agent", newsDigestRouter)
-app.use("/api/agent", skuMatchRouter)
 
 app.listen(PORT, async () => {
   console.log(`[agent] Agent 运行时平台已启动 → http://localhost:${PORT}`)
@@ -43,5 +42,7 @@ app.listen(PORT, async () => {
   console.log(`[agent] 新闻配置 API: GET/PUT http://localhost:${PORT}/api/agent/news-config`)
   console.log(`[agent] 新闻汇集 API: POST http://localhost:${PORT}/api/agent/news-digest/run`)
   await ensureTables()
+  const swept = await failStaleRuns()
+  if (swept > 0) console.log(`[agent] 启动清扫：已将 ${swept} 条僵尸 running 记录标记为 failed`)
   rebuildCronJobs().catch(err => console.error("[agent] 启动时初始化定时任务失败:", err))
 })
