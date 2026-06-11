@@ -3,177 +3,93 @@ name: deploy
 description: 服务器端构建部署。触发：用户说"部署"、"更新网站"、"发布"、"上传服务器"等。
 metadata:
   author: Alan
-  version: "3.0.0"
+  version: "4.0.0"
   source: project
 ---
 
 # 部署 Skill
 
-## 服务器信息
+> **本文档只记录「不变的铁律」和「指针」，不记录会腐烂的清单。**
+> 具体有哪些服务、端口、变量——交给 `scripts/healthcheck.sh` 现场探测，不要写死在文档里（写死必过时，这是 3.x 版本踩坑的根源）。
 
-| 项目 | 值 |
-|------|-----|
-| 服务器IP | `42.193.170.109` |
-| 系统 | Ubuntu 24.04 (腾讯云) |
-| 登录用户 | `ubuntu` |
-| Node.js | v22.22.2 (NodeSource) |
-| 包管理器 | pnpm 10.33.4 |
+## 服务器
+
+| 项 | 值 |
+|----|-----|
+| IP | `42.193.170.109` |
+| 用户 | `ubuntu`（有 sudo） |
 | SSH 密钥 | `~/.ssh/alan_pc.pem` |
-| 网站根目录 | `/var/www/software-index/` |
+| 登录 | `ssh -o StrictHostKeyChecking=no ubuntu@42.193.170.109` |
 
-## 架构概览
+## 部署前后必做（强制）
 
-```
-/var/www/software-index/
-├── index.html              # 前端 SPA
-├── assets/                 # 前端静态资源
-├── ppt/                    # PPT 文件
-├── downloads/              # 软件安装包
-├── server/                 # 后端 API (relay.service · 端口 8765)
-│   ├── dist/               # tsc 编译产物
-│   └── node_modules/
-├── platform/               # 千易ERP 数据中台 (qianyi-scheduler.service)
-│   ├── dist/               # tsc 编译产物
-│   └── node_modules/
-└── tools/
-    └── return-workflow/    # 退货工作流 (return-workflow.service · 端口 3002)
-        ├── dist/
-        ├── data_example/
-        └── node_modules/
+**每次执行部署任务，先做这两步，不可跳过：**
 
-/var/www/shopee-analyzer/   # Shopee 数据分析 (shopee-analyzer.service · 端口 8000)
-├── main.py                 # Python FastAPI 入口
-├── .venv/                  # Python 虚拟环境
-└── requirements.txt
-```
+1. **核对文档与现实差异**：本文档可能已过时。动手前用 `systemctl list-units --type=service` 和
+   `systemctl cat <svc>` 核对真实的服务、端口、env 来源，与你脑中/本文档的假设比对。
+   发现不符 → 先报告用户，再继续。**不要基于本文档的旧清单想当然。**
+2. **跑体检**：部署完成后必须 `bash scripts/healthcheck.sh`，全绿才算成功。
+   `sync-env.sh` 末尾已自动调用（改 env 后）；其他部署方式需手动跑一次。
 
-## Systemd 服务
+## 环境变量铁律（最重要，2026-06 重构确立）
 
-| 服务名 | 进程 | 端口 | 说明 |
-|--------|------|------|------|
-| `relay` | node server/dist/index.js | 127.0.0.1:8765 | 审查 API + AI 对话 + 内部管理接口 |
-| `qianyi-scheduler` | node platform/dist/sync/scheduler.js | — | 千易ERP 数据同步（订单5分钟/商品30分钟）|
-| `return-workflow` | node dist/index.js | 127.0.0.1:3002 | 退货工作流 |
-| `shopee-analyzer` | uvicorn main:app | 127.0.0.1:8000 | Shopee 数据分析 (Python FastAPI) |
+env 是这个项目最容易出事的地方，铁律如下：
 
-## Nginx 路由
+1. **单一来源**：所有服务的密钥/连接串只住在服务器 `/home/ubuntu/.env` 一处。
+2. **统一注入**：所有 systemd 服务用 `EnvironmentFile=-/home/ubuntu/.env` 注入，
+   **禁止**在 `.service` 里写 `Environment=KEY=VALUE` 硬编码密钥。
+3. **子目录禁放 .env**：服务 WorkingDirectory 下**不准**有 `.env` 文件。
+   原因：Node 服务多有 `import "dotenv/config"`，会读子目录 .env 并可能与 EnvironmentFile
+   冲突，导致"改了 /home/ubuntu/.env 却不生效"的诡异问题（排查极耗时）。
+4. **唯一编辑源**：本地项目根 `.env` 是唯一手工编辑入口，`scripts/sync-env.sh` 同步到
+   `/home/ubuntu/.env`。改 env 永远先改本地根 .env 再 sync，不要直接 ssh 上去手改。
+5. **所有连库服务必须指向同一个库**。healthcheck 铁律2 会校验这一点。
 
-| 路径 | 转发 | 说明 |
-|------|------|------|
-| `/api/return-workflow/` | `127.0.0.1:3002` | 退货工作流（最长前缀优先匹配） |
-| `/api/` | `127.0.0.1:8765` | 审查/内部管理 API |
-| `/*` | 静态文件 | SPA fallback 到 index.html |
+## 部署方式
 
-## 部署方式（3 种，按场景选用）
+> 具体脚本名/参数以 `scripts/` 目录现状为准（核对，别背）。当前已知：
 
-### 1. Git 推送 → CI/CD（前端日常更新）★ 推荐
+- **前端**：`git push origin main` → GitHub Actions 自动 build + 部署。改了 `src/` 走这个。
+- **ZIP 上传安装包**：`bash scripts/deploy.sh <zip路径>` → 传到 `downloads/`，不动代码。
+- **后端代码**：服务器上 `git pull` 后各服务目录 `pnpm build` + `systemctl restart <svc>`。
+  （注意 deploy 仓有 post-receive 钩子，`git push deploy main` 会触发自动构建+重启。）
+- **改 env**：改本地根 `.env` → `bash scripts/sync-env.sh` → 重启受影响服务。
 
-```bash
-git add . && git commit -m "..." && git push origin main
-```
+## Git 流程规范
 
-GitHub Actions (`.github/workflows/deploy.yml`) 自动：`pnpm build` → `rsync dist/` 到服务器 → `nginx reload`。
-
-适用：修改了 `src/` 下任何前端代码（包括 `software.ts`、`changelog.ts`）。
-
-### 2. ZIP 上传（发布插件/工具安装包）
-
-```bash
-eval $(ssh-agent) && ssh-add ~/.ssh/alan_pc.pem
-bash scripts/deploy.sh publish/文件名.zip
-```
-
-仅上传文件到 `/var/www/software-index/downloads/`，不触发代码更新。
-
-### 3. 完整服务器端构建（后端 + 退货工作流）
-
-```bash
-eval $(ssh-agent) && ssh-add ~/.ssh/alan_pc.pem
-bash scripts/deploy-full.sh           # 全部
-bash scripts/deploy-full.sh --server   # 仅后端 API
-bash scripts/deploy-full.sh --rw       # 仅退货工作流
-```
-
-适用：修改了 `server/`、`platform/`、`tools/return-workflow/`。
-
-## 发布新插件/工具版本完整流程
-
-```
-1. 更新 src/data/software.ts  — 添加新版本记录（isLatest: true，旧版改 false）
-2. 更新 src/data/changelog.ts — 添加更新日志条目
-3. bash scripts/deploy.sh publish/xxx.zip  — 上传安装包到服务器
-4. git add . && git commit -m "release: xxx vX.Y.Z" && git push origin main
-   → GitHub Actions 自动部署前端
-```
-
-> **注意**：步骤 3 和 4 无先后依赖，可并行执行。
-
-## 环境变量
-
-路径：项目根目录 `.env`（部署时会复制到服务器 `/var/www/software-index/.env`）
-
-| 变量 | 用途 |
-|------|------|
-| `SERVER_HOST` / `SERVER_IP` / `SERVER_USER` | SSH 连接信息 |
-| `SSH_KEY_PATH` | 私钥路径 |
-| `DEEPSEEK_API_KEY` | AI 对话 |
-| `REVIEW_PIN` | 审查/看板/内部管理 PIN 码 |
-| `API_ENV` | 千易环境（production_asia） |
-| `PRODUCTION_ASIA_URL` / `_APP_ID` / `_APP_SECRET` | 千易 API 凭证 |
-| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | ERP 数据读取 |
-| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | 前端看板数据读取（Vite 要求 VITE_ 前缀） |
+- **deploy 远程**（裸仓 `git push deploy main`）触发服务器构建；**origin**（GitHub）触发前端 CI。
+  两者是不同的 remote，别混。
+- **不强推 main**，除非明确清理历史且用户已确认。
+- **密钥绝不进 git**：`.env` 已 gitignore。若发现历史里有明文，用 `git filter-repo` 重写并
+  force 覆盖 deploy 仓 + 删裸仓遗留引用 + gc prune（高危，逐步确认）。
+- 改 systemd / 删服务器文件 / 重启服务属高危，先报告再做。
 
 ## 踩坑记录
 
-### 1. Shell `cd` 副作用（导致 3 次部署失败）
+### A. env 多来源导致连错库（2026-06，排查数小时）
+**现象**：agent 接口全 401。**根因**：`DATABASE_URL` 在 4 处各有一份（relay.service 硬编码=对，
+其余 .env=指向已废弃的 `ap-southeast-1` 库），靠 systemd 注入顺序+dotenv 隐式规则决定生效值，
+agent 连了连不上的废库。**教训**：见上方 env 铁律。**防复发**：healthcheck 铁律2/3。
 
-**现象**：`cp -r platform/dist $ROOT/platform/` 报 `No such file or directory`
+### B. 假 000 健康检查（每次部署都像失败）
+post-receive 钩子重启后 `sleep` 太短就 curl，服务没起完返回 `000`，误报部署失败。
+**对策**：healthcheck 用 `-m 5` 超时 + 真 200 判定；钩子里健康检查应轮询重试而非单次。
 
-**原因**：远程部署脚本中 `cd $ROOT/server && pnpm install` 切换了当前目录，后面的 `cp -r platform/dist` 变成了相对于 `$ROOT/server/` 而非 `/tmp/dep/`。
+### C. SSE 长流撞 nginx 60s 读超时
+选品分析 SSE 帧间静默 >60s 被 nginx 掐断。**对策**：nginx 对 SSE location 设
+`proxy_read_timeout 600s; proxy_buffering off`，应用层加心跳帧兜底。
 
-**修复**：用子 shell 代替裸 `cd`：
-```bash
-# ❌ 错误
-cd /target && some_command    # 当前目录永久切换
+### D. Shell `cd` 副作用（旧坑，已修）
+部署脚本里裸 `cd` 永久改当前目录，后续相对路径错位。用子 shell `(cd x && cmd)` 隔离。
 
-# ✅ 正确
-(cd /target && some_command)  # 子 shell 结束后回到原目录
-```
+### E. `.env` 含空格变量名 `source` 失败（旧坑）
+`Encrypt Key=...` 含空格被 bash 当命令执行。脚本用 `grep|cut` 逐键提取，不要 `source .env`。
 
-这是 shell 脚本的经典陷阱，不是架构问题。
+### F. Node <22 无原生 WebSocket
+`@supabase/supabase-js` 报错。服务器 Node 已升 v22，勿降级。
 
-### 2. `.env` 含空格变量名导致 `source` 失败
+## 体检脚本说明
 
-**现象**: `bash scripts/deploy.sh` 报 `Encrypt: command not found`
-
-**原因**: `.env` 中 `Encrypt Key=601814` 含空格，`source .env` 时 bash 将其解析为执行命令 `Encrypt` 带参数 `Key=601814`。
-
-**修复**: 用 `grep` 逐变量提取替代 `source`：
-```bash
-env_val() {
-    local key="$1"
-    local default="$2"
-    local val
-    val=$(grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
-    val=$(echo "$val" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-    echo "${val:-$default}"
-}
-SERVER_USER="$(env_val SERVER_USER)"
-```
-
-### 3. Node.js v20 没有原生 WebSocket
-
-**现象**：`@supabase/supabase-js` 在 Node v20 上报 `No native WebSocket support`
-
-**修复**：将服务器 Node 升到 v22（有原生 WebSocket），一劳永逸，无需 `ws` polyfill。
-
-### 4. `.env` 不应提交到 Git
-
-`.env` 已在 `.gitignore` 中。部署时通过 `scp` 手动上传或服务器上直接编辑。前端需要的 `VITE_SUPABASE_*` 变量要额外在 `.env` 中声明（不提交），Vite build 时会内联到 JS 中。
-
-### 5. PIN 认证复用
-
-看板 (`/dashboard`) 和内部管理 (`/internal/admin`) 复用同一个 PIN 验证流程：
-- 前端用 `sessionStorage.getItem("dash_pin")` 保持登录态
-- 每次 API 调用在 body 中携带 `pin` 字段
-- 后端 `/api/internal/*` 路由验证 PIN 与 `REVIEW_PIN` 是否一致
+`scripts/healthcheck.sh`：**自发现**本项目服务（按 WorkingDirectory 路径归属判定，新增服务
+自动纳入，不写死清单），校验 4 条与版本无关的铁律：① 服务全 active ② 连库服务指向同一库
+③ 无子目录 .env 残留 ④ DB 实测连通 + 端口真 200。退出码非 0 即有问题，已挂进部署流程。

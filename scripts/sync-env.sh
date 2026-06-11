@@ -30,3 +30,10 @@ echo ""
 echo "如需重启服务使变更生效:"
 echo "  git push deploy main"
 echo "  或: ssh $SERVER_USER@$SERVER_IP 'sudo systemctl restart relay'"
+
+# env 改动是最易出问题的操作，同步后自动体检（铁律2 会抓出连错库等问题）
+if [ -x "$SCRIPT_DIR/healthcheck.sh" ]; then
+  echo ""
+  echo "=== 自动体检（env 同步后）==="
+  bash "$SCRIPT_DIR/healthcheck.sh" || echo "（体检发现问题，见上。注意：重启服务后 env 才完全生效，可重跑体检确认）"
+fi
