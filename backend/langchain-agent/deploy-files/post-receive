@@ -119,7 +119,7 @@ while read oldrev newrev refname; do
   sudo fuser -k 8765/tcp 2>/dev/null || true
   sleep 1
   sudo systemctl restart relay qianyi-scheduler return-workflow shopee-analyzer langchain-agent
-  sleep 3
+  sleep 12  # Node 服务冷启动 + better-auth 初始化需时间，太短会让下面验证报假 000
 
   echo "[deploy] 验证..."
   HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/ 2>/dev/null || echo "000")
