@@ -34,7 +34,9 @@ while read oldrev newrev refname; do
   cd "$BUILD_DIR/backend/langchain-agent" && CI=true pnpm install --frozen-lockfile 2>/dev/null || CI=true pnpm install --no-frozen-lockfile && pnpm build
 
   echo "[deploy] 构建 return-workflow..."
-  cd "$BUILD_DIR/tools/return-workflow" && CI=true pnpm install --frozen-lockfile 2>/dev/null || CI=true pnpm install --no-frozen-lockfile && npx tsc
+  # return-workflow 在 monorepo 内但不属 pnpm workspace（有独立 lockfile），
+  # 必须 --ignore-workspace 才会真正安装自己的依赖，否则 pnpm 误认根 workspace 已满足而空装
+  cd "$BUILD_DIR/tools/return-workflow" && CI=true pnpm install --ignore-workspace --frozen-lockfile 2>/dev/null || CI=true pnpm install --ignore-workspace --no-frozen-lockfile && npx tsc
 
   echo "[deploy] 构建前端..."
   cd "$BUILD_DIR" && pnpm build
@@ -77,7 +79,7 @@ while read oldrev newrev refname; do
   cp "$RW_SRC/package.json" "$RW_DIR/"
   [ -f "$RW_SRC/pnpm-lock.yaml" ] && cp "$RW_SRC/pnpm-lock.yaml" "$RW_DIR/"
   sudo chown -R ubuntu:ubuntu "$RW_DIR" 2>/dev/null || true
-  cd "$RW_DIR" && CI=true pnpm install --prod
+  cd "$RW_DIR" && CI=true pnpm install --ignore-workspace --prod
 
   echo "[deploy] 部署 shopee-analyzer..."
   SHOPEE_SRC="$BUILD_DIR/backend/python/shopee-analyzer"
