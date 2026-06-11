@@ -75,7 +75,7 @@ export function loadConfig(): ReturnWorkflowConfig {
   envOverride("FEISHU_TABLE_WAREHOUSE", "FEISHU_TABLE_WAREHOUSE", cfg)
   envOverride("FEISHU_TABLE_NON_WAREHOUSE", "FEISHU_TABLE_NON_WAREHOUSE", cfg)
   envOverride("TABLE_STORE_MAP", "TABLE_STORE_MAP", cfg)
-  envOverride("PORT", "PORT", cfg)
+  envOverride("RETURN_WORKFLOW_PORT", "PORT", cfg)
   envOverride("DATA_DIR", "DATA_DIR", cfg)
   envOverride("CONCURRENCY", "CONCURRENCY", cfg)
   envOverride("UPLOAD_FILE_SIZE_MB", "UPLOAD_FILE_SIZE_MB", cfg)
