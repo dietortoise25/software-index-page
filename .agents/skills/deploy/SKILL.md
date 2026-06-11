@@ -3,7 +3,7 @@ name: deploy
 description: 服务器端构建部署。触发：用户说"部署"、"更新网站"、"发布"、"上传服务器"等。
 metadata:
   author: Alan
-  version: "4.0.0"
+  version: "4.1.0"
   source: project
 ---
 
@@ -49,19 +49,44 @@ env 是这个项目最容易出事的地方，铁律如下：
 
 > 具体脚本名/参数以 `scripts/` 目录现状为准（核对，别背）。当前已知：
 
-- **前端**：`git push origin main` → GitHub Actions 自动 build + 部署。改了 `src/` 走这个。
+- **唯一真部署通道**：`git push deploy main`。`deploy` 是直连服务器裸仓
+  `ubuntu@42.193.170.109:/var/git/software-index.git` 的 remote，其 `hooks/post-receive`
+  钩子会全量构建（前端 + server + agent + platform + return-workflow）+ 安装四个 service
+  + 重启全部服务。**前端和后端都走这一条，不存在"前端走 GitHub CI"那回事。**
 - **ZIP 上传安装包**：`bash scripts/deploy.sh <zip路径>` → 传到 `downloads/`，不动代码。
-- **后端代码**：服务器上 `git pull` 后各服务目录 `pnpm build` + `systemctl restart <svc>`。
-  （注意 deploy 仓有 post-receive 钩子，`git push deploy main` 会触发自动构建+重启。）
+  （与 git 钩子并存的第二套路径，是潜在漂移源，非必要别用。）
 - **改 env**：改本地根 `.env` → `bash scripts/sync-env.sh` → 重启受影响服务。
 
-## Git 流程规范
+## Git remote 与流程规范（2026-06 实测确立）
 
-- **deploy 远程**（裸仓 `git push deploy main`）触发服务器构建；**origin**（GitHub）触发前端 CI。
-  两者是不同的 remote，别混。
-- **不强推 main**，除非明确清理历史且用户已确认。
-- **密钥绝不进 git**：`.env` 已 gitignore。若发现历史里有明文，用 `git filter-repo` 重写并
-  force 覆盖 deploy 仓 + 删裸仓遗留引用 + gc prune（高危，逐步确认）。
+这个项目有**两个 remote，职责完全不同，别混**：
+
+| remote | 指向 | 职责 |
+|--------|------|------|
+| `deploy` | 服务器裸仓 `ubuntu@42.193.170.109:/var/git/software-index.git` | **唯一真部署通道**。`git push deploy main` 触发 post-receive 全量构建+重启。 |
+| `origin` | GitHub `dietortoise25/software-index-page` | **纯备份，不参与部署**（用户嫌 GitHub 慢，刻意不让部署走它）。GitHub **没有** Actions/CI 部署。 |
+
+**关键认知（否则会误判）：**
+- **本地工作树是权威主线**。GitHub 上的 main 曾长期脱节——本地领先 origin 282 个提交、
+  origin 只有 5 个老分叉提交（早期 chatbox 旧并行版，本地已有更全实现）。
+  推 GitHub 时若遇分叉，默认**以本地为准**。
+- **推送顺序**：部署用 `git push deploy main`；备份用 `git push origin main`。两者独立，
+  改了代码想既上线又备份就两条都推。日常 `git status` 跟踪的是 origin（已设上游）。
+- **强推 origin 是允许的**（它只是备份、本地权威）：分叉且确认本地更全时，
+  `git push --force-with-lease origin main` 覆盖即可——但**先确认 origin 独有提交的功能
+  本地确实已有**（用 `git diff main...origin/main --stat` + 查文件是否存在），别盲推丢东西。
+- **强推 deploy 要谨慎**：它连着生产，force 会让钩子按被覆盖后的代码重建。非清理历史别 force。
+- **钩子/service 文件是版本库单一来源**：post-receive（`backend/langchain-agent/deploy-files/post-receive`）
+  和四个 `.service`（server/relay、platform/qianyi-scheduler、tools/return-workflow、
+  backend/langchain-agent）都在版本库里，部署时钩子自动 `cp` 到服务器使其跟随版本库。
+  改钩子后要 `scp` 装回服务器裸仓 `hooks/post-receive` 才生效（push 不会自动更新钩子本身）。
+
+**安全红线：**
+- **密钥绝不进 git**：`.env` 已 gitignore；`.service` 一律用 EnvironmentFile，不写明文。
+  若发现历史里有明文（relay/qianyi 旧 service 曾有），见 [[git-secret-cleanup-history]]，
+  清理需 `git filter-repo` 重写 + force 覆盖两个 remote（高危，逐步确认）。
+- **大二进制别进 git**：`public/about-bgm.m4a`(59M) 已是单版本可接受上限。再有大文件考虑
+  移出 git 或 Git LFS——否则撞 GitHub 50M 推荐上限、拖慢推送。
 - 改 systemd / 删服务器文件 / 重启服务属高危，先报告再做。
 
 ## 踩坑记录
