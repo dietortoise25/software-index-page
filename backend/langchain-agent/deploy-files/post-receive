@@ -17,21 +17,24 @@ while read oldrev newrev refname; do
   echo "[deploy] 检出代码..."
   git --work-tree="$BUILD_DIR" --git-dir="$GIT_DIR" checkout -f main
 
-  echo "[deploy] 复制 .env..."
+  # 仅构建期根 .env（vite build 读 VITE_ 变量）；运行时一律靠 systemd EnvironmentFile 读 /home/ubuntu/.env，不再生成任何子目录 .env
+  echo "[deploy] 复制构建期根 .env..."
   cp "$ENV_FILE" "$BUILD_DIR/.env"
-  cp "$ENV_FILE" "$BUILD_DIR/server/.env"
 
   echo "[deploy] 安装根依赖..."
-  cd "$BUILD_DIR" && pnpm install --frozen-lockfile 2>/dev/null || pnpm install --no-frozen-lockfile
+  cd "$BUILD_DIR" && CI=true pnpm install --frozen-lockfile 2>/dev/null || CI=true pnpm install --no-frozen-lockfile
 
   echo "[deploy] 构建 platform..."
-  cd "$BUILD_DIR/platform" && pnpm install --frozen-lockfile 2>/dev/null || pnpm install --no-frozen-lockfile && pnpm build
+  cd "$BUILD_DIR/platform" && CI=true pnpm install --frozen-lockfile 2>/dev/null || CI=true pnpm install --no-frozen-lockfile && pnpm build
 
   echo "[deploy] 构建 server..."
-  cd "$BUILD_DIR/server" && pnpm install --frozen-lockfile 2>/dev/null || pnpm install --no-frozen-lockfile && pnpm build
+  cd "$BUILD_DIR/server" && CI=true pnpm install --frozen-lockfile 2>/dev/null || CI=true pnpm install --no-frozen-lockfile && pnpm build
 
   echo "[deploy] 构建 agent..."
-  cd "$BUILD_DIR/backend/langchain-agent" && pnpm install --frozen-lockfile 2>/dev/null || pnpm install --no-frozen-lockfile && pnpm build
+  cd "$BUILD_DIR/backend/langchain-agent" && CI=true pnpm install --frozen-lockfile 2>/dev/null || CI=true pnpm install --no-frozen-lockfile && pnpm build
+
+  echo "[deploy] 构建 return-workflow..."
+  cd "$BUILD_DIR/tools/return-workflow" && CI=true pnpm install --frozen-lockfile 2>/dev/null || CI=true pnpm install --no-frozen-lockfile && npx tsc
 
   echo "[deploy] 构建前端..."
   cd "$BUILD_DIR" && pnpm build
@@ -46,7 +49,6 @@ while read oldrev newrev refname; do
   mkdir -p "$DEPLOY_DIR/server/dist"
   cp -r "$BUILD_DIR/server/dist/"* "$DEPLOY_DIR/server/dist/"
   cp "$BUILD_DIR/server/package.json" "$BUILD_DIR/server/pnpm-lock.yaml" "$DEPLOY_DIR/server/"
-  cp "$ENV_FILE" "$DEPLOY_DIR/server/.env"
   sudo chown -R ubuntu:ubuntu "$DEPLOY_DIR/server" 2>/dev/null || true
   cd "$DEPLOY_DIR/server" && CI=true pnpm install --prod
 
@@ -66,6 +68,17 @@ while read oldrev newrev refname; do
   sudo chown -R ubuntu:ubuntu "$DEPLOY_DIR/platform" 2>/dev/null || true
   cd "$DEPLOY_DIR/platform" && CI=true pnpm install --prod
 
+  echo "[deploy] 部署 return-workflow..."
+  RW_SRC="$BUILD_DIR/tools/return-workflow"
+  RW_DIR="$DEPLOY_DIR/tools/return-workflow"
+  rm -rf "$RW_DIR/dist"
+  mkdir -p "$RW_DIR/dist"
+  cp -r "$RW_SRC/dist/"* "$RW_DIR/dist/"
+  cp "$RW_SRC/package.json" "$RW_DIR/"
+  [ -f "$RW_SRC/pnpm-lock.yaml" ] && cp "$RW_SRC/pnpm-lock.yaml" "$RW_DIR/"
+  sudo chown -R ubuntu:ubuntu "$RW_DIR" 2>/dev/null || true
+  cd "$RW_DIR" && CI=true pnpm install --prod
+
   echo "[deploy] 部署 shopee-analyzer..."
   SHOPEE_SRC="$BUILD_DIR/backend/python/shopee-analyzer"
   SHOPEE_DIR="/var/www/shopee-analyzer"
@@ -83,12 +96,22 @@ while read oldrev newrev refname; do
     echo "[deploy] shopee-analyzer 源码目录不存在，跳过"
   fi
 
-  # 安装/更新 langchain-agent systemd 服务
-  if [ -f "$BUILD_DIR/backend/langchain-agent/langchain-agent.service" ]; then
-    sudo cp "$BUILD_DIR/backend/langchain-agent/langchain-agent.service" /etc/systemd/system/langchain-agent.service
-    sudo systemctl daemon-reload
-    echo "[deploy] langchain-agent.service 已安装"
-  fi
+  # 安装/更新所有 systemd 服务文件（版本库为单一来源，服务器跟随）
+  echo "[deploy] 同步 systemd 服务文件..."
+  declare -A SVC_FILES=(
+    [langchain-agent.service]="$BUILD_DIR/backend/langchain-agent/langchain-agent.service"
+    [relay.service]="$BUILD_DIR/server/relay.service"
+    [qianyi-scheduler.service]="$BUILD_DIR/platform/qianyi-scheduler.service"
+    [return-workflow.service]="$BUILD_DIR/tools/return-workflow/return-workflow.service"
+  )
+  for svc in "${!SVC_FILES[@]}"; do
+    src="${SVC_FILES[$svc]}"
+    if [ -f "$src" ]; then
+      sudo cp "$src" "/etc/systemd/system/$svc"
+      echo "[deploy] $svc 已安装"
+    fi
+  done
+  sudo systemctl daemon-reload
 
   echo "[deploy] 重启服务..."
   sudo fuser -k 8765/tcp 2>/dev/null || true
@@ -103,5 +126,9 @@ while read oldrev newrev refname; do
   echo "[deploy] shopee-analyzer $SHOPEE_CODE"
   AGENT_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8001/api/agent/health 2>/dev/null || echo "000")
   echo "[deploy] agent $AGENT_CODE"
+  RELAY_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8765/health 2>/dev/null || echo "000")
+  echo "[deploy] relay $RELAY_CODE"
+  RW_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3002/health 2>/dev/null || echo "000")
+  echo "[deploy] return-workflow $RW_CODE"
   echo "[deploy] $(date) - 部署完成"
 done

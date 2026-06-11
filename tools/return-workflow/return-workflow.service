@@ -1,0 +1,15 @@
+[Unit]
+Description=ReturnFlow — 退货退款处理服务
+After=network.target
+
+[Service]
+EnvironmentFile=-/home/ubuntu/.env
+Type=simple
+User=ubuntu
+WorkingDirectory=/var/www/software-index/tools/return-workflow
+ExecStart=/usr/bin/node /var/www/software-index/tools/return-workflow/dist/server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

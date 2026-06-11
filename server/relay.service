@@ -3,32 +3,13 @@ Description=Software Site Feishu Relay (Node)
 After=network.target
 
 [Service]
+EnvironmentFile=-/home/ubuntu/.env
 Type=simple
 User=ubuntu
 WorkingDirectory=/var/www/software-index/server
 ExecStart=/usr/bin/node /var/www/software-index/server/dist/index.js
 Restart=always
 RestartSec=5
-
-# 可选：飞书密钥（不设则用代码内置值）
-Environment=FEISHU_APP_SECRET=NQomqTYaZHapPxb3uDf6HbantJLyOLwQ
-Environment=FEISHU_APP_ID=cli_a9646f769479dbd4
-Environment=FEISHU_ADMIN_OPEN_ID=ou_2b39164fdeba062e42f5eeee83bedc26
-Environment=FEISHU_APPROVAL_CODE=9959B9BB-78C5-4DBC-9116-0BF3264CB5C6
-Environment=FEISHU_APPROVER_OPEN_ID=ou_2b39164fdeba062e42f5eeee83bedc26
-Environment=FEISHU_APPROVAL_NODE_KEY=242b9f0dd6d5451a3f91c2b9958f6511
-Environment=FEISHU_VERIFICATION_TOKEN=aKs72g2DxgmATeh7G0dGP7zSyyLanjK2
-Environment=FEISHU_ENCRYPT_KEY=601814
-Environment=DEEPSEEK_API_KEY=REDACTED_DEEPSEEK_API_KEY
-Environment=DEEPSEEK_API_URL_OpenAI=https://api.deepseek.com
-Environment=FEISHU_CALENDAR_ID=feishu.cn_eOGVAsKAzAJ8aqAXOJYhga@group.calendar.feishu.cn
-Environment=REVIEW_PIN=601814
-Environment=SUPABASE_URL=https://fjumpvhftsdcgmewjtxc.supabase.co
-Environment=SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-Environment=DATABASE_URL=postgresql://postgres.fjumpvhftsdcgmewjtxc:REDACTED_DB_PASSWORD@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres
-Environment=ADMIN_EMAIL=admin@leverage.works
-Environment=ADMIN_PASSWORD=60181400
-Environment=ADMIN_UNION_IDS=on_ba636d146ad468475420bd5804f12df0
 
 [Install]
 WantedBy=multi-user.target
